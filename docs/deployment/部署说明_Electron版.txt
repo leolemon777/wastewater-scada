@@ -1,0 +1,88 @@
+============================================================
+  污水 SCADA 监控系统 - 工控机部署说明 (Electron 单文件版)
+============================================================
+
+【这是什么】
+一个独立的 Windows 程序 (exe)，自带完整浏览器内核，
+工控机【不需要安装任何环境】，拷过去双击就能用。
+
+适用：纯净 Win7/10/11 (64位) 工控机、工业大屏、值班机。
+
+------------------------------------------------------------
+【一、部署步骤（极简）】
+
+1. 把「污水SCADA监控系统.exe」拷到工控机任意目录
+   例如 D:\SCADA\ 或 桌面
+
+2. 双击运行。
+
+3. 完成。程序会自动打开监控画面。
+
+   ★ 无需安装。无需浏览器。无需 Node.js。
+   ★ 第一次启动可能慢 5~15 秒（解压到临时目录），
+     之后看进程已起来即可。
+
+------------------------------------------------------------
+【二、运行要求】
+
+- 操作系统：Windows 7 SP1 / 10 / 11 (64位)
+- 内存：≥ 2GB (推荐 4GB，含 3D 渲染)
+- 磁盘：临时空间 ~300MB (运行时解压用，退出自动清理)
+- 显卡：支持 WebGL (近 10 年的机器都满足，含核显)
+- 【不需要】.NET、Node.js、Chrome、IIS、Python 等任何环境
+
+------------------------------------------------------------
+【三、开机自启动】
+
+方法 A - 启动文件夹（最简单）：
+   1. Win+R 输入 shell:startup 回车
+   2. 把 exe 的快捷方式拖进去
+   缺点：需用户登录后才启动。
+
+方法 B - 计划任务（推荐，开机即起，无需登录）：
+   以管理员身份打开 PowerShell，执行（路径按实际改）：
+
+   $action  = New-ScheduledTaskAction -Execute "D:\SCADA\污水SCADA监控系统.exe" -WorkingDirectory "D:\SCADA\"
+   $trigger = New-ScheduledTaskTrigger -AtStartup
+   $set     = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+   Register-ScheduledTask -TaskName "SCADA" -Action $action -Trigger $trigger -Settings $set -RunLevel Highest -Force
+
+方法 C - 工业大屏全屏常驻：
+   桌面建快捷方式 → 右键属性 → 目标栏末尾加 --kiosk
+   （kiosk 模式全屏无地址栏无任务栏，需 Ctrl+Alt+Del 退出）
+
+------------------------------------------------------------
+【四、常见问题】
+
+Q: 双击没反应 / 闪退？
+A: 1) 等 15 秒，首次解压较慢
+   2) 任务管理器看有没有"污水SCADA"或 electron 进程
+   3) 检查 C:\Users\<用户>\AppData\Local\Temp 是否能写入
+   4) 杀软可能误报 exe，加白名单或临时关闭确认
+
+Q: 白屏 / 3D 不显示？
+A: 1) 显卡驱动太旧，更新显卡驱动
+   2) 远程桌面 (RDP) 默认禁 WebGL，需在本机或用
+      硬件远程 (VNC/向日葵) 操作
+   3) F12 开控制台看报错
+
+Q: 想要小一点的程序，或换成文件夹版（启动快）？
+A: 文件夹版 (dir 打包) 启动秒开但是一堆文件；
+   当前 portable 单 exe 启动慢几秒但拷贝最方便。
+   按需向开发者索要另一种。
+
+Q: 程序怎么关？
+A: 点窗口右上角 X。或任务管理器结束进程。
+
+------------------------------------------------------------
+【五、更新版本】
+
+直接用新的 exe 覆盖旧的即可，无需卸载。
+
+============================================================
+开发者备注：
+- 本 exe 由 electron-builder portable target 打包
+- 前端产物 dist 作为 extraResources 打入 exe
+- 主进程：electron/main.cjs
+- 重新打包：npm run dist:win （产物在 release/ 目录）
+============================================================

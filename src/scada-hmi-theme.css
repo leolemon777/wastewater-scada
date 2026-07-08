@@ -1,0 +1,165 @@
+/**
+ * Overlay UI theme — solid NOC chrome (Edge/Windows safe).
+ *
+ * No backdrop-filter on HTML overlay: it breaks compositing over WebGL on Edge
+ * and can make the entire UI invisible. Panels use opaque slate fills instead.
+ */
+
+html {
+  font-family: var(--font-ui);
+}
+
+body {
+  background-color: var(--bg-base);
+  background-image: linear-gradient(180deg, #111824 0%, var(--bg-base) 54%, var(--bg-inset) 100%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+}
+
+html[data-scene-chrome='bright-daylight'] body {
+  background-image: linear-gradient(180deg, #D4E9F9 0%, var(--bg-base) 48%, #E2E8F0 100%);
+}
+
+.scene-canvas-shell {
+  background: linear-gradient(180deg, #141a22 0%, var(--bg-base) 100%);
+}
+
+html[data-scene-chrome='bright-daylight'] .scene-canvas-shell {
+  background: linear-gradient(180deg, #B8D9F0 0%, var(--bg-base) 100%);
+}
+
+/* Opaque panel fills — readable on any GPU compositor */
+:root {
+  --chrome-surface: var(--bg-panel);
+  --chrome-raised: var(--bg-elevated);
+  --chrome-sunken: var(--bg-inset);
+  --chrome-border: var(--bg-panel-border);
+  --chrome-border-lit: #4D5A3C;
+  --chrome-edge: rgba(255, 255, 255, 0.14);
+
+  /* Glassmorphism fills — translucent so backdrop-filter blur reads through.
+     Veil (dashboard root) stays deeper to keep content legible. */
+  --glass-fill-bar: rgba(245, 247, 250, 0.85);
+  --glass-fill-panel: rgba(255, 255, 255, 0.80);
+  --glass-fill-dock: rgba(240, 243, 246, 0.85);
+  --glass-fill-nested: rgba(15, 23, 42, 0.04);
+  --glass-fill-nested-hover: rgba(15, 23, 42, 0.08);
+  --glass-fill-veil: rgba(255, 255, 255, 0.90);
+  --glass-fill-readout: rgba(15, 23, 42, 0.03);
+
+  --glass-fill-ok: rgba(34, 197, 94, 0.12);
+  --glass-fill-warn: rgba(245, 166, 35, 0.12);
+  --glass-fill-error: rgba(239, 68, 68, 0.12);
+}
+
+/* ── Overlay typography ── */
+.scada-overlay-root {
+  --text-primary: var(--glass-text-primary);
+  --text-secondary: var(--glass-text-secondary);
+  --text-dim: var(--glass-text-dim);
+  --topbar-text: var(--glass-text-primary);
+  --topbar-text-dim: var(--glass-text-secondary);
+}
+
+/* Glass blur is now live (tokens in index.css). The Edge/low-power fallback
+   is gated on body.clear-mode (performanceMode) in index.css instead of
+   killed globally here. */
+
+.scada-overlay-root :is(
+  .scene-hud-panel,
+  .equipment-drawer,
+  .equipment-drawer-tab,
+  .dash,
+  .panel-solid,
+  .system-menu-panel
+) {
+  color: var(--glass-text-primary);
+  text-shadow: none;
+}
+
+.scada-overlay-root :is(
+  .dash-title,
+  .gauge-ring-value,
+  .equipment-drawer-title,
+  .dash-panel-head h2
+) {
+  color: var(--glass-text-primary);
+}
+
+.scada-overlay-root :is(
+  .dash-subtitle,
+  .dash-scenario-note,
+  .system-menu-desc
+) {
+  color: var(--glass-text-secondary);
+}
+
+.digit-font {
+  font-family: var(--font-mono);
+  color: var(--glass-text-primary);
+}
+
+/* Unified glass panel base — shared by overlay panels AND dashboard cards
+   so both views read as the same glassmorphic language. */
+.panel-solid,
+.panel-glass {
+  background: var(--glass-fill-panel);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border-soft);
+  border-top-color: var(--glass-border-bright);
+  box-shadow: var(--glass-shadow);
+}
+
+.panel-solid { border-radius: var(--radius-lg); }
+.panel-glass { border-radius: var(--radius-md); }
+
+/* Topbar — light industrial theme. Scoped tokens come from scada-shell.css.
+   No backdrop-filter / box-shadow / top highlight: flat, warm-grey surface. */
+.scada-topbar {
+  background: var(--tb-bg, #F4F3F0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-bottom: 1px solid var(--tb-divider, #E2E0D9);
+}
+
+/* Topbar visual details (brand mark, copy, clock) are defined in
+   scada-shell.css under the scoped --tb-* light-industrial tokens.
+   Removed from here to avoid gradient/shadow bleed-through. */
+
+.scene-loader {
+  background: var(--bg-base);
+}
+
+.scene-loader-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-border);
+}
+
+.scene-loader-fill {
+  background: var(--accent-primary);
+}
+
+.overlay-backdrop.overview-backdrop {
+  background: rgba(8, 12, 20, 0.72);
+}
+
+html[data-scene-chrome='bright-daylight'] .overlay-backdrop.overview-backdrop {
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.overlay-backdrop.alarm-backdrop {
+  background: rgba(20, 8, 10, 0.78);
+}
+
+html[data-scene-chrome='bright-daylight'] .overlay-backdrop.alarm-backdrop {
+  background: rgba(127, 29, 29, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
