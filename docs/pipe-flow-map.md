@@ -1,12 +1,13 @@
 # 污水 SCADA 管路流程总表
 
-本文档是当前 3D 场景管路连接的基准表。当前生效的管路系统已经切换为全新设计的：
+本文档是当前 3D 场景管路连接的基准表。工艺水与污泥管网采用独立的、按流程图重建的实现：
 
 ```text
 src/components/3d/sections/IndustrialPipeNetwork3D.tsx
+src/components/3d/sections/ProcessAndSludgePipeNetwork3D.tsx
 ```
 
-该文件不再依赖旧的 `pipeRoutes.ts` / `anchors.ts` / 旧管路 token。旧文件保留仅作为历史参考，不再驱动画面里的管路。
+两者均不依赖旧的 `pipeRoutes.ts` / `anchors.ts` / 旧管路 token。旧文件保留仅作为历史参考，不再驱动画面里的管路。
 
 ## 1. 总流程
 
@@ -44,17 +45,17 @@ flowchart LR
 
 | 管线 ID | 起点 | 终点 | 设计原则 |
 |---|---|---|---|
-| `fresh-intake-header-to-ph1` | 进水提升泵总管 | PH1 调节池 | 原水主管，走外部清晰折线路径 |
+| 进水提升总管 → PH1 | 进水提升泵总管 | PH1 调节池 | 原水主管，走外部清晰折线路径 |
 | PH1 → 芬顿 → PH2 → 混凝 → 絮凝 | 池间溢流 / 跌水 | 无外部管路 | 由 `OverflowCascade3D` 表达，不画外部管 |
-| `fresh-flocculation-to-clarifier` | 絮凝池 | 沉淀池 | 从絮凝池后段出水，走池后外部短跳管 |
-| `fresh-clarifier-to-ph3` | 沉淀池 | PH3 调节池 | 短跳管，避免穿池 |
-| `fresh-ph3-to-intermediate` | PH3 调节池 | 中间池 | 短跳管，避免穿池 |
-| `fresh-intermediate-to-daf` | 中间池 / 中间提升段 | DAF 气浮池 | 深处理进水管，走独立外部走廊 |
-| `fresh-daf-to-mixing` | DAF 气浮池 | 深度混合池 | 深处理短跳管 |
-| `fresh-mixing-to-drainage` | 深度混合池 | 排水池 | 深处理短跳管 |
-| `fresh-drainage-to-outfall` | 排水池 | 外排检测池 | 处理后水出水管 |
+| 絮凝 → 沉淀 | 絮凝池 | 沉淀池 | 池北侧外部短跳管 |
+| 沉淀 → PH3 | 沉淀池 | PH3 调节池 | 池北侧外部短跳管 |
+| PH3 → 中间 | PH3 调节池 | 中间池 | 池北侧外部短跳管 |
+| 中间池 → 中间提升泵 → DAF | 中间池 / 中间提升泵组 | DAF 气浮池 | 泵前双吸入支路、出水总管和厂区西侧独立走廊 |
+| DAF → 深度混合 | DAF 气浮池 | 深度混合池 | 池北侧外部短跳管 |
+| 深度混合 → 排水 | 深度混合池 | 排水池 | 池北侧外部短跳管 |
+| 排水池 → 排水泵 → 外排 | 排水池 / 排水泵组 | 外排检测池 | 泵前双吸入支路、出水总管和下落管口 |
 
-### 2.2 药剂投加线
+### 2.2 药剂投加线（独立保留，未纳入本轮重建）
 
 | 管线 ID | 起点 | 终点 | 设计原则 |
 |---|---|---|---|
@@ -69,9 +70,9 @@ flowchart LR
 
 | 管线 ID | 起点 | 终点 | 设计原则 |
 |---|---|---|---|
-| `fresh-clarifier-sludge-to-sludge-tank` | 沉淀池排泥口 | 污泥池 | 棕色污泥线，走统一污泥走廊 |
-| `fresh-daf-sludge-to-sludge-tank` | DAF 排泥 / 浮渣口 | 污泥池 | 棕色污泥线，避免随机斜穿 |
-| `fresh-sludge-tank-to-screw-press` | 污泥池 | 叠螺脱水机 | 污泥脱水进泥管 |
+| 沉淀排泥 → 污泥池 | 沉淀池排泥泵组 | 污泥池 | 双泵吸入/出水总管后接入统一接收总管 |
+| DAF 浮渣 → 污泥池 | DAF 浮渣泵组 | 污泥池 | 双泵吸入/出水总管，沿深处理外缘接入统一接收总管 |
+| 污泥池 → 叠螺机 | 污泥池排泥泵组 | 叠螺脱水机进泥口 | 双泵吸入/出水总管，支管下接叠螺机法兰口 |
 
 ## 3. 本轮视觉精修
 
@@ -81,10 +82,11 @@ flowchart LR
 
 ## 4. 场景挂载位置
 
-主场景只挂载新的工业管路网络：
+主场景挂载现有进水管网，以及本轮新建的工艺水/污泥管网：
 
 ```tsx
 <IndustrialPipeNetwork3D />
+<ProcessAndSludgePipeNetwork3D />
 ```
 
 挂载文件：
@@ -108,10 +110,9 @@ src/components/3d/SCADAScene.tsx
 - 药剂线走高位管廊，向下接投加点，避免地面七扭八歪。
 - 污泥线用棕色管路表达，与主水线和药剂线明确区分。
 - 后续如果要恢复计量泵，应做成完整计量泵 skid：药剂罐 → 计量泵撬装 → 投加点。
-- 后续新增管线必须在 `IndustrialPipeNetwork3D.tsx` 内按工艺走廊统一设计，不再使用旧 route/anchor token 直接驱动。
+- 后续主水或污泥管线必须在 `ProcessAndSludgePipeNetwork3D.tsx` 内按工艺走廊统一设计；进水提升段仍维护在 `IndustrialPipeNetwork3D.tsx`。不得使用旧 route/anchor token 直接驱动。
 
 ## 6. 下一轮精修重点
 
 - 给药剂管廊增加更真实的管夹、标牌和分支阀。
-- 给污泥线补泵入口/出口法兰，避免管线只表现为概念连接。
-- 按现场 P&ID 精修各池壁接口的真实位置。
+- 按现场 P&ID 精修各泵组、池壁和叠螺机的真实接口位置。

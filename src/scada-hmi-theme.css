@@ -11,21 +11,21 @@ html {
 
 body {
   background-color: var(--bg-base);
-  background-image: linear-gradient(180deg, #111824 0%, var(--bg-base) 54%, var(--bg-inset) 100%);
+  background-image: linear-gradient(180deg, #FAFBFA 0%, var(--bg-base) 54%, #EDF2F0 100%);
   background-attachment: fixed;
   color: var(--text-primary);
 }
 
 html[data-scene-chrome='bright-daylight'] body {
-  background-image: linear-gradient(180deg, #D4E9F9 0%, var(--bg-base) 48%, #E2E8F0 100%);
+  background-image: linear-gradient(180deg, #F7FAF9 0%, var(--bg-base) 48%, #E8EEEC 100%);
 }
 
 .scene-canvas-shell {
-  background: linear-gradient(180deg, #141a22 0%, var(--bg-base) 100%);
+  background: linear-gradient(180deg, #E8EEF2 0%, var(--bg-base) 100%);
 }
 
 html[data-scene-chrome='bright-daylight'] .scene-canvas-shell {
-  background: linear-gradient(180deg, #B8D9F0 0%, var(--bg-base) 100%);
+  background: linear-gradient(180deg, #D4E9F9 0%, var(--bg-base) 100%);
 }
 
 /* Opaque panel fills — readable on any GPU compositor */

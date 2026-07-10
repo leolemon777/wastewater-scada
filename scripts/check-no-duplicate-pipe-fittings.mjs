@@ -5,7 +5,7 @@ const ROOT = process.cwd();
 const SECTIONS_DIR = path.join(ROOT, 'src/components/3d/sections');
 const FITTING_COMPONENT_RE =
   /<(?<component>Pipe(?:WallPort|FloorSleeve|OpenFlange|BlindFlange|InspectionCollar)3D)\b(?<attrs>[\s\S]*?)\/>/g;
-const POSITION_RE = /position=\{(?<position>\[[\s\S]*?\]|[A-Za-z_$][\w$]*)\}/m;
+const POSITION_RE = /position=\{(?<position>\[[\s\S]*?\]|[A-Za-z_$][\w$.]*)\}/m;
 
 const issues = [];
 const stats = {

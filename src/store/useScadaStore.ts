@@ -124,6 +124,10 @@ interface ScadaState {
   setDemoMode: (enabled: boolean) => void;
   setDemoScenario: (scenarioId: DemoScenarioId) => void;
   applyDemoTick: () => void;
+  performanceMode: boolean;
+  setPerformanceMode: (enabled: boolean) => void;
+  scenePaletteMode: 'bright' | string;
+  setScenePaletteMode: (mode: string) => void;
 
   forkliftHasBag: boolean;
   setForkliftHasBag: (has: boolean) => void;
@@ -291,6 +295,7 @@ const equipmentCatalog: Record<string, EquipmentData> = {
   // Flow Meters
   'fm-1': { id: 'fm-1', name: '进水流量计1#', type: 'flowMeter', alarmState: 'none', instantFlow: 0, totalFlow: 0, onlineStatus: 'offline' } as FlowMeterData,
   'fm-2': { id: 'fm-2', name: '进水流量计2#', type: 'flowMeter', alarmState: 'none', instantFlow: 0, totalFlow: 0, onlineStatus: 'offline' } as FlowMeterData,
+  'fm-outfall': { id: 'fm-outfall', name: '排放口流量计', type: 'flowMeter', alarmState: 'none', instantFlow: 0, totalFlow: 0, onlineStatus: 'offline' } as FlowMeterData,
 
   // Process Tanks
   'tk-collection-1':  { id: 'tk-collection-1',  name: '收集池一',       type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 4.75, high: 4.25, low: 0.75, lowLow: 0.25 } as TankData,
@@ -308,6 +313,7 @@ const equipmentCatalog: Record<string, EquipmentData> = {
   'tk-drainage':      { id: 'tk-drainage',      name: '排水池',         type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 3.80, high: 3.40, low: 0.60, lowLow: 0.20 } as TankData,
   'tk-sludge':        { id: 'tk-sludge',        name: '污泥池',         type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 3.80, high: 3.40, low: 0.60, lowLow: 0.20 } as TankData,
   'tk-outfall':       { id: 'tk-outfall',       name: '市政排放口',     type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 0.95, high: 0.85, low: 0.15, lowLow: 0.05, pH: 0 } as TankData,
+  'v-outflow':        { id: 'v-outflow',        name: '总排放电动阀',   type: 'valve',        alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' } as ValveData,
 
   // Chemical Tanks
   'tk-ph-pac':    { id: 'tk-ph-pac',    name: '物化PAC桶',          type: 'chemicalTank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 1.90, high: 1.70, low: 0.30, lowLow: 0.10 } as TankData,
@@ -378,6 +384,10 @@ export const useScadaStore = create<ScadaState>((set) => ({
   demoMode: true,
   currentScenarioId: 'normal',
   demoTick: 0,
+  performanceMode: false,
+  scenePaletteMode: 'bright',
+  setPerformanceMode: (enabled) => set({ performanceMode: enabled }),
+  setScenePaletteMode: (mode) => set({ scenePaletteMode: mode }),
 
   alarms: [],
   acknowledgeAlarm: (alarmId) =>

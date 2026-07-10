@@ -232,6 +232,12 @@ function commonEquipment(tick: number): Record<string, EquipmentPatch> {
       instantFlow: 47 + wave(tick, 5, 3),
       totalFlow: accFlow('fm-2', 47 + wave(tick, 5, 3)),
     },
+    'fm-outfall': {
+      alarmState: 'none',
+      onlineStatus: 'online',
+      instantFlow: 51 + wave(tick, 3, 2),
+      totalFlow: accFlow('fm-outfall', 51 + wave(tick, 3, 2)),
+    },
 
     'tk-collection-1': tank(2.75 + levelWave, 4.75),
     'tk-collection-2': tank(2.34 + wave(tick, 4, 0.08), 4.75),
@@ -262,6 +268,7 @@ function commonEquipment(tick: number): Record<string, EquipmentPatch> {
     'tk-screw-pam': tank(1.16 + wave(tick, 9, 0.03), 1.9, { agitatorRunning: true }),
 
     'sp-1': { alarmState: 'none', runStatus: 'running', animationState: true },
+    'v-outflow': { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' },
   };
 
   pumpIds.forEach((id) => {
@@ -412,6 +419,7 @@ export function createDemoSnapshot(scenarioId: DemoScenarioId, tick: number): De
       equipments[id] = pump('stopped', 0);
     });
     equipments['sp-1'] = { alarmState: 'none', runStatus: 'stopped', animationState: false };
+    equipments['v-outflow'] = { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 0, mode: 'manual' };
     equipments['fm-1'] = {
       alarmState: 'none',
       onlineStatus: 'online',
@@ -423,6 +431,12 @@ export function createDemoSnapshot(scenarioId: DemoScenarioId, tick: number): De
       onlineStatus: 'online',
       instantFlow: 6 + wave(tick, 2, 1),
       totalFlow: accFlow('fm-2', 6 + wave(tick, 2, 1)),
+    };
+    equipments['fm-outfall'] = {
+      alarmState: 'none',
+      onlineStatus: 'online',
+      instantFlow: 7 + wave(tick, 3, 1),
+      totalFlow: accFlow('fm-outfall', 7 + wave(tick, 3, 1)),
     };
     equipments['tk-daf'] = tank(1.24, 4.28, { aerationRunning: false, scraperRunning: false, pH: 7.18 });
     equipments['tk-mixing'] = tank(1.08, 4.28, { agitatorRunning: false, controlMode: 'manual', pH1: 7.02, pH2: 7.04 });

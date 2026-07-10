@@ -41,12 +41,12 @@ export const ANCHORS: Record<string, Anchor> = {
   // The raw-water pipe arrives from -X (west) along the inlet run, so the port
   // faces -X outward toward the incoming pipe.
   'tk-collection-1.inlet': {
-    position: [-45.5, 0.72, 12.08],
+    position: [-41.5, 0.72, 12.08],
     direction: [-1, 0, 0],
   },
   // Collection tank 2 wall port (back wall, +Z side).
   'tk-collection-2.inlet': {
-    position: [-39.5, 0.72, 17.88],
+    position: [-35.5, 0.72, 17.88],
     direction: [0, 0, -1],
   },
   // PH1 raw-water inlet tie-in — where the Intake export pipe hands off to the

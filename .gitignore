@@ -21,8 +21,15 @@ release
 .playwright-mcp/
 .qa-screenshots/
 .workbuddy/
+.commandcode/
+.diag-profile/
 output/
 terminals/
+
+# 本地调试截图（不入库）
+scada-*.png
+dash-*.png
+*.local.png
 
 # Editor directories and files
 .vscode/*

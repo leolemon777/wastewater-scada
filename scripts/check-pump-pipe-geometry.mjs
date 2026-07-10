@@ -5,8 +5,8 @@ const ROOT = process.cwd();
 const PUMP_PORTS = path.join(ROOT, 'src/components/3d/pumpPorts.ts');
 const PIPE_3D = path.join(ROOT, 'src/components/3d/Pipe3D.tsx');
 
-const pumpPortsText = fs.readFileSync(PUMP_PORTS, 'utf8');
-const pipeText = fs.readFileSync(PIPE_3D, 'utf8');
+const pumpPortsText = fs.readFileSync(PUMP_PORTS, 'utf8').replace(/\r\n/g, '\n');
+const pipeText = fs.readFileSync(PIPE_3D, 'utf8').replace(/\r\n/g, '\n');
 
 function numericConst(text, name) {
   const match = text.match(new RegExp(`const\\s+${name}\\s*=\\s*([0-9.]+)`));

@@ -27,27 +27,12 @@ const ScrewPressFeedInlet: React.FC = () => (
       <cylinderGeometry args={[0.13, 0.13, 0.36, 24]} />
       <meshStandardMaterial color={SLUDGE_FEED_PIPE} roughness={0.58} metalness={0.05} />
     </mesh>
-    <mesh position={[0, 0.22, 0]} castShadow receiveShadow>
-      <cylinderGeometry args={[0.24, 0.24, 0.07, 32]} />
-      <meshStandardMaterial color="#B6C2CC" roughness={0.38} metalness={0.68} />
-    </mesh>
+    {/* The top connection flange is rendered once by the external sludge-feed
+        network at this inlet's world endpoint. */}
     <mesh position={[0, -0.16, 0]} castShadow receiveShadow>
       <cylinderGeometry args={[0.2, 0.2, 0.06, 28]} />
       <meshStandardMaterial color={MID_STAINLESS} roughness={0.42} metalness={0.62} />
     </mesh>
-    {Array.from({ length: 8 }).map((_, i) => {
-      const angle = (i / 8) * Math.PI * 2;
-      return (
-        <mesh
-          key={`screw-press-feed-bolt-${i}`}
-          position={[Math.cos(angle) * 0.2, 0.265, Math.sin(angle) * 0.2]}
-          castShadow
-        >
-          <cylinderGeometry args={[0.018, 0.018, 0.03, 8]} />
-          <meshStandardMaterial color="#64748b" roughness={0.42} metalness={0.78} />
-        </mesh>
-      );
-    })}
   </group>
 );
 

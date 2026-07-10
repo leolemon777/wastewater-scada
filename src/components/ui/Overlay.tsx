@@ -3,14 +3,8 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useScadaStore, type TankData, type PumpData, type FlowMeterData, type ValveData, type ScrewPressData, type BaseEquipment, type AlarmRecord } from '../../store/useScadaStore';
 import { LEVEL_MONITORED_TANKS } from '../../store/equipmentUtils';
 import {
-  Power,
-  TrendingUp,
   X,
   AlertCircle,
-  Cpu,
-  Droplets,
-  Wind,
-  ChevronDown,
   ChevronLeft,
   PanelRightOpen,
   Bell,
@@ -23,7 +17,6 @@ import {
 import { DataDashboard } from './DataDashboard';
 import { SystemMenu } from './SystemMenu';
 import { SceneHudDock } from './SceneHudDock';
-import { OverviewChipIcon } from './OverviewChipIcon';
 
 import * as THREE from 'three';
 
@@ -84,9 +77,6 @@ const VIEW_PRESETS: ViewPreset[] = [
 ];
 
 export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
-  const totalInflow = useScadaStore((state) => state.totalInflow);
-  const totalOutflow = useScadaStore((state) => state.totalOutflow);
-  const totalPower = useScadaStore((state) => state.totalPower);
   const overallStatus = useScadaStore((state) => state.overallStatus);
   const selectedEquipmentId = useScadaStore((state) => state.selectedEquipmentId);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
@@ -95,7 +85,6 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
   const selectedEq = useScadaStore((state) => state.selectedEquipmentId ? state.equipments[state.selectedEquipmentId] : null);
 
   const [timeStr, setTimeStr] = useState('');
-  const [overviewOpen, setOverviewOpen] = useState(false);
   const [alarmPanelOpen, setAlarmPanelOpen] = useState(false);
   const [lastAutoOpenedAlarmId, setLastAutoOpenedAlarmId] = useState<string | null>(null);
   const [activeViewPreset, setActiveViewPreset] = useState<number>(0);
@@ -119,16 +108,15 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
   }, []);
 
   useEffect(() => {
-    if (!overviewOpen && !alarmPanelOpen) return;
+    if (!alarmPanelOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setOverviewOpen(false);
         setAlarmPanelOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [overviewOpen, alarmPanelOpen]);
+  }, [alarmPanelOpen]);
 
   // Auto-open alarm panel on new unacknowledged alarms
   useEffect(() => {
@@ -294,19 +282,6 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
 
           <nav className="topbar-seg" aria-label="主视图">
             <button
-              type="button"
-              className={`topbar-seg-btn ${overviewOpen ? 'active' : ''}`}
-              aria-expanded={overviewOpen}
-              aria-haspopup="dialog"
-              aria-controls="overview-panel"
-              aria-pressed={overviewOpen}
-              onClick={() => setOverviewOpen((v) => !v)}
-            >
-              <OverviewChipIcon size={16} className="topbar-overview-icon" />
-              <span>运行总览</span>
-              <ChevronDown size={14} className={`header-overview-chevron ${overviewOpen ? 'open' : ''}`} />
-            </button>
-            <button
               className={`topbar-seg-btn ${currentView === '3d' ? 'active' : ''}`}
               onClick={() => setCurrentView('3d')}
               type="button"
@@ -383,44 +358,6 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
             确认报警
           </button>
         </div>
-      )}
-
-      {/* Overview Dropdown Panel */}
-      {overviewOpen && (
-        <>
-          <div
-            role="presentation"
-            className="overlay-backdrop overview-backdrop"
-            onClick={() => setOverviewOpen(false)}
-          />
-          <div
-            className="panel-solid overlay-panel overview-panel"
-            role="dialog"
-            id="overview-panel"
-            aria-label="全局概览信息"
-          >
-            <div className="overlay-panel-header">
-              <h2 className="overlay-panel-title">
-                <OverviewChipIcon size={16} className="topbar-overview-icon overview-panel-icon" /> 全局概览信息
-              </h2>
-              <button
-                type="button"
-                onClick={() => setOverviewOpen(false)}
-                className="overlay-panel-icon-btn"
-                aria-label="关闭"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="overlay-panel-body overview-panel-body">
-              <DataRow title="总进水流量" value={totalInflow.toFixed(1)} unit="m³/h" icon={<TrendingUp size={16} />} trend="+1.2%" />
-              <DataRow title="总出水流量" value={totalOutflow.toFixed(1)} unit="m³/h" icon={<Droplets size={16} />} trend="-0.5%" />
-              <DataRow title="全厂总能耗" value={totalPower.toFixed(1)} unit="kW" icon={<Power size={16} />} />
-              <DataRow title="生化曝气负荷" value="85" unit="%" icon={<Wind size={16} />} />
-              <DataRow title="PLC 自动控制率" value="98.5" unit="%" icon={<Cpu size={16} />} />
-            </div>
-          </div>
-        </>
       )}
 
       {/* Alarm History Panel */}
@@ -613,37 +550,6 @@ const AlarmRow = ({ alarm }: { alarm: AlarmRecord }) => {
           确认
         </button>
       )}
-    </div>
-  );
-};
-
-interface DataRowProps {
-  title: string;
-  value: string;
-  unit: string;
-  icon: React.ReactNode;
-  trend?: string;
-}
-
-const DataRow = ({ title, value, unit, icon, trend }: DataRowProps) => {
-  const trendClass = trend?.startsWith('+') ? 'negative' : 'positive';
-
-  return (
-    <div className="overview-data-row">
-      <div className="overview-data-title">
-        {icon} {title}
-      </div>
-      <div className="overview-data-value-row">
-        <div className="overview-data-value-group">
-          <span className="digit-font overview-data-value">{value}</span>
-          <span className="overview-data-unit">{unit}</span>
-        </div>
-        {trend && (
-          <span className={`digit-font overview-data-trend ${trendClass}`}>
-            {trend}
-          </span>
-        )}
-      </div>
     </div>
   );
 };

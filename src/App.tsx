@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Preload, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+import { EffectComposer } from '@react-three/postprocessing';
 // Lazy-load the heavy 3D scene so the three/drei vendor bundles split off from
 // the initial UI shell and only load when the canvas mounts.
 const SCADAScene = lazy(() =>
@@ -52,9 +53,10 @@ declare global {
 
 // Keep the 3D scene sharp. Do not lower DPR for performance; optimize UI
 // compositing and interaction instead so text, pipes and equipment edges stay crisp.
-function getCanvasDpr(): number {
+function getCanvasDpr(performanceMode: boolean): number {
   if (typeof window === 'undefined') return 1;
   const deviceDpr = window.devicePixelRatio || 1;
+  if (performanceMode) return Math.min(deviceDpr, 1.5);
   return Math.min(Math.max(deviceDpr, 2), 2);
 }
 
@@ -97,7 +99,8 @@ function App() {
   const demoMode = useScadaStore((state) => state.demoMode);
   const applyDemoTick = useScadaStore((state) => state.applyDemoTick);
   const [sceneReady, setSceneReady] = useState(false);
-  const canvasDpr = getCanvasDpr();
+  const performanceMode = useScadaStore((state) => state.performanceMode);
+  const canvasDpr = getCanvasDpr(performanceMode);
 
   useEffect(() => {
     if (!shouldUseLowLatencyUi()) return;
@@ -214,7 +217,7 @@ function App() {
         <ErrorBoundary fallbackTitle="3D 场景渲染异常">
           <Canvas
             eventSource={canvasShellRef}
-            shadows="percentage"
+            shadows={"percentage"}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}
             dpr={canvasDpr}
             frameloop="always"
@@ -228,13 +231,14 @@ function App() {
             onCreated={({ gl }) => {
               gl.outputColorSpace = THREE.SRGBColorSpace;
               const maxAniso = gl.capabilities.getMaxAnisotropy();
-              THREE.Texture.DEFAULT_ANISOTROPY = maxAniso;
+              THREE.Texture.DEFAULT_ANISOTROPY = Math.min(8, maxAniso);
               // Expose the renderer for perf diagnostics (draw-call counting).
               if (typeof window !== 'undefined') (window as unknown as { __scadaGl?: THREE.WebGLRenderer }).__scadaGl = gl;
               // First frame is about to render — let the loader fade out.
               requestAnimationFrame(() => setSceneReady(true));
             }}
           >
+            <EffectComposer multisampling={4}><></></EffectComposer>
             {/* Lazy SCADAScene: while the dynamic import resolves, render nothing
                 inside the canvas (the outer-DOM <SceneLoader> at top covers the
                 loading screen). A DOM fallback here would crash R3F ("Div is not
@@ -253,7 +257,7 @@ function App() {
               minDistance={8}
               maxDistance={120}
             />
-            <Preload all />
+            {!performanceMode && <Preload all />}
           </Canvas>
         </ErrorBoundary>
       </div>

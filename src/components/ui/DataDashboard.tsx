@@ -1,9 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useScadaStore, type TankData, type PumpData, type FlowMeterData } from '../../store/useScadaStore';
 import { getDemoScenario } from '../../store/demoScenarios';
-import { Activity, Power, Database, Gauge, RefreshCw } from 'lucide-react';
+import { Activity, Power, Database, Droplets, FlaskConical, RefreshCw } from 'lucide-react';
 import { LEVEL_MONITORED_TANKS } from '../../store/equipmentUtils';
-import { GaugeRing } from './GaugeRing';
 
 type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator';
 
@@ -98,81 +97,72 @@ export const DataDashboard: React.FC = () => {
     return map[tankName] ?? `${tankName} 搅拌`;
   };
 
+  const phItems = phTanks.flatMap((tank) => {
+    const items: { key: string; label: string; value: number }[] = [];
+    if (tank.pH !== undefined) items.push({ key: `${tank.id}-ph`, label: tank.name, value: tank.pH });
+    if (tank.pH1 !== undefined) items.push({ key: `${tank.id}-ph1`, label: `${tank.name} · pH1`, value: tank.pH1 });
+    if (tank.pH2 !== undefined) items.push({ key: `${tank.id}-ph2`, label: `${tank.name} · pH2`, value: tank.pH2 });
+    return items;
+  });
+
   return (
     <div className="dash">
       <header className="dash-header">
         <div className="dash-header-copy">
-          <span className="dash-mission-tag">MISSION CONTROL · 集控中枢</span>
+          <span className="dash-mission-tag">集控中枢 · pH 优先监控</span>
           <h1 className="dash-title">全厂运行参数监测台</h1>
-          <p className="dash-subtitle">实时遥测 · 设备远程联控 · 数据每 3 秒刷新</p>
+          <p className="dash-subtitle">
+            重点盯 pH 与排放合规 · 设备联控 · {currentScenario.description}
+          </p>
         </div>
         <div className={`dash-live-badge ${demoMode ? 'live' : ''}`}>
           <RefreshCw size={14} />
-          <span>{demoMode ? 'TELEMETRY LIVE' : 'TELEMETRY HOLD'}</span>
+          <span>{demoMode ? '实时刷新' : '数据保持'}</span>
           <span className="dash-live-scenario">{currentScenario.shortName}</span>
         </div>
       </header>
 
-      <p className="dash-scenario-note">{currentScenario.description}</p>
-
-      <section className="dash-metrics" aria-label="关键指标">
-        {fm1Live && (
-          <MetricTile
-            label="1# 进水瞬时"
-            value={fm1Live.instantFlow}
-            max={150}
-            unit="m³/h"
-            tone="inflow"
-          />
-        )}
-        {fm2Live && (
-          <MetricTile
-            label="2# 排水瞬时"
-            value={fm2Live.instantFlow}
-            max={150}
-            unit="m³/h"
-            tone="outflow"
-          />
-        )}
-        <div className="dash-metrics-span">
+      {/* ① pH 主视觉区 — 工艺核心 */}
+      <section className="dash-ph-hero" aria-label="pH 关键监控">
+        <div className="dash-section-label">
+          <FlaskConical size={15} />
+          <span>pH 关键监控</span>
+          <em>排放合规 · 工艺稳定 · 限值 6.0–9.0</em>
+        </div>
+        <div className="dash-ph-hero-grid">
           <OutfallPanel />
+          <div className="dash-panel dash-ph-board">
+            <header className="dash-panel-head">
+              <FlaskConical size={16} />
+              <h2>工艺段在线 pH</h2>
+              <span className="dash-panel-meta">{phItems.length} 点位</span>
+            </header>
+            <div className="dash-panel-body dash-ph-grid">
+              {phItems.map((item) => (
+                <PhTile key={item.key} label={item.label} value={item.value} />
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
+      {/* ② 运行操作：液位 + 设备 */}
       <div className="dash-body">
-        <div className="dash-col dash-col-monitor">
-          <section className="dash-panel">
-            <header className="dash-panel-head">
-              <Database size={17} />
-              <h2>池体液位</h2>
-            </header>
-            <div className="dash-panel-body dash-level-list">
-              {dashboardTanks.map((tank) => (
-                <TankLevelRow key={tank.id} tank={tank} displayName={displayTankName(tank.id)} />
-              ))}
-            </div>
-          </section>
-
-          <section className="dash-panel">
-            <header className="dash-panel-head">
-              <Gauge size={17} />
-              <h2>在线 pH</h2>
-            </header>
-            <div className="dash-panel-body dash-ph-grid">
-              {phTanks.flatMap((tank) => {
-                const items = [];
-                if (tank.pH !== undefined) items.push(<PhTile key={`${tank.id}-ph`} label={tank.name} value={tank.pH} />);
-                if (tank.pH1 !== undefined) items.push(<PhTile key={`${tank.id}-ph1`} label={`${tank.name} pH1`} value={tank.pH1} />);
-                if (tank.pH2 !== undefined) items.push(<PhTile key={`${tank.id}-ph2`} label={`${tank.name} pH2`} value={tank.pH2} />);
-                return items;
-              })}
-            </div>
-          </section>
-        </div>
+        <section className="dash-panel dash-col dash-col-monitor">
+          <header className="dash-panel-head">
+            <Database size={16} />
+            <h2>池体液位</h2>
+          </header>
+          <div className="dash-panel-body dash-level-list">
+            {dashboardTanks.map((tank) => (
+              <TankLevelRow key={tank.id} tank={tank} displayName={displayTankName(tank.id)} />
+            ))}
+          </div>
+        </section>
 
         <section className="dash-panel dash-col dash-col-control">
           <header className="dash-panel-head">
-            <Power size={17} />
+            <Power size={16} />
             <h2>设备集控</h2>
           </header>
           <div className="dash-control-tabs" role="tablist" aria-label="设备分组">
@@ -216,6 +206,34 @@ export const DataDashboard: React.FC = () => {
         </section>
       </div>
 
+      {/* ③ 次要遥测：进出水流量（降权） */}
+      <section className="dash-flow-strip" aria-label="流量遥测">
+        <div className="dash-section-label dash-section-label-muted">
+          <Droplets size={14} />
+          <span>进出水流量</span>
+          <em>辅助参考</em>
+        </div>
+        <div className="dash-flow-row">
+          {fm1Live && (
+            <FlowChip
+              label="1# 进水瞬时"
+              value={fm1Live.instantFlow}
+              unit="m³/h"
+              tone="inflow"
+            />
+          )}
+          {fm2Live && (
+            <FlowChip
+              label="2# 排水瞬时"
+              value={fm2Live.instantFlow}
+              unit="m³/h"
+              tone="outflow"
+            />
+          )}
+        </div>
+      </section>
+
+      {/* ④ 趋势：pH 在前，流量在后 */}
       <section className="dash-panel dash-trends">
         <TrendChartHub historyPoints={historyPoints} />
       </section>
@@ -283,24 +301,19 @@ function generateAreaPath(points: number[], minY: number, maxY: number, width: n
   return `${linePath} L ${endX.toFixed(1)} ${bottomY.toFixed(1)} L ${padLeft.toFixed(1)} ${bottomY.toFixed(1)} Z`;
 }
 
-const MetricTile = ({ label, value, unit, tone, max }: {
-  label: string; value: number; unit: string; tone: 'inflow' | 'outflow'; max: number;
+/** Compact secondary flow readout — deliberately smaller than pH hero. */
+const FlowChip = ({ label, value, unit, tone }: {
+  label: string; value: number; unit: string; tone: 'inflow' | 'outflow';
 }) => (
-  <div className={`dash-metric-tile ${tone}`}>
-    <div className="dash-metric-tile-head">
-      <span className="dash-metric-tile-tag">{tone === 'inflow' ? 'INFLUX · 进水流量' : 'EFFLUX · 出水流量'}</span>
-      <span className={`dash-metric-tile-lamp ${tone}`} aria-hidden="true" />
+  <div className={`dash-flow-chip ${tone}`}>
+    <div className="dash-flow-chip-top">
+      <span className="dash-flow-chip-label">{label}</span>
+      <span className={`dash-flow-chip-dot ${tone}`} aria-hidden="true" />
     </div>
-    <div className="dash-metric-tile-body">
-      <GaugeRing
-        value={value}
-        max={max}
-        unit={unit}
-        label={label}
-        size={132}
-      />
+    <div className="dash-flow-chip-value">
+      <strong className="digit-font">{value.toFixed(1)}</strong>
+      <span>{unit}</span>
     </div>
-    <div className="dash-metric-glare" />
   </div>
 );
 
@@ -314,6 +327,7 @@ const PhTile = ({ label, value }: { label: string; value: number }) => {
     status = 'warn';
     statusText = '预警';
   }
+  // Scale 4–12 maps to track; safe band 6–9 = 25%–62.5%
   const pct = Math.min(100, Math.max(0, ((value - 4) / 8) * 100));
   return (
     <div className={`dash-ph-tile ${status}`}>
@@ -323,13 +337,16 @@ const PhTile = ({ label, value }: { label: string; value: number }) => {
       </div>
       <div className="dash-ph-body">
         <span className="digit-font dash-ph-value">{value.toFixed(2)}</span>
-        <span className="dash-ph-limit-label">Limit 6.00-9.00</span>
+        <span className="dash-ph-unit">pH</span>
       </div>
-      <div className="dash-ph-track">
-        <div className="dash-ph-fill" style={{ width: `${pct}%` }} />
-        {/* Safe zone boundary ticks at pH 6 (25%) and pH 9 (62.5%) */}
-        <div className="dash-ph-tick" style={{ left: '25%' }} />
-        <div className="dash-ph-tick" style={{ left: '62.5%' }} />
+      <div className="dash-ph-scale" aria-hidden="true">
+        <div className="dash-ph-safe-band" />
+        <div className="dash-ph-needle" style={{ left: `${pct}%` }} />
+      </div>
+      <div className="dash-ph-scale-labels">
+        <span>4</span>
+        <span className="safe">6–9 安全区</span>
+        <span>12</span>
       </div>
     </div>
   );
@@ -389,41 +406,44 @@ const OutfallPanel: React.FC = () => {
     cod += wave * 1.5; nh3 += wave * 0.08; tp += wave * 0.015;
   }
   return (
-    <div className={`dash-outfall ${isCompliant ? 'ok' : 'bad'}`}>
+    <div className={`dash-outfall dash-outfall-hero ${isCompliant ? 'ok' : 'bad'}`}>
       <div className="dash-outfall-head">
         <span className="dash-outfall-title">
           <span className={`dash-outfall-lamp ${isCompliant ? 'ok' : 'bad'}`} aria-hidden="true" />
-          OUTFALL · 排放口水质指标监控
+          排放口水质 · 合规总览
         </span>
         <span className={`dash-outfall-badge ${isCompliant ? 'ok' : 'bad'}`}>
-          {isCompliant ? 'COMPLIANT 达标' : 'EXCEEDED 超标'}
+          {isCompliant ? '达标' : '超标'}
         </span>
       </div>
-      
+
       <div className="dash-outfall-main">
         <div className="dash-outfall-ph">
-          <span className="dash-outfall-ph-label">排放 pH 值</span>
-          <span className="digit-font dash-outfall-ph-val">{ph.toFixed(2)}</span>
-          <span className="dash-outfall-ph-limit">标准限值: 6.0 – 9.0</span>
+          <span className="dash-outfall-ph-label">排放 pH</span>
+          <div className="dash-outfall-ph-row">
+            <span className="digit-font dash-outfall-ph-val">{ph.toFixed(2)}</span>
+            <span className="dash-outfall-ph-unit">pH</span>
+          </div>
+          <span className="dash-outfall-ph-limit">标准 6.0 – 9.0</span>
         </div>
-        
+
         <div className="dash-outfall-grid">
           <div className="dash-outfall-item">
-            <span className="dash-outfall-item-label">化学需氧量 (COD)</span>
+            <span className="dash-outfall-item-label">COD</span>
             <div className="dash-outfall-item-val-wrap">
               <strong className="digit-font">{cod.toFixed(1)}</strong>
               <span className="dash-outfall-item-unit">mg/L</span>
             </div>
           </div>
           <div className="dash-outfall-item">
-            <span className="dash-outfall-item-label">氨氮 (NH₃-N)</span>
+            <span className="dash-outfall-item-label">氨氮</span>
             <div className="dash-outfall-item-val-wrap">
               <strong className="digit-font">{nh3.toFixed(2)}</strong>
               <span className="dash-outfall-item-unit">mg/L</span>
             </div>
           </div>
           <div className="dash-outfall-item">
-            <span className="dash-outfall-item-label">总磷 (TP)</span>
+            <span className="dash-outfall-item-label">总磷</span>
             <div className="dash-outfall-item-val-wrap">
               <strong className="digit-font">{tp.toFixed(3)}</strong>
               <span className="dash-outfall-item-unit">mg/L</span>
@@ -431,7 +451,6 @@ const OutfallPanel: React.FC = () => {
           </div>
         </div>
       </div>
-      <div className="dash-outfall-glare" />
     </div>
   );
 };
@@ -482,35 +501,86 @@ const TrendChartHub: React.FC<TrendChartHubProps> = ({ historyPoints }) => {
   return (
     <>
       <header className="dash-panel-head">
-        <Activity size={17} />
-        <h2>实时运行参数趋势分析</h2>
-        <span className="dash-trend-meta">3s 轮询监测 · 近 60s 窗口</span>
+        <Activity size={16} />
+        <h2>趋势分析</h2>
+        <span className="dash-trend-meta">pH 优先 · 近 60s</span>
       </header>
       <div className="dash-trend-grid">
-        <div className="dash-chart-block">
+        {/* pH first — process priority */}
+        <div className="dash-chart-block dash-chart-block-primary">
           <div className="dash-chart-head">
-            <span>流量数据趋势 (m³/h)</span>
+            <span>pH 酸碱度走势</span>
             <span className="dash-chart-legend">
-              <span className="legend-item"><i className="tone-inflow" /> 进水瞬时 {fm1Values.at(-1)!.toFixed(1)}</span>
-              <span className="legend-item"><i className="tone-outflow" /> 出水瞬时 {fm2Values.at(-1)!.toFixed(1)}</span>
+              <span className="legend-item"><i className="tone-ph1" /> pH1 {ph1Values.at(-1)!.toFixed(2)}</span>
+              <span className="legend-item"><i className="tone-ph2" /> pH2 {ph2Values.at(-1)!.toFixed(2)}</span>
+              <span className="legend-item"><i className="tone-outfall" /> 排放 {phOutValues.at(-1)!.toFixed(2)}</span>
             </span>
           </div>
-          <div className="dash-chart-surface">
+          <div className="dash-chart-surface dash-chart-surface-ph">
             <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
               <defs>
-                <filter id="neon-glow" x="-10%" y="-10%" width="120%" height="120%">
-                  <feGaussianBlur stdDeviation="2.5" result="blur" />
+                <filter id="chart-soft-glow" x="-10%" y="-10%" width="120%" height="120%">
+                  <feGaussianBlur stdDeviation="1.6" result="blur" />
                   <feMerge>
                     <feMergeNode in="blur" />
                     <feMergeNode in="SourceGraphic" />
                   </feMerge>
                 </filter>
+              </defs>
+              <rect
+                x={padLeft}
+                y={getY(9, phMin, phMax)}
+                width={width - padLeft - padRight}
+                height={getY(6, phMin, phMax) - getY(9, phMin, phMax)}
+                fill="color-mix(in srgb, var(--status-ok) 12%, transparent)"
+                rx="2"
+              />
+              {[4, 6, 8, 10, 12].map((v) => (
+                <React.Fragment key={v}>
+                  <line x1={padLeft} y1={getY(v, phMin, phMax)} x2={width - padRight} y2={getY(v, phMin, phMax)} stroke="var(--hairline)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+                  <text x={padLeft - 8} y={getY(v, phMin, phMax)} fill="var(--text-dim)" fontSize="10" textAnchor="end" dominantBaseline="middle" className="digit-font">{v}</text>
+                </React.Fragment>
+              ))}
+              {[-60, -40, -20, 0].map((v) => (
+                <text key={v} x={padLeft + ((60 + v) / 60) * (width - padLeft - padRight)} y={height - 5} fill="var(--text-dim)" fontSize="10" textAnchor="middle" className="digit-font">{v}s</text>
+              ))}
+              {phArea1 && <path d={phArea1} fill="color-mix(in srgb, var(--accent-data-a) 10%, transparent)" />}
+              {phArea2 && <path d={phArea2} fill="color-mix(in srgb, var(--accent-data-b) 8%, transparent)" />}
+              {phAreaOut && <path d={phAreaOut} fill="color-mix(in srgb, var(--accent-warm) 7%, transparent)" />}
+              {phPath1 && <path d={phPath1} fill="none" stroke="var(--accent-data-a)" strokeWidth="2.8" filter="url(#chart-soft-glow)" vectorEffect="non-scaling-stroke" />}
+              {phPath2 && <path d={phPath2} fill="none" stroke="var(--accent-data-b)" strokeWidth="2.8" filter="url(#chart-soft-glow)" vectorEffect="non-scaling-stroke" />}
+              {phPathOut && <path d={phPathOut} fill="none" stroke="var(--accent-warm)" strokeWidth="3" strokeDasharray="4 3" filter="url(#chart-soft-glow)" vectorEffect="non-scaling-stroke" />}
+              {ph1Values.length > 0 && (
+                <circle cx={width - padRight} cy={lastPh1Y} r="4" fill="var(--accent-data-a)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
+              )}
+              {ph2Values.length > 0 && (
+                <circle cx={width - padRight} cy={lastPh2Y} r="4" fill="var(--accent-data-b)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
+              )}
+              {phOutValues.length > 0 && (
+                <circle cx={width - padRight} cy={lastPhOutY} r="4" fill="var(--accent-warm)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
+              )}
+            </svg>
+          </div>
+        </div>
+
+        {/* Flow secondary */}
+        <div className="dash-chart-block dash-chart-block-secondary">
+          <div className="dash-chart-head">
+            <span>进出水流量 (m³/h)</span>
+            <span className="dash-chart-legend">
+              <span className="legend-item"><i className="tone-inflow" /> 进水 {fm1Values.at(-1)!.toFixed(1)}</span>
+              <span className="legend-item"><i className="tone-outflow" /> 出水 {fm2Values.at(-1)!.toFixed(1)}</span>
+            </span>
+          </div>
+          <div className="dash-chart-surface">
+            <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+              <defs>
                 <linearGradient id="flow1Grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--accent-data-a)" stopOpacity="0.22" />
+                  <stop offset="0%" stopColor="var(--accent-data-a)" stopOpacity="0.18" />
                   <stop offset="100%" stopColor="var(--accent-data-a)" stopOpacity="0" />
                 </linearGradient>
                 <linearGradient id="flow2Grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--accent-data-b)" stopOpacity="0.18" />
+                  <stop offset="0%" stopColor="var(--accent-data-b)" stopOpacity="0.14" />
                   <stop offset="100%" stopColor="var(--accent-data-b)" stopOpacity="0" />
                 </linearGradient>
               </defs>
@@ -520,61 +590,18 @@ const TrendChartHub: React.FC<TrendChartHubProps> = ({ historyPoints }) => {
                   <text x={padLeft - 8} y={getY(v, flowMin, flowMax)} fill="var(--text-dim)" fontSize="10" textAnchor="end" dominantBaseline="middle" className="digit-font">{v}</text>
                 </React.Fragment>
               ))}
-              {[-60, -40, -20, 0].map(v => (
+              {[-60, -40, -20, 0].map((v) => (
                 <text key={v} x={padLeft + ((60 + v) / 60) * (width - padLeft - padRight)} y={height - 5} fill="var(--text-dim)" fontSize="10" textAnchor="middle" className="digit-font">{v}s</text>
               ))}
               {flowArea1 && <path d={flowArea1} fill="url(#flow1Grad)" />}
               {flowArea2 && <path d={flowArea2} fill="url(#flow2Grad)" />}
-              {flowPath1 && <path d={flowPath1} fill="none" stroke="var(--accent-data-a)" strokeWidth="3" filter="url(#neon-glow)" vectorEffect="non-scaling-stroke" />}
-              {flowPath2 && <path d={flowPath2} fill="none" stroke="var(--accent-data-b)" strokeWidth="3" filter="url(#neon-glow)" vectorEffect="non-scaling-stroke" />}
-              
-              {/* Pulsing indicator dots at current value */}
+              {flowPath1 && <path d={flowPath1} fill="none" stroke="var(--accent-data-a)" strokeWidth="2.4" vectorEffect="non-scaling-stroke" />}
+              {flowPath2 && <path d={flowPath2} fill="none" stroke="var(--accent-data-b)" strokeWidth="2.4" vectorEffect="non-scaling-stroke" />}
               {fm1Values.length > 0 && (
-                <circle cx={width - padRight} cy={lastFm1Y} r="4.5" fill="var(--accent-data-a)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
+                <circle cx={width - padRight} cy={lastFm1Y} r="3.5" fill="var(--accent-data-a)" stroke="#FFFFFF" strokeWidth="1.5" />
               )}
               {fm2Values.length > 0 && (
-                <circle cx={width - padRight} cy={lastFm2Y} r="4.5" fill="var(--accent-data-b)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
-              )}
-            </svg>
-          </div>
-        </div>
-        <div className="dash-chart-block">
-          <div className="dash-chart-head">
-            <span>pH 酸碱度变化走势</span>
-            <span className="dash-chart-legend">
-              <span className="legend-item"><i className="tone-ph1" /> pH1 调节池 {ph1Values.at(-1)!.toFixed(2)}</span>
-              <span className="legend-item"><i className="tone-ph2" /> pH2 调节池 {ph2Values.at(-1)!.toFixed(2)}</span>
-              <span className="legend-item"><i className="tone-outfall" /> 排放口 {phOutValues.at(-1)!.toFixed(2)}</span>
-            </span>
-          </div>
-          <div className="dash-chart-surface">
-            <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-              <rect x={padLeft} y={getY(9, phMin, phMax)} width={width - padLeft - padRight} height={getY(6, phMin, phMax) - getY(9, phMin, phMax)} fill="color-mix(in srgb, var(--status-ok) 7%, transparent)" />
-              {[4, 6, 8, 10, 12].map((v) => (
-                <React.Fragment key={v}>
-                  <line x1={padLeft} y1={getY(v, phMin, phMax)} x2={width - padRight} y2={getY(v, phMin, phMax)} stroke="var(--hairline)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
-                  <text x={padLeft - 8} y={getY(v, phMin, phMax)} fill="var(--text-dim)" fontSize="10" textAnchor="end" dominantBaseline="middle" className="digit-font">{v}</text>
-                </React.Fragment>
-              ))}
-              {[-60, -40, -20, 0].map(v => (
-                <text key={v} x={padLeft + ((60 + v) / 60) * (width - padLeft - padRight)} y={height - 5} fill="var(--text-dim)" fontSize="10" textAnchor="middle" className="digit-font">{v}s</text>
-              ))}
-              {phArea1 && <path d={phArea1} fill="color-mix(in srgb, var(--accent-data-a) 9%, transparent)" />}
-              {phArea2 && <path d={phArea2} fill="color-mix(in srgb, var(--accent-data-b) 7%, transparent)" />}
-              {phAreaOut && <path d={phAreaOut} fill="color-mix(in srgb, var(--accent-warm) 6%, transparent)" />}
-              {phPath1 && <path d={phPath1} fill="none" stroke="var(--accent-data-a)" strokeWidth="3" filter="url(#neon-glow)" vectorEffect="non-scaling-stroke" />}
-              {phPath2 && <path d={phPath2} fill="none" stroke="var(--accent-data-b)" strokeWidth="3" filter="url(#neon-glow)" vectorEffect="non-scaling-stroke" />}
-              {phPathOut && <path d={phPathOut} fill="none" stroke="var(--accent-warm)" strokeWidth="3.2" strokeDasharray="4 3" filter="url(#neon-glow)" vectorEffect="non-scaling-stroke" />}
-              
-              {/* Pulsing indicator dots at current value */}
-              {ph1Values.length > 0 && (
-                <circle cx={width - padRight} cy={lastPh1Y} r="4.5" fill="var(--accent-data-a)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
-              )}
-              {ph2Values.length > 0 && (
-                <circle cx={width - padRight} cy={lastPh2Y} r="4.5" fill="var(--accent-data-b)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
-              )}
-              {phOutValues.length > 0 && (
-                <circle cx={width - padRight} cy={lastPhOutY} r="4.5" fill="var(--accent-warm)" stroke="#FFFFFF" strokeWidth="1.5" className="chart-pulse-dot" />
+                <circle cx={width - padRight} cy={lastFm2Y} r="3.5" fill="var(--accent-data-b)" stroke="#FFFFFF" strokeWidth="1.5" />
               )}
             </svg>
           </div>

@@ -1,9 +1,8 @@
 /**
- * SCADA shell UX v2 — layout, components, interaction (not color tokens).
+ * SCADA shell UX v2 — layout, components, interaction.
  *
- * Topbar scope: light industrial theme (warm grey base, white controls, single
- * deep teal accent). Scoped to `.scada-topbar` so the surrounding dark glass
- * design system is untouched. No shadow / glow / gradient inside the topbar.
+ * Topbar + 集控中枢 dashboard share the same light industrial HMI language:
+ * warm/neutral light shell, white cards, soft grey-green lines, teal accent.
  */
 
 /* ── Topbar scoped tokens (light industrial) ── */
@@ -181,28 +180,6 @@
   /* accent #2 of 3 */
   border-color: var(--tb-border);
 }
-.topbar-seg-btn .header-overview-chevron {
-  transition: transform var(--dur-fast) var(--ease-out);
-}
-.topbar-seg-btn .header-overview-chevron.open {
-  transform: rotate(180deg);
-}
-
-/* Overview chip icon inherits currentColor (grey → teal when active) */
-.topbar-overview-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
-  min-height: 16px;
-  color: inherit;
-}
-
-.overview-panel-icon {
-  vertical-align: -2px;
-  margin-right: 2px;
-}
-
 /* ── Actions cluster: clock · bell · system menu ──
    Secondary tools stay transparent so the topbar reads as one flat surface;
    only hover/active raises a subtle fill. */
@@ -270,61 +247,6 @@
   gap: 16px;
   width: 100%;
   position: relative;
-}
-
-/* Left: legend + inspection tool buttons */
-.scene-hud-tools {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: relative; /* anchors the dropdown panel */
-  flex-shrink: 0;
-}
-.scene-hud-legend-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--tb-text-2, #5F5E5A);
-  font-size: 13px;
-  font-weight: 400;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.scene-hud-legend-btn:hover {
-  color: var(--tb-text, #26261F);
-  background: var(--tb-hover, #FAFAF8);
-}
-.scene-hud-legend-btn.active {
-  color: var(--tb-text, #26261F);
-  background: var(--tb-surface, #FFFFFF);
-  border-color: var(--tb-border, #D3D1C7);
-}
-.scene-hud-legend-btn svg {
-  transition: transform var(--dur-fast) var(--ease-out);
-}
-/* ChevronUp points up by default; flip to point down when the panel is open. */
-.scene-hud-legend-btn svg.open {
-  transform: rotate(180deg);
-}
-.scene-hud-live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--tb-ok, #1D9E75);
-  flex-shrink: 0;
-}
-.scene-hud-dock-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--tb-ok, #1D9E75);
-  flex-shrink: 0;
 }
 
 /* Center: view presets as underline tabs */
@@ -395,14 +317,6 @@
   color: var(--tb-text, #26261F);
 }
 
-/* Dropdown panel (legend/inspection) — anchors to .scene-hud-tools */
-.scene-hud-panel-shared {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
-}
-
 /* Narrow screens: collapse labels, keep icons */
 @media (max-width: 1100px) {
   .topbar-row-primary {
@@ -413,9 +327,6 @@
     display: none;
   }
   .topbar-status-label {
-    display: none;
-  }
-  .scene-hud-legend-btn span {
     display: none;
   }
 }
@@ -590,372 +501,6 @@
   flex: 1 1 auto;
 }
 
-/* Optional panels — anchored below the unified top command bar. */
-.scene-hud-panel {
-  position: absolute;
-  top: calc(100% + 10px);
-  bottom: auto;
-  z-index: 34;
-  width: min(300px, calc(100vw - 32px));
-  padding: 10px 12px;
-  border: 1px solid var(--glass-border-soft);
-  border-top: 1px solid var(--glass-border-bright);
-  border-radius: var(--radius-lg);
-  background: var(--glass-fill-panel);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow);
-  pointer-events: auto;
-  transition: transform var(--dur-base) var(--ease-out),
-              box-shadow var(--dur-base) var(--ease-out),
-              border-color var(--dur-base) var(--ease-out);
-}
-
-/* Hover lift — consistent with .dash-panel across both views. */
-.scene-hud-panel:hover {
-  border-color: var(--glass-border-bright);
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.38),
-    0 3px 8px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.30),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.14);
-}
-
-.scene-hud-panel-legend {
-  left: 16px;
-}
-
-.scene-hud-panel-inspection {
-  left: 16px;
-}
-
-/* ── Shared panel: 图例 + 巡检 合并面板 ── */
-.scene-hud-panel-shared {
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(360px, calc(100vw - 32px));
-}
-
-.scene-hud-panel-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.scene-hud-panel-close:hover {
-  background: var(--glass-fill-nested-hover);
-  color: var(--text-secondary);
-}
-
-/* Tab 头:图例 / 巡检 + 关闭按钮 */
-.scene-hud-tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--glass-border-soft);
-}
-
-.scene-hud-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 12px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out),
-              color var(--dur-fast) var(--ease-out);
-}
-
-.scene-hud-tab:hover {
-  background: var(--glass-fill-nested-hover);
-  color: var(--text-secondary);
-}
-
-.scene-hud-tab.active {
-  background: var(--chrome-raised);
-  color: var(--accent-primary);
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 35%, var(--glass-border-soft));
-}
-
-.scene-hud-tabs .scene-hud-panel-close {
-  margin-left: auto;
-}
-
-.scene-hud-inspection-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.scene-hud-legend-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.scene-hud-legend-grid li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.scene-hud-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  border: 1.5px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.14);
-  flex-shrink: 0;
-}
-
-/* ── Inspection terminal (patrol logs + active target) ── */
-.scene-hud-live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--status-ok);
-  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
-  animation: scene-hud-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes scene-hud-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
-}
-
-.scene-hud-inspection-clear {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--glass-border-soft);
-  border-top-color: var(--glass-border-bright);
-  border-radius: var(--radius-sm);
-  background: var(--glass-fill-nested);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.scene-hud-inspection-clear:hover:not(:disabled) {
-  color: var(--text-secondary);
-  background: var(--bg-panel-hover);
-}
-
-.scene-hud-inspection-clear:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.scene-hud-inspection-active {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  margin-bottom: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--bg-panel-border);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.scene-hud-inspection-active:hover {
-  background: var(--bg-panel-hover);
-  border-color: var(--accent-primary-muted, var(--bg-panel-border));
-}
-
-.scene-hud-inspection-active.warning {
-  border-color: color-mix(in srgb, var(--status-warn) 45%, transparent);
-  background: color-mix(in srgb, var(--status-warn) 8%, transparent);
-}
-
-.scene-hud-inspection-active.critical {
-  border-color: color-mix(in srgb, var(--status-error) 45%, transparent);
-  background: color-mix(in srgb, var(--status-error) 8%, transparent);
-}
-
-.scene-hud-inspection-active-icon {
-  flex-shrink: 0;
-  color: var(--accent-primary);
-}
-
-.scene-hud-inspection-active-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.scene-hud-inspection-active-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-.scene-hud-inspection-active-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.scene-hud-inspection-badge {
-  margin-left: auto;
-  flex-shrink: 0;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.scene-hud-inspection-badge.warning {
-  background: color-mix(in srgb, var(--status-warn) 16%, transparent);
-  color: var(--status-warn);
-}
-
-.scene-hud-inspection-badge.critical {
-  background: color-mix(in srgb, var(--status-error) 18%, transparent);
-  color: var(--status-error);
-}
-
-.scene-hud-inspection-idle {
-  margin-bottom: 8px;
-  padding: 8px 10px;
-  border: 1px dashed var(--bg-panel-border);
-  border-radius: var(--radius-md);
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--text-dim);
-}
-
-.scene-hud-log-feed {
-  max-height: 96px;
-  overflow-y: auto;
-  padding: 8px;
-  border-radius: var(--radius-md);
-  background: var(--bg-inset);
-  border: 1px solid var(--bg-panel-border);
-}
-
-.scene-hud-log-empty,
-.scene-hud-log-line {
-  margin: 0;
-  font-family: var(--font-data);
-  font-size: 10px;
-  line-height: 1.45;
-  color: var(--text-secondary);
-}
-
-.scene-hud-log-line + .scene-hud-log-line {
-  margin-top: 4px;
-}
-
-.scene-hud-log-empty {
-  color: var(--text-dim);
-  text-align: center;
-  padding: 6px 0;
-}
-
-.scene-hud-log-prefix {
-  color: var(--status-ok);
-  margin-right: 4px;
-}
-
-.scene-hud-dock {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 42px;
-  padding: 4px 5px;
-  border: 1px solid var(--glass-border-soft);
-  border-top: 1px solid var(--glass-border-bright);
-  border-radius: var(--radius-lg);
-  background: var(--glass-fill-nested);
-  backdrop-filter: var(--glass-backdrop-nested);
-  -webkit-backdrop-filter: var(--glass-backdrop-nested);
-  box-shadow: none;
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-}
-
-.scene-hud-dock-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--status-ok);
-  flex-shrink: 0;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-ok) 25%, transparent);
-}
-
-.scene-hud-legend-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 32px;
-  padding: 0 8px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-
-.scene-hud-legend-btn.active,
-.scene-hud-legend-btn:hover {
-  background: var(--glass-fill-nested-hover);
-  color: var(--text-primary);
-}
-
-.scene-hud-legend-btn.active {
-  color: var(--accent-primary);
-}
-
-.scene-hud-legend-btn:active {
-  transform: scale(0.97);
-}
-
-.scene-hud-legend-btn svg.open {
-  transform: rotate(180deg);
-}
-
 .scene-hud-divider {
   width: 1px;
   height: 22px;
@@ -1046,7 +591,10 @@
   transform: scale(0.94);
 }
 
-/* ── Equipment drawer ── */
+/* ── Equipment drawer ──
+   Styled to match the dashboard light-industrial cards (solid white fills,
+   soft shadows, teal accents) instead of translucent glass so it stays
+   legible and consistent with the main HMI chrome. */
 .equipment-drawer {
   position: absolute;
   top: calc(var(--topbar-height) + 12px);
@@ -1057,13 +605,13 @@
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--glass-border-soft);
-  border-top: 1px solid var(--glass-border-bright);
+  border: 1px solid #D7E0DC;
   border-radius: var(--radius-lg);
-  background: var(--glass-fill-panel);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow);
+  background:
+    linear-gradient(180deg, #FFFFFF 0%, #F4F9F7 100%);
+  box-shadow:
+    0 8px 22px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
   transform: translateX(calc(100% + 20px));
   opacity: 0;
   transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out);
@@ -1076,7 +624,7 @@
 }
 
 .equipment-drawer.has-alarm {
-  border-color: color-mix(in srgb, var(--status-warn) 45%, var(--bg-panel-border));
+  border-color: color-mix(in srgb, var(--status-warn) 45%, #D7E0DC);
 }
 
 .equipment-drawer-tab {
@@ -1089,22 +637,21 @@
   gap: 8px;
   max-width: min(200px, calc(100vw - 24px));
   padding: 10px 12px;
-  border: 1px solid var(--glass-border-soft);
-  border-top-color: var(--glass-border);
+  border: 1px solid #D7E0DC;
   border-radius: var(--radius-lg);
-  background: var(--glass-fill-panel);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow-soft);
+  background: #FFFFFF;
+  box-shadow:
+    0 8px 22px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
   color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 
 .equipment-drawer-tab:hover {
-  background: var(--glass-fill-nested-hover);
+  background: #F5F8F7;
   color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--accent-primary) 35%, var(--glass-border-soft));
+  border-color: color-mix(in srgb, var(--accent-primary) 35%, #D7E0DC);
 }
 
 .equipment-drawer-tab-label {
@@ -1128,27 +675,28 @@
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--glass-border-soft);
-  background: var(--chrome-sunken);
+  border-bottom: 1px solid #E2E8E5;
+  background: #FFFFFF;
 }
 
 .equipment-drawer-type {
   display: inline-block;
-  margin-bottom: 4px;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
+  margin-bottom: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(10, 143, 114, 0.12);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 28%, transparent);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  color: var(--accent-primary);
 }
 
 .equipment-drawer-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text-primary);
   line-height: 1.3;
 }
@@ -1157,6 +705,9 @@
   flex: 1;
   overflow-y: auto;
   padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .equipment-drawer-empty {
@@ -1182,17 +733,39 @@
   font-size: 13px;
 }
 
-/* ── Dashboard v2 ── */
+/* ── Dashboard v2 — light industrial (match topbar HMI) ── */
 .dash {
+  /* Scoped light-industrial tokens so the hub matches the main chrome */
+  --dash-shell: #F5F7F6;
+  --dash-shell-2: #EDF2F0;
+  --dash-card: #FFFFFF;
+  --dash-card-soft: #FAFBFA;
+  --dash-line: #D7E0DC;
+  --dash-line-strong: #B9C8C2;
+  --dash-ink: #17211F;
+  --dash-muted: #66736F;
+  --dash-inset: #EEF2F0;
+  --dash-accent: #0A8F72;
+  --dash-accent-soft: rgba(10, 143, 114, 0.12);
+  --dash-shadow:
+    0 8px 22px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --dash-shadow-hover:
+    0 12px 28px rgba(15, 23, 42, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+
   position: absolute;
   inset: var(--topbar-height) 0 0 0;
   z-index: 25;
   overflow-y: auto;
   padding: 20px 24px 28px;
   pointer-events: auto;
-  background: var(--glass-fill-veil);
-  backdrop-filter: var(--glass-backdrop-veil);
-  -webkit-backdrop-filter: var(--glass-backdrop-veil);
+  color: var(--dash-ink);
+  background:
+    linear-gradient(90deg, rgba(15, 118, 110, 0.045) 0 1px, transparent 1px 100%) 0 0 / 28px 28px,
+    linear-gradient(180deg, #FAFBFA 0%, var(--dash-shell) 52%, var(--dash-shell-2) 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .dash-header {
@@ -1200,25 +773,28 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 8px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--dash-line) 80%, transparent);
 }
 
 .dash-title {
   margin: 0;
   font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--dash-ink);
 }
 
 .dash-subtitle {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   font-size: 13px;
-  color: var(--text-secondary);
+  line-height: 1.45;
+  color: var(--dash-muted);
+  max-width: 52ch;
 }
 
-/* Mission tag — small accent-tinted eyebrow label above the dashboard title.
-   Linear uses similar quiet accent chips for section labels. */
+/* Mission tag — small accent-tinted eyebrow label above the dashboard title. */
 .dash-mission-tag {
   display: inline-block;
   margin-bottom: 8px;
@@ -1227,9 +803,9 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
+  color: var(--dash-accent);
+  background: var(--dash-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--dash-accent) 28%, transparent);
   border-radius: 999px;
 }
 
@@ -1238,129 +814,181 @@
   align-items: center;
   gap: 7px;
   padding: 6px 11px;
-  border: 1px solid var(--glass-border-soft);
-  border-top-color: var(--glass-border);
+  border: 1px solid var(--dash-line);
   border-radius: var(--radius-md);
-  background: var(--glass-fill-nested);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  background: linear-gradient(180deg, #FFFFFF, #F5F8F7);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--dash-muted);
 }
 
 .dash-live-badge svg {
-  color: var(--text-secondary);
+  color: var(--dash-muted);
   opacity: 0.9;
 }
 
 .dash-live-badge.live {
-  color: var(--status-ok);
-  border-color: color-mix(in srgb, var(--status-ok) 40%, var(--bg-panel-border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-ok) 14%, transparent),
-              0 0 12px color-mix(in srgb, var(--status-ok) 16%, transparent);
+  color: var(--dash-accent);
+  border-color: color-mix(in srgb, var(--dash-accent) 36%, var(--dash-line));
+  background: linear-gradient(180deg, #FFFFFF, #EAFBF6);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--dash-accent) 12%, transparent),
+              0 6px 14px rgba(10, 143, 114, 0.10);
 }
 
 .dash-live-badge.live svg {
-  color: var(--status-ok);
+  color: var(--dash-accent);
   animation: lamp-breathe 2.6s var(--ease-in-out) infinite;
 }
 
 .dash-live-scenario {
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
+  background: var(--dash-inset);
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--dash-muted);
 }
 
 .dash-scenario-note {
   margin: 0 0 16px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--dash-muted);
   line-height: 1.5;
 }
 
-.dash-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr);
-  gap: 14px;
+/* ── Section labels ── */
+.dash-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dash-ink);
+  letter-spacing: 0.01em;
+}
+
+.dash-section-label svg {
+  color: var(--dash-accent);
+  flex-shrink: 0;
+}
+
+.dash-section-label em {
+  margin-left: 4px;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--dash-muted);
+}
+
+.dash-section-label-muted {
+  color: var(--dash-muted);
+  font-weight: 600;
+}
+
+.dash-section-label-muted svg {
+  color: var(--dash-muted);
+  opacity: 0.85;
+}
+
+/* ── pH hero zone (priority 1) ── */
+.dash-ph-hero {
   margin-bottom: 16px;
 }
 
-.dash-metrics-span {
-  grid-column: span 1;
+.dash-ph-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.35fr);
+  gap: 14px;
+  align-items: stretch;
 }
 
-/* ── Metric tile: NOC instrument card ──
-   A card holding the precision ring gauge, with a left color bar that
-   color-codes the channel (cyan=inflow, orange=outflow) — the NOC
-   monitoring convention. Tone reads at a glance. */
-.dash-metric-tile {
+.dash-ph-board {
+  min-height: 100%;
+}
+
+.dash-panel-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dash-muted);
+  letter-spacing: 0;
+  font-family: var(--font-ui);
+}
+
+/* ── Secondary flow strip (de-emphasized) ── */
+.dash-flow-strip {
+  margin-bottom: 14px;
+  padding: 12px 14px 14px;
+  border: 1px dashed var(--dash-line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.dash-flow-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dash-flow-chip {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 16px 18px;
-  border: 1px solid var(--glass-border-soft);
-  border-top-color: var(--glass-border-bright);
-  border-radius: var(--radius-lg);
-  background: var(--glass-fill-panel);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow-soft);
-  position: relative;
-  overflow: hidden;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--dash-line);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #FFFFFF, #F6F9F8);
 }
 
-.dash-metric-tile.inflow {
+.dash-flow-chip.inflow {
   border-left: 3px solid var(--accent-data-a);
-  box-shadow: var(--glass-shadow-soft),
-    inset 3px 0 10px -3px color-mix(in srgb, var(--accent-data-a) 22%, transparent);
 }
 
-.dash-metric-tile.outflow {
+.dash-flow-chip.outflow {
   border-left: 3px solid var(--accent-data-b);
-  box-shadow: var(--glass-shadow-soft),
-    inset 3px 0 10px -3px color-mix(in srgb, var(--accent-data-b) 22%, transparent);
 }
 
-.dash-metric-tile-head {
+.dash-flow-chip-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
+  gap: 8px;
 }
 
-.dash-metric-tile-tag {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--text-primary);
-  text-transform: uppercase;
+.dash-flow-chip-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dash-muted);
 }
 
-.dash-metric-tile.inflow .dash-metric-tile-tag { color: var(--accent-data-a); }
-.dash-metric-tile.outflow .dash-metric-tile-tag { color: var(--accent-data-b); }
-
-.dash-metric-tile-lamp {
+.dash-flow-chip-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  animation: lamp-breathe 2.4s var(--ease-in-out) infinite;
 }
 
-.dash-metric-tile-lamp.inflow {
-  background: var(--accent-data-a);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-data-a) 18%, transparent);
+.dash-flow-chip-dot.inflow { background: var(--accent-data-a); }
+.dash-flow-chip-dot.outflow { background: var(--accent-data-b); }
+
+.dash-flow-chip-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.dash-metric-tile-lamp.outflow {
-  background: var(--accent-data-b);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-data-b) 18%, transparent);
+.dash-flow-chip-value strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--dash-ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.dash-flow-chip-value span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dash-muted);
 }
 
 /* ── Precision ring gauge ── */
@@ -1382,8 +1010,8 @@
   pointer-events: none;
   padding: 6px 10px;
   border-radius: var(--radius-md);
-  background: var(--glass-fill-readout);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .gauge-ring-value {
@@ -1391,7 +1019,7 @@
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.02em;
-  color: var(--text-primary);
+  color: var(--dash-ink, var(--text-primary));
 }
 
 .gauge-ring-unit {
@@ -1399,7 +1027,7 @@
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--dash-muted, var(--text-secondary));
   letter-spacing: 0.08em;
 }
 
@@ -1407,31 +1035,41 @@
   margin-top: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--dash-muted, var(--text-secondary));
   text-align: center;
 }
 
 .dash-outfall {
   height: 100%;
-  padding: 16px 18px;
-  border: 1px solid var(--glass-border-soft);
-  border-top-color: var(--glass-border-bright);
+  padding: 18px 18px 16px;
+  border: 1px solid var(--dash-line);
   border-radius: var(--radius-lg);
-  background: var(--glass-fill-panel);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow-soft);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(10, 143, 114, 0.08), transparent 42%),
+    linear-gradient(180deg, #FFFFFF 0%, #F4F9F7 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--dash-shadow);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+}
+
+.dash-outfall-hero {
+  min-height: 220px;
 }
 
 .dash-outfall.ok {
-  border-left: 3px solid var(--status-ok);
+  border-color: color-mix(in srgb, var(--status-ok) 35%, var(--dash-line));
+  box-shadow: var(--dash-shadow), inset 0 0 0 1px color-mix(in srgb, var(--status-ok) 10%, transparent);
 }
 
 .dash-outfall.bad {
-  border-left: 3px solid var(--status-error);
+  border-color: color-mix(in srgb, var(--status-error) 40%, var(--dash-line));
+  background:
+    radial-gradient(circle at 12% 0%, rgba(239, 68, 68, 0.10), transparent 42%),
+    linear-gradient(180deg, #FFFFFF 0%, #FDF6F5 100%);
+  box-shadow: var(--dash-shadow), inset 0 0 0 1px color-mix(in srgb, var(--status-error) 12%, transparent);
 }
 
 .dash-outfall-head {
@@ -1448,7 +1086,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--text-primary);
+  color: var(--dash-ink);
   font-weight: 650;
 }
 
@@ -1489,18 +1127,43 @@
 
 .dash-outfall-ph {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #FFFFFF, #EEF8F4);
+  border: 1px solid color-mix(in srgb, var(--dash-accent) 22%, var(--dash-line));
+}
+
+.dash-outfall-ph-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dash-muted);
+}
+
+.dash-outfall-ph-row {
+  display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
 }
 
 .dash-outfall-ph-val {
-  font-size: 32px;
-  font-weight: 600;
-  line-height: 1;
+  font-size: 48px;
+  font-weight: 750;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+}
+
+.dash-outfall-ph-unit {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dash-muted);
 }
 
 .dash-outfall.ok .dash-outfall-ph-val {
-  color: var(--status-ok);
+  color: #0F7A4A;
 }
 
 .dash-outfall.bad .dash-outfall-ph-val {
@@ -1510,7 +1173,7 @@
 .dash-outfall-ph-limit {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--dash-muted);
 }
 
 .dash-outfall-grid {
@@ -1518,61 +1181,53 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--dash-muted);
 }
 
 .dash-outfall-grid strong {
   display: block;
   margin-top: 2px;
-  font-size: 15px;
-  color: var(--text-primary);
+  font-size: 16px;
+  color: var(--dash-ink);
 }
 
 .dash-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   margin-bottom: 14px;
 }
 
 .dash-panel {
   position: relative;
-  border: 1px solid var(--glass-border-soft);
-  border-top: 1px solid var(--glass-border-bright);
+  border: 1px solid var(--dash-line);
   border-radius: var(--radius-lg);
-  background: var(--glass-fill-panel);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  box-shadow: var(--glass-shadow);
+  background: linear-gradient(180deg, var(--dash-card) 0%, var(--dash-card-soft) 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--dash-shadow);
   overflow: hidden;
   transition: transform var(--dur-base) var(--ease-out),
               box-shadow var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out);
 }
 
-/* Hover lift — unified feedback across both views' panels. */
+/* Soft lift on hover — light HMI, no heavy NOC shadow. */
 .dash-panel:hover {
   transform: translateY(-1px);
-  border-top-color: var(--glass-border-bright);
-  border-color: var(--glass-border-bright);
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.38),
-    0 3px 8px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.30),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.14);
+  border-color: var(--dash-line-strong);
+  box-shadow: var(--dash-shadow-hover);
 }
 
-/* Glass specular streak — diagonal sheen reads as real glass.
-   No z-index: real DOM children paint above the ::before naturally. */
+/* Subtle top highlight — keeps cards bright without dark glass sheen. */
 .dash-panel::before {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    125deg,
-    rgba(255, 255, 255, 0.10) 0%,
-    rgba(255, 255, 255, 0.02) 28%,
-    transparent 52%
+    180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    transparent 42%
   );
   pointer-events: none;
 }
@@ -1584,12 +1239,13 @@
   align-items: center;
   gap: 8px;
   padding: 11px 16px;
-  border-bottom: 1px solid var(--glass-border-soft);
-  background: var(--glass-fill-nested);
-  backdrop-filter: var(--glass-backdrop-nested);
-  -webkit-backdrop-filter: var(--glass-backdrop-nested);
+  border-bottom: 1px solid var(--dash-line);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F3F7F5 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   font-family: var(--font-mono);
   letter-spacing: 0.06em;
+  color: var(--dash-muted);
 }
 
 .dash-panel-head h2 {
@@ -1597,14 +1253,18 @@
   flex: 1;
   font-family: var(--font-ui);
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--text-primary);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--dash-ink);
+}
+
+.dash-panel-head svg {
+  color: var(--dash-accent);
 }
 
 .dash-trend-meta {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--dash-muted);
 }
 
 .dash-panel-body {
@@ -1623,8 +1283,21 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 240px;
+  max-height: min(360px, 48vh);
   overflow-y: auto;
+}
+
+.dash-chart-block-primary .dash-chart-head span:first-child {
+  color: var(--dash-ink);
+  font-weight: 700;
+}
+
+.dash-chart-block-secondary {
+  opacity: 0.92;
+}
+
+.dash-chart-surface-ph {
+  min-height: 200px;
 }
 
 .dash-level-top {
@@ -1633,7 +1306,11 @@
   gap: 8px;
   margin-bottom: 6px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--dash-muted);
+}
+
+.dash-level-val {
+  color: var(--dash-ink);
 }
 
 .dash-level-val.warning {
@@ -1647,120 +1324,167 @@
 .dash-level-track {
   height: 6px;
   border-radius: 999px;
-  background: var(--bg-inset);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  background: var(--dash-inset);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
   overflow: hidden;
 }
 
 .dash-level-fill {
   height: 100%;
-  background: var(--accent-primary);
+  background: var(--dash-accent);
   border-radius: 999px;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent-primary) 50%, transparent);
+  box-shadow: none;
   transition: width var(--dur-slow) var(--ease-out),
               background var(--dur-slow) var(--ease-out),
               box-shadow var(--dur-slow) var(--ease-out);
 }
 
-/* Normal tank level — cyan; alarms step to semantic colors with glow. */
+/* Normal tank level — cyan; alarms step to semantic colors. */
 .dash-level-fill.normal {
   background: var(--accent-data-a);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent-data-a) 50%, transparent);
+  box-shadow: none;
 }
 
 .dash-level-fill.warning {
   background: var(--status-warn);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--status-warn) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-warn) 20%, transparent);
 }
 
 .dash-level-fill.critical {
   background: var(--status-error);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--status-error) 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-error) 22%, transparent);
 }
 
 .dash-ph-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .dash-ph-tile {
-  padding: 10px 12px;
-  border: 1px solid var(--glass-border-soft);
-  border-radius: var(--radius-md);
-  background: var(--glass-fill-nested);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
+  padding: 14px 14px 12px;
+  border: 1px solid var(--dash-line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F7FAF9 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
 }
 
 .dash-ph-label {
   display: block;
   font-size: 12px;
-  color: var(--text-dim);
-  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--dash-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .dash-ph-value {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.dash-ph-unit {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dash-muted);
+  margin-left: 4px;
 }
 
 .dash-ph-tile.ok .dash-ph-value {
-  color: var(--status-ok);
+  color: #0F7A4A;
 }
 
 .dash-ph-tile.warn .dash-ph-value {
-  color: var(--status-warn);
+  color: #A16207;
 }
 
 .dash-ph-tile.bad .dash-ph-value {
-  color: var(--status-error);
+  color: #B91C1C;
 }
 
-.dash-ph-track {
-  height: 3px;
-  margin-top: 8px;
-  border-radius: 2px;
-  background: var(--bg-muted, var(--bg-subtle));
+/* pH scale with safe band 6–9 */
+.dash-ph-scale {
+  position: relative;
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #FCA5A5 0%, #FDE68A 18%, #BBF7D0 25%, #BBF7D0 62.5%, #FDE68A 70%, #FCA5A5 100%);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+  overflow: visible;
 }
 
-.dash-ph-fill {
-  height: 100%;
+.dash-ph-safe-band {
+  position: absolute;
+  left: 25%;
+  width: 37.5%;
+  top: -2px;
+  bottom: -2px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--status-ok) 55%, transparent);
+  pointer-events: none;
+}
+
+.dash-ph-needle {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  margin-left: -1.5px;
+  transform: translateY(-50%);
   border-radius: 2px;
-  background: currentColor;
-  opacity: 0.5;
-  transition: opacity var(--dur-slow) var(--ease-out),
-              background var(--dur-slow) var(--ease-out);
+  background: var(--dash-ink);
+  box-shadow: 0 0 0 2px #FFFFFF;
+}
+
+.dash-ph-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dash-muted);
+  font-family: var(--font-mono);
+}
+
+.dash-ph-scale-labels .safe {
+  color: #15803D;
 }
 
 .dash-control-tabs {
   display: flex;
-  gap: 4px;
-  padding: 10px 12px 0;
-  border-bottom: 1px solid var(--glass-border-soft);
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--dash-line);
+  background: linear-gradient(180deg, #F8FAF9, #F1F5F3);
   overflow-x: auto;
 }
 
 .dash-control-tabs button {
   flex-shrink: 0;
-  height: 32px;
+  height: 30px;
   padding: 0 12px;
-  border: none;
-  border-bottom: 2px solid transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dash-muted);
   cursor: pointer;
-  margin-bottom: -1px;
-  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .dash-control-tabs button:hover {
-  color: var(--text-secondary);
+  color: var(--dash-ink);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--dash-line);
 }
 
 .dash-control-tabs button:active {
@@ -1768,16 +1492,18 @@
 }
 
 .dash-control-tabs button.active {
-  color: var(--accent-primary);
-  border-bottom-color: var(--accent-primary);
-  font-weight: 600;
+  color: #FFFFFF;
+  background: linear-gradient(180deg, #12A884, var(--dash-accent));
+  border-color: color-mix(in srgb, var(--dash-accent) 55%, #06624F);
+  font-weight: 650;
+  box-shadow: 0 4px 10px rgba(10, 143, 114, 0.22);
 }
 
 .dash-control-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 420px;
+  max-height: min(360px, 48vh);
   overflow-y: auto;
 }
 
@@ -1787,21 +1513,23 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--glass-border-soft);
+  border: 1px solid var(--dash-line);
   border-radius: var(--radius-md);
-  background: var(--glass-fill-nested);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
+  background: linear-gradient(180deg, #FFFFFF, #F7FAF9);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--dash-ink);
   cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .dash-control-row:hover {
-  border-color: color-mix(in srgb, var(--accent-primary) 38%, var(--glass-border-soft));
-  background: var(--glass-fill-nested-hover);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  border-color: color-mix(in srgb, var(--dash-accent) 38%, var(--dash-line));
+  background: linear-gradient(180deg, #FFFFFF, #EEF8F4);
+  box-shadow: 0 4px 12px rgba(10, 143, 114, 0.08);
 }
 
 .dash-control-row span:first-child {
@@ -1817,7 +1545,7 @@
   padding: 10px 16px 14px;
   font-size: 12px;
   text-align: center;
-  color: var(--text-dim);
+  color: var(--dash-muted);
 }
 
 .dash-trends {
@@ -1843,7 +1571,7 @@
   margin-bottom: 10px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--dash-ink);
 }
 
 .dash-chart-legend {
@@ -1852,7 +1580,7 @@
   gap: 10px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-dim);
+  color: var(--dash-muted);
 }
 
 .dash-chart-legend i {
@@ -1890,9 +1618,10 @@
   min-height: 180px;
   aspect-ratio: 3 / 1;
   padding: 8px;
-  border: 1px solid var(--bg-panel-border);
+  border: 1px solid var(--dash-line);
   border-radius: var(--radius-md);
-  background: var(--bg-inset);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F3F7F5 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 @media (max-width: 1500px) {
@@ -1902,12 +1631,8 @@
 }
 
 @media (max-width: 1180px) {
-  .dash-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .dash-metrics-span {
-    grid-column: 1 / -1;
+  .dash-ph-hero-grid {
+    grid-template-columns: 1fr;
   }
 
   .dash-body {
@@ -1918,22 +1643,8 @@
     grid-template-columns: 1fr;
   }
 
-  .scene-hud-dock {
-    max-width: 100%;
-  }
-
-  .scene-hud-panel {
-    top: calc(100% + 8px);
-    bottom: auto;
-    width: min(280px, calc(100vw - 24px));
-  }
-
-  .scene-hud-panel-legend,
-  .scene-hud-panel-inspection,
-  .scene-hud-panel-shared {
-    left: 12px;
-    right: auto;
-    transform: none;
+  .dash-flow-row {
+    grid-template-columns: 1fr 1fr;
   }
 
   .equipment-drawer {
@@ -1969,12 +1680,16 @@
     padding: 14px;
   }
 
-  .dash-metrics {
+  .dash-ph-grid {
     grid-template-columns: 1fr;
   }
 
-  .dash-ph-grid {
+  .dash-flow-row {
     grid-template-columns: 1fr;
+  }
+
+  .dash-outfall-ph-val {
+    font-size: 40px;
   }
 
   .scene-hud-presets-label {
@@ -1986,10 +1701,6 @@
   .equipment-drawer {
     transition: none;
   }
-
-  .scene-hud-live-dot {
-    animation: none;
-  }
 }
 
 /* Fallback when backdrop-filter is unavailable */
@@ -1999,8 +1710,6 @@
   .topbar-icon-btn,
   .system-menu-trigger,
   .system-menu-panel,
-  .scene-hud-dock,
-  .scene-hud-panel,
   .equipment-drawer,
   .equipment-drawer-tab,
   .dash,
@@ -2014,8 +1723,6 @@
   }
 
   .scada-topbar,
-  .scene-hud-dock,
-  .scene-hud-panel,
   .equipment-drawer,
   .equipment-drawer-tab,
   .system-menu-panel,
@@ -2024,17 +1731,17 @@
   .dash-panel,
   .panel-solid,
   .panel-glass {
-    background: rgba(4, 8, 14, 0.88);
+    background: rgba(255, 255, 255, 0.96);
   }
 
   .topbar-nav,
   .topbar-icon-btn,
   .system-menu-trigger {
-    background: rgba(8, 12, 20, 0.72);
+    background: rgba(245, 247, 246, 0.96);
   }
 
   .dash {
-    background: var(--bg-base);
+    background: #F5F7F6;
   }
 }
 
@@ -2054,7 +1761,6 @@
 }
 
 .dash-panel,
-.scene-hud-panel,
 .equipment-drawer {
   animation: glass-panel-enter var(--dur-slow) var(--ease-out) both;
 }
@@ -2334,46 +2040,33 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
 }
 
 /* ==========================================================================
-   污水 SCADA - DATA DASHBOARD UI/UX PREMIUM OVERRIDES
+   DATA DASHBOARD — light industrial polish (aligned with topbar HMI)
    ========================================================================== */
 
-/* Glare & Gloss Effect on tiles */
-.dash-metric-glare,
-.dash-outfall-glare {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0) 100%);
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* pH Tiles Upgrades */
+/* pH tile polish */
 .dash-ph-tile {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   position: relative;
   overflow: hidden;
-  transition: border-color var(--dur-normal), box-shadow var(--dur-normal);
+  transition: border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out),
+              transform var(--dur-base) var(--ease-out);
 }
 .dash-ph-tile:hover {
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: var(--dash-line-strong);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+  transform: translateY(-1px);
 }
 .dash-ph-tile.ok {
-  border-left: 2.5px solid var(--status-ok);
-  box-shadow: inset 2px 0 6px -2px color-mix(in srgb, var(--status-ok) 30%, transparent);
+  border-left: 3px solid #22C55E;
 }
 .dash-ph-tile.warn {
-  border-left: 2.5px solid var(--status-warn);
-  box-shadow: inset 2px 0 6px -2px color-mix(in srgb, var(--status-warn) 30%, transparent);
+  border-left: 3px solid var(--status-warn);
 }
 .dash-ph-tile.bad {
-  border-left: 2.5px solid var(--status-error);
-  box-shadow: inset 2px 0 6px -2px color-mix(in srgb, var(--status-error) 30%, transparent);
+  border-left: 3px solid var(--status-error);
 }
 
 .dash-ph-header {
@@ -2381,61 +2074,51 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  gap: 8px;
 }
 .dash-ph-badge {
+  flex-shrink: 0;
   font-size: 10px;
   font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
 .dash-ph-badge.ok {
-  background: color-mix(in srgb, var(--status-ok) 20%, transparent);
-  color: var(--status-ok);
+  background: color-mix(in srgb, var(--status-ok) 14%, #FFFFFF);
+  color: #15803D;
+  border: 1px solid color-mix(in srgb, var(--status-ok) 28%, transparent);
 }
 .dash-ph-badge.warn {
-  background: color-mix(in srgb, var(--status-warn) 20%, transparent);
-  color: var(--status-warn);
+  background: color-mix(in srgb, var(--status-warn) 16%, #FFFFFF);
+  color: #A16207;
+  border: 1px solid color-mix(in srgb, var(--status-warn) 30%, transparent);
 }
 .dash-ph-badge.bad {
-  background: color-mix(in srgb, var(--status-error) 20%, transparent);
-  color: var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 14%, #FFFFFF);
+  color: #B91C1C;
+  border: 1px solid color-mix(in srgb, var(--status-error) 28%, transparent);
 }
 
 .dash-ph-body {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 4px;
-}
-.dash-ph-limit-label {
-  font-size: 10px;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-}
-.dash-ph-track {
-  position: relative;
-}
-.dash-ph-tick {
-  position: absolute;
-  top: -1px;
-  width: 2px;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.45);
-  pointer-events: none;
+  gap: 2px;
+  margin-top: 4px;
 }
 
-/* Tank Level Ticks & Glowing Fills */
+/* Tank Level ticks */
 .dash-level-row {
   margin-bottom: 14px;
 }
 .dash-level-name {
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--dash-ink);
 }
 .dash-level-track {
   position: relative;
-  overflow: visible; /* Show markers overflowing nicely */
+  overflow: visible;
 }
 .dash-level-fill {
   position: relative;
@@ -2444,20 +2127,20 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
   position: absolute;
   top: 0;
   right: 0;
-  width: 6px;
+  width: 5px;
   height: 100%;
-  background: #FFFFFF;
-  box-shadow: 0 0 8px #FFFFFF, 0 0 16px currentColor;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.7);
   border-radius: 50%;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 .dash-level-marker {
   position: absolute;
   top: -3px;
   width: 2px;
   height: 12px;
-  background: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--dash-muted) 70%, transparent);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
   z-index: 3;
 }
 .dash-level-marker::after {
@@ -2467,107 +2150,49 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
   left: -2px;
   width: 6px;
   height: 4px;
-  background: var(--text-dim);
+  background: var(--dash-muted);
   border-radius: 1px;
 }
 
-/* Equipment control buttons - pill style active state */
-.dash-control-tabs {
-  background: rgba(0, 0, 0, 0.2);
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--glass-border-soft);
-  gap: 8px;
-}
-.dash-control-tabs button {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  transition: all var(--dur-normal) var(--ease-in-out);
-}
-.dash-control-tabs button.active {
-  color: #111827;
-  background: var(--accent-primary);
-  border-bottom: none;
-  box-shadow: 0 0 10px var(--glow-cyan-soft);
-}
-
-/* Active Control Row Background Glow */
-.dash-control-row {
-  transition: all var(--dur-normal) var(--ease-in-out);
-}
+/* Active control row */
 .dash-control-row.is-active {
-  border-color: color-mix(in srgb, var(--accent-primary) 32%, var(--glass-border-soft));
-  background: color-mix(in srgb, var(--accent-primary) 5%, var(--glass-fill-nested));
+  border-color: color-mix(in srgb, var(--dash-accent) 40%, var(--dash-line));
+  background: linear-gradient(180deg, #FFFFFF, #EAFBF6);
+  box-shadow: 0 4px 12px rgba(10, 143, 114, 0.10);
 }
 .dash-control-label {
   font-weight: 500;
-  transition: color var(--dur-normal);
+  transition: color var(--dur-base) var(--ease-out);
 }
 .dash-control-row.is-active .dash-control-label {
-  color: var(--accent-primary);
-  text-shadow: 0 0 6px rgba(0, 242, 254, 0.3);
+  color: var(--dash-accent);
+  text-shadow: none;
 }
 
-/* Redesigned Outfall Panel */
+/* Outfall panel structure */
 .dash-outfall {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
   overflow: hidden;
   position: relative;
 }
 .dash-outfall-main {
-  display: grid;
-  grid-template-columns: minmax(130px, 1.2fr) 2fr;
-  gap: 16px;
-  align-items: center;
-}
-.dash-outfall-ph {
   display: flex;
   flex-direction: column;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-.dash-outfall-ph-label {
-  font-size: 11px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-}
-.dash-outfall-ph-val {
-  font-size: 26px;
-  font-weight: 750;
-  line-height: 1.1;
-  color: var(--status-ok);
-}
-.dash-outfall.bad .dash-outfall-ph-val {
-  color: var(--status-error);
-}
-.dash-outfall-ph-limit {
-  font-size: 10px;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-.dash-outfall-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
+  flex: 1;
 }
 .dash-outfall-item {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 10px 11px;
+  background: linear-gradient(180deg, #FFFFFF, #F5F8F7);
+  border: 1px solid var(--dash-line);
   border-radius: var(--radius-md);
 }
 .dash-outfall-item-label {
-  font-size: 10px;
-  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dash-muted);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -2575,21 +2200,20 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
 .dash-outfall-item-val-wrap {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  gap: 4px;
   margin-top: 4px;
 }
 .dash-outfall-item-val-wrap strong {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dash-ink);
 }
 .dash-outfall-item-unit {
-  font-size: 9px;
-  color: var(--text-dim);
-  margin-left: 2px;
+  font-size: 10px;
+  color: var(--dash-muted);
 }
 
-/* Outfall Status Badges */
+/* Outfall status badges */
 .dash-outfall-badge {
   font-size: 11px;
   font-weight: 700;
@@ -2597,16 +2221,16 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
   border-radius: 6px;
 }
 .dash-outfall-badge.ok {
-  background: color-mix(in srgb, var(--status-ok) 18%, transparent);
-  color: var(--status-ok);
+  background: color-mix(in srgb, var(--status-ok) 14%, #FFFFFF);
+  color: #15803D;
   border: 1px solid color-mix(in srgb, var(--status-ok) 30%, transparent);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--status-ok) 10%, transparent);
+  box-shadow: none;
 }
 .dash-outfall-badge.bad {
-  background: color-mix(in srgb, var(--status-error) 18%, transparent);
-  color: var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 12%, #FFFFFF);
+  color: #B91C1C;
   border: 1px solid color-mix(in srgb, var(--status-error) 30%, transparent);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--status-error) 10%, transparent);
+  box-shadow: none;
   animation: alarm-flash-border 1.8s infinite;
 }
 

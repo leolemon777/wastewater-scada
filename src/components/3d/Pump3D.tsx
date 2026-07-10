@@ -106,13 +106,13 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
 
   if (!pumpData) return null;
 
-  // Industrial centrifugal pump set — RAL 5009 azure-blue motor enamel over
+  // Industrial centrifugal pump set — RAL 5010 gentian-blue motor enamel over
   // cast-iron volute. Switched from meshPhysicalMaterial (clearcoat + IBL
   // caused a severe warm colour shift that read as red) to meshStandardMaterial
   // so the painted blue reads correctly under any scene palette / sky.
-  const motorColor = isSelected ? '#3D7AB8' : '#2E6396';
-  const motorFinColor = isSelected ? '#3570AA' : '#285A8A';
-  const motorCapColor = isSelected ? '#3972AE' : '#2C5E92';
+  const motorColor = isSelected ? '#3B82F6' : '#2563EB';
+  const motorFinColor = isSelected ? '#2563EB' : '#1D4ED8';
+  const motorCapColor = isSelected ? '#2E7AEA' : '#1E40AF';
   const pumpBodyColor = isSelected ? '#4A5E64' : '#3F5156';
   const pumpBodyRoughness = 0.56;
   const pumpBodyMetalness = 0.22;
@@ -211,7 +211,7 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
 
         {/* Motor Assembly */}
         <group position={[0, 0.88, 0.58]}>
-          {/* Main Motor Cylinder — cast-iron TEFC frame, painted RAL 5009.
+          {/* Main Motor Cylinder — cast-iron TEFC frame, painted RAL 6001.
               Standard material (no clearcoat) avoids the warm colour shift
               the old meshPhysicalMaterial caused under IBL / bright palette. */}
           <mesh castShadow receiveShadow rotation={[Math.PI / 2, 0, 0]}>

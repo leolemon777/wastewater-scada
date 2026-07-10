@@ -126,9 +126,10 @@ export const EQUIPMENT_PATROL_ANCHORS: Record<string, PatrolAnchor> = {
   'p-sludge-clar-1': { cx: 1, cz: 5, hx: 1.15, hz: 1.15 },
   'p-sludge-clar-2': { cx: 3, cz: 5, hx: 1.15, hz: 1.15 },
   // IntakeSection
-  'tk-collection-1': { cx: -44, cz: 15, hx: 3, hz: 3 },
-  'tk-collection-2': { cx: -38, cz: 15, hx: 3, hz: 3 },
-  'p-lift-1': { cx: -43, cz: 11, hx: 1.15, hz: 1.15 },
+  'tk-collection-1': { cx: -40, cz: 15, hx: 3, hz: 3 },
+  'tk-collection-2': { cx: -34, cz: 15, hx: 3, hz: 3 },
+  // World Z = INTAKE_GROUP.z + LIFT_PUMP_LOCAL_Z = 15 + (-4.85) = 10.15
+  'p-lift-1': { cx: -43, cz: 10.15, hx: 1.15, hz: 1.15 },
   // DeepTreatmentSection
   'tk-daf': { cx: 8, cz: -15, hx: 4, hz: 4 },
   'tk-mixing': { cx: 18, cz: -15, hx: 3, hz: 3 },

@@ -142,9 +142,9 @@ export const Materials = {
     bumpScale: 0.002,
   }),
   
-  // Industrial machine-blue motor casing — weathered enamel, not showroom cyan.
+  // Industrial pump-motor blue casing — weathered enamel, not showroom cyan.
   motorCasing: new THREE.MeshPhysicalMaterial({
-    color: '#4D6672',
+    color: '#2563EB',
     roughness: 0.58,
     metalness: 0.12,
     clearcoat: 0.18,

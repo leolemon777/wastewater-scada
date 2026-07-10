@@ -57,12 +57,16 @@ function eulerFromZDirection(direction: THREE.Vector3): [number, number, number]
   return [e.x, e.y, e.z];
 }
 
+const COLLINEAR_DOT = 0.9995;
+/** Drop near-duplicate vertices closer than this (world units). */
+const DUP_EPS_SQ = 1e-8;
+
 function sanitizePoints(points: [number, number, number][]): THREE.Vector3[] {
   const vectors: THREE.Vector3[] = [];
   for (const [x, y, z] of points) {
     const next = new THREE.Vector3(x, y, z);
     const prev = vectors[vectors.length - 1];
-    if (!prev || prev.distanceToSquared(next) > 0.000001) {
+    if (!prev || prev.distanceToSquared(next) > DUP_EPS_SQ) {
       vectors.push(next);
     }
   }
@@ -82,16 +86,64 @@ function simplifyCollinearPoints(points: THREE.Vector3[]): THREE.Vector3[] {
     const intoLen = into.length();
     const outLen = out.length();
 
-    if (intoLen < 0.000001 || outLen < 0.000001) continue;
+    if (intoLen < 1e-6 || outLen < 1e-6) continue;
 
     into.divideScalar(intoLen);
     out.divideScalar(outLen);
-    if (into.dot(out) > 0.9995) continue;
+    if (into.dot(out) > COLLINEAR_DOT) continue;
 
     simplified.push(cur.clone());
   }
   simplified.push(points[points.length - 1].clone());
   return simplified;
+}
+
+/**
+ * Collapse intermediate legs that are too short to read as real pipe runs.
+ * Short "extra sections" at multi-bend polylines usually come from near-duplicate
+ * fold points or a corridor leg that is shorter than a couple of diameters.
+ * We drop the interior vertex that creates the short leg (never the endpoints).
+ */
+function collapseShortSegments(points: THREE.Vector3[], minLen: number): THREE.Vector3[] {
+  if (points.length < 3 || minLen <= 0) return points;
+
+  let current = points.map((p) => p.clone());
+  let changed = true;
+  while (changed && current.length > 2) {
+    changed = false;
+    const next: THREE.Vector3[] = [current[0].clone()];
+    for (let i = 1; i < current.length - 1; i++) {
+      const prev = next[next.length - 1];
+      const cur = current[i];
+      const after = current[i + 1];
+      const inLen = prev.distanceTo(cur);
+      const outLen = cur.distanceTo(after);
+      // Drop this fold if either adjoining leg is below the min run length.
+      if (inLen < minLen || outLen < minLen) {
+        changed = true;
+        continue;
+      }
+      next.push(cur.clone());
+    }
+    next.push(current[current.length - 1].clone());
+    // Avoid wiping the whole polyline if collapse would leave only endpoints
+    // of a meaningful multi-corner route with one short middle — keep best effort.
+    if (next.length < 2) break;
+    current = simplifyCollinearPoints(next);
+  }
+  return current;
+}
+
+/** Full pre-bend cleanup used by every Pipe3D instance. */
+function normalizePipePolyline(
+  points: [number, number, number][],
+  radius: number,
+): THREE.Vector3[] {
+  const minRun = Math.max(radius * 2.4, 0.12);
+  return collapseShortSegments(
+    simplifyCollinearPoints(sanitizePoints(points)),
+    minRun,
+  );
 }
 
 function pipeShellColor(flowType: PipeLogisticsProps['flowType']) {
@@ -108,6 +160,9 @@ function buildRoundedPath(
   if (points.length < 2) return null;
   const path = new THREE.CurvePath<THREE.Vector3>();
   let cursor = points[0].clone();
+  // Keep a residual straight after each fillet so elbows don't eat the whole leg
+  // and leave a free-floating "extra stub" between two tight bends.
+  const minResidual = Math.max(radius * 0.9, 0.04);
 
   for (let i = 1; i < points.length - 1; i++) {
     const prev = points[i - 1];
@@ -115,23 +170,41 @@ function buildRoundedPath(
     const next = points[i + 1];
     const prevLen = cur.distanceTo(prev);
     const nextLen = cur.distanceTo(next);
-    const inDir = new THREE.Vector3().subVectors(prev, cur).normalize();
-    const outDir = new THREE.Vector3().subVectors(next, cur).normalize();
+    const inDir = new THREE.Vector3().subVectors(prev, cur);
+    const outDir = new THREE.Vector3().subVectors(next, cur);
+    if (inDir.lengthSq() < 1e-12 || outDir.lengthSq() < 1e-12) continue;
+    inDir.normalize();
+    outDir.normalize();
     const bendAngle = Math.acos(Math.max(-1, Math.min(1, inDir.dot(outDir))));
 
-    if (bendAngle < 0.12 || prevLen < radius * 2 || nextLen < radius * 2) {
-      if (cursor.distanceToSquared(cur) > 0.000001) {
+    // Near-straight or legs too short for a fillet: go through the corner cleanly.
+    if (bendAngle < 0.12 || prevLen < radius * 2.2 || nextLen < radius * 2.2) {
+      if (cursor.distanceToSquared(cur) > DUP_EPS_SQ) {
         path.add(new THREE.LineCurve3(cursor, cur.clone()));
       }
       cursor = cur.clone();
       continue;
     }
 
-    const trim = Math.min(radius * BEND_RADIUS_MULTIPLIER, prevLen * 0.38, nextLen * 0.38);
-    const bendStart = cur.clone().addScaledVector(inDir, trim);
-    const bendEnd = cur.clone().addScaledVector(outDir, trim);
+    const maxTrim = Math.min(
+      radius * BEND_RADIUS_MULTIPLIER,
+      Math.max(0, prevLen - minResidual),
+      Math.max(0, nextLen - minResidual),
+      prevLen * 0.42,
+      nextLen * 0.42,
+    );
+    if (maxTrim < radius * 0.55) {
+      if (cursor.distanceToSquared(cur) > DUP_EPS_SQ) {
+        path.add(new THREE.LineCurve3(cursor, cur.clone()));
+      }
+      cursor = cur.clone();
+      continue;
+    }
 
-    if (cursor.distanceToSquared(bendStart) > 0.000001) {
+    const bendStart = cur.clone().addScaledVector(inDir, maxTrim);
+    const bendEnd = cur.clone().addScaledVector(outDir, maxTrim);
+
+    if (cursor.distanceToSquared(bendStart) > DUP_EPS_SQ) {
       path.add(new THREE.LineCurve3(cursor, bendStart));
     }
     path.add(new THREE.QuadraticBezierCurve3(bendStart, cur.clone(), bendEnd));
@@ -139,8 +212,12 @@ function buildRoundedPath(
   }
 
   const last = points[points.length - 1].clone();
-  if (cursor.distanceToSquared(last) > 0.000001) {
+  if (cursor.distanceToSquared(last) > DUP_EPS_SQ) {
     path.add(new THREE.LineCurve3(cursor, last));
+  }
+  // Degenerate path (all points collapsed): fall back to a single straight.
+  if (path.curves.length === 0) {
+    path.add(new THREE.LineCurve3(points[0].clone(), last));
   }
   return path;
 }
@@ -305,8 +382,8 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   showSupports = false,
 }) => {
   const jointPoints = useMemo(
-    () => simplifyCollinearPoints(sanitizePoints(points)),
-    [points],
+    () => normalizePipePolyline(points, radius),
+    [points, radius],
   );
 
   const pipePoints = useMemo(

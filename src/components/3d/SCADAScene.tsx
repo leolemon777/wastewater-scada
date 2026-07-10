@@ -59,16 +59,16 @@ import { DeepTreatmentSection } from './sections/DeepTreatmentSection';
 import { SludgeSection } from './sections/SludgeSection';
 import { ChemicalDosingSection } from './sections/ChemicalDosingSection';
 import { IndustrialPipeNetwork3D } from './sections/IndustrialPipeNetwork3D';
+import { ChemicalPipeRouting } from './sections/ChemicalPipeRouting';
+import { ProcessAndSludgePipeNetwork3D } from './sections/ProcessAndSludgePipeNetwork3D';
 import { StaticGeometryBaker } from './StaticGeometryBaker';
 import { SunLight } from './WaterShader';
-import { Worker3D } from './Worker3D';
 import { resolveSiteGroundSurfaceColor, resolveSitePoolWallColor } from './siteGround';
-import { PATROL_WORKER_ROSTER } from './patrolRoutes';
-import { PatrolOffice3D } from './PatrolOffice3D';
 import { HazardousWasteDeliveryBay3D, HazardousWasteWarehouse3D, HazwasteStagingBags3D } from './HazardousWasteWarehouse3D';
 import { DistributionCabinet3D } from './DistributionCabinet3D';
 import { Forklift3D } from './Forklift3D';
 import { SLUDGE_ACCESS_RAMP, SLUDGE_RUNOUT_Z, SLUDGE_SOUTH_RUNOUT_X } from './sludgePlatformLayout';
+import { PatrolOffice3D } from './PatrolOffice3D';
 
 
 
@@ -510,15 +510,13 @@ const SiteContext3D: React.FC<{
       {expansionJoints}
 
       <>
-          {/* Day-site context: fence, cones, patrol duty office (former sand-pile yard). */}
-          <PatrolOffice3D isNight={isNight} />
-
           <SiteFenceX3D position={[-4, 0.0, 28.5]} length={118} postCount={15} color={fenceColor} />
           <SiteFenceX3D position={[-4, 0.0, -29.3]} length={118} postCount={15} color={fenceColor} />
           <SiteFenceZ3D position={[-63.8, 0.0, -0.4]} length={58} postCount={9} color={fenceColor} />
           <SiteFenceZ3D position={[55.8, 0.0, -0.4]} length={58} postCount={9} color={fenceColor} />
 
           <HazardousWasteWarehouse3D isNight={isNight} />
+          <PatrolOffice3D isNight={isNight} />
           <HazardousWasteDeliveryBay3D />
           <HazwasteStagingBags3D />
           <PipeStorageRack3D position={[52.2, 0.02, 24.0]} rotationY={Math.PI / 2} />
@@ -625,7 +623,7 @@ export const SCADAScene: React.FC = () => {
     Materials.brushedMetal.roughness = 0.34;
     Materials.brushedMetal.color.set('#BCC7CD');
     Materials.motorCasing.metalness = 0.18;
-    Materials.motorCasing.color.set('#00A1E0');
+    Materials.motorCasing.color.set('#2563EB');
     Materials.castIron.metalness = 0.28;
     Materials.castIron.color.set('#6F7476');
     Materials.polishedSteel.metalness = 0.76;
@@ -866,6 +864,9 @@ export const SCADAScene: React.FC = () => {
       <SludgeSection isDafSludgeRunning={isDafSludgeRunning} isOutSludgeRunning={isOutSludgeRunning} />
       <ChemicalDosingSection />
       <IndustrialPipeNetwork3D />
+      {/* Chemical dosing delivery (tank → gallery → basin) */}
+      <ChemicalPipeRouting />
+      <ProcessAndSludgePipeNetwork3D />
 
       {/* ===== REALISTIC DISTRIBUTION CABINETS ===== */}
       {/* 1. Intake Pumps Cabinet (stands on Intake platform) */}
@@ -905,21 +906,7 @@ export const SCADAScene: React.FC = () => {
             speed={1.6}
             pauseTime={4.0}
           />
-          {PATROL_WORKER_ROSTER.map((worker, index) => (
-              <Worker3D
-                key={worker.id}
-                variant={worker.variant}
-                workerLabel={worker.label}
-                patrolPath={[...worker.patrolPath]}
-                patrolTargets={[...worker.patrolTargets]}
-                officeToPath={[...worker.officeToPath]}
-                officeReturnPath={[...worker.officeReturnPath]}
-                officeRestTime={worker.officeRestTime}
-                startDelay={index * 9}
-                speed={worker.speed}
-                pauseTime={worker.pauseTime}
-              />
-            ))}
+
         </group>
 
     </>

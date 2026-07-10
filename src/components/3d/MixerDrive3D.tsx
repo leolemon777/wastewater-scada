@@ -14,7 +14,7 @@ import { EquipmentNameplate3D, StatusLight3D } from './IndustrialParts';
  */
 
 const MOTOR_BODY = new THREE.MeshPhysicalMaterial({
-  color: '#1F5F8B',
+  color: '#1F6B4A',
   roughness: 0.54,
   metalness: 0.18,
   clearcoat: 0.34,
@@ -22,19 +22,19 @@ const MOTOR_BODY = new THREE.MeshPhysicalMaterial({
 });
 
 const MOTOR_CAP = new THREE.MeshStandardMaterial({
-  color: '#16496F',
+  color: '#16563C',
   roughness: 0.58,
   metalness: 0.22,
 });
 
 const MOTOR_FIN = new THREE.MeshStandardMaterial({
-  color: '#123D5E',
+  color: '#124A34',
   roughness: 0.62,
   metalness: 0.2,
 });
 
 const MOTOR_LID = new THREE.MeshStandardMaterial({
-  color: '#0F314C',
+  color: '#0F3D2C',
   roughness: 0.56,
   metalness: 0.28,
 });
@@ -449,10 +449,10 @@ export const MixerDrive3D: React.FC<MixerDrive3DProps> = ({
     }, [startPhase]);
 
     useEffect(() => {
-      MOTOR_BODY.color.set('#1F5F8B');
-      MOTOR_CAP.color.set('#16496F');
-      MOTOR_FIN.color.set('#123D5E');
-      MOTOR_LID.color.set('#0F314C');
+      MOTOR_BODY.color.set('#1F6B4A');
+      MOTOR_CAP.color.set('#16563C');
+      MOTOR_FIN.color.set('#124A34');
+      MOTOR_LID.color.set('#0F3D2C');
       GEARBOX.color.set('#7C8791');
       GEARBOX_DARK.color.set('#3C4650');
       GALV.color.set('#B9C3CA');

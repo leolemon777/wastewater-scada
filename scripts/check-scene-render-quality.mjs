@@ -5,8 +5,8 @@ const ROOT = process.cwd();
 const APP = path.join(ROOT, 'src/App.tsx');
 const STORE = path.join(ROOT, 'src/store/useScadaStore.ts');
 
-const appText = fs.readFileSync(APP, 'utf8');
-const storeText = fs.readFileSync(STORE, 'utf8');
+const appText = fs.readFileSync(APP, 'utf8').replace(/\r\n/g, '\n');
+const storeText = fs.readFileSync(STORE, 'utf8').replace(/\r\n/g, '\n');
 const issues = [];
 
 function has(pattern, label) {

@@ -62,7 +62,7 @@
   --glow-orange: rgba(234, 88, 12, 0.4);
 
   /* Clear lacquer glass — bright frost */
-  --glass-fill-panel: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.7) 100%);
+  --glass-fill-panel: rgba(255, 255, 255, 0.8);
   --glass-border: rgba(15, 23, 42, 0.12);
   --glass-border-bright: rgba(15, 23, 42, 0.22);
   --glass-border-soft: rgba(15, 23, 42, 0.08);
@@ -88,7 +88,7 @@
     inset 0 -1px 0 rgba(255, 255, 255, 0.2);
 
   /* Site chrome — Colorful gradient frosted topbar */
-  --topbar-bg: linear-gradient(90deg, rgba(79, 172, 254, 0.2), rgba(150, 47, 191, 0.2), rgba(255, 8, 68, 0.2));
+  --topbar-bg: rgba(30, 41, 59, 0.85);
   --topbar-border: rgba(255, 255, 255, 0.25);
   --topbar-text: #FFFFFF;
   --topbar-text-dim: #E2E8F0;
@@ -1047,14 +1047,14 @@ html[data-zone-density='sparse'] .zone-label-chip {
    var(--topbar-height). Per-class topbar sizing is handled by the live
    scada-shell.css components (scada-topbar-v2 / scene-hud-dock). */
 html[data-ui-density='compact'] {
-  --topbar-height: 52px;
+  --topbar-height: 48px;
 }
 
 /* Live dashboard chrome lives in scada-shell.css (.dash-*). The classes below
    are the still-used overlay primitives shared by Overlay.tsx (DetailItem,
    AlarmRow, overview rows) and DataDashboard.tsx (scada-switch). */
 
-/* NOC toggle — cyan track with glow when ON, white knob slides right.
+/* Light HMI toggle — soft track, teal when ON, white knob.
    Used by DataDashboard control rows. */
 .scada-switch {
   position: relative;
@@ -1074,11 +1074,11 @@ html[data-ui-density='compact'] {
   position: absolute;
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-color: var(--bg-inset);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+  background-color: #E4EAE7;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.10);
   transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
   border-radius: 999px;
-  border: 1px solid var(--bg-panel-border);
+  border: 1px solid #C9D4CF;
 }
 
 .scada-switch-slider:before {
@@ -1088,17 +1088,17 @@ html[data-ui-density='compact'] {
   width: 18px;
   left: 2px;
   bottom: 2px;
-  background: #5A6678;
+  background: #FFFFFF;
   transition: transform var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
 }
 
 .scada-switch input:checked + .scada-switch-slider {
-  background-color: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+  background-color: color-mix(in srgb, var(--accent-primary) 78%, #FFFFFF);
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 24%, transparent),
-              0 0 12px color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 18%, transparent),
+              0 4px 10px color-mix(in srgb, var(--accent-primary) 22%, transparent);
 }
 
 .scada-switch input:checked + .scada-switch-slider:before {
@@ -1116,10 +1116,11 @@ html[data-ui-density='compact'] {
   grid-template-columns: minmax(0, 1fr) max-content;
   align-items: center;
   column-gap: 12px;
-  min-height: 38px;
-  background: var(--bg-inset);
+  min-height: 40px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8E5;
   padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 }
 
 .detail-item-label {
@@ -1128,6 +1129,7 @@ html[data-ui-density='compact'] {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+  font-weight: 600;
   color: var(--text-secondary);
 }
 
@@ -1141,7 +1143,7 @@ html[data-ui-density='compact'] {
 }
 
 .detail-item-number {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -1152,6 +1154,7 @@ html[data-ui-density='compact'] {
 
 .detail-item-unit {
   font-size: 12px;
+  font-weight: 600;
   color: var(--text-dim);
 }
 
@@ -1206,22 +1209,23 @@ html[data-ui-density='compact'] {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 16px 16px 0;
-  padding: 8px;
-  border-radius: var(--radius-sm);
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 700;
+  background: #FFFFFF;
 }
 
 .equipment-detail-alert.warning {
-  border: 1px solid var(--status-warn);
-  background: color-mix(in srgb, var(--status-warn) 10%, transparent);
-  color: var(--status-warn);
+  border: 1px solid color-mix(in srgb, var(--status-warn) 45%, #D7E0DC);
+  background: #FFFBEB;
+  color: #B45309;
 }
 
 .equipment-detail-alert.critical {
-  border: 1px solid var(--status-error);
-  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-error) 45%, #D7E0DC);
+  background: #FEF2F2;
   color: var(--status-error);
 }
 
@@ -1263,54 +1267,58 @@ html[data-ui-density='compact'] {
 
 .equipment-action-label {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .equipment-action-btn {
   width: 100%;
-  min-height: 34px;
-  padding: 8px 10px;
+  min-height: 38px;
+  padding: 9px 14px;
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
   text-align: center;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .equipment-action-btn.running {
-  border: 1px solid color-mix(in srgb, var(--status-ok) 58%, transparent);
-  background: color-mix(in srgb, var(--status-ok) 14%, transparent);
+  border: 1px solid var(--status-ok);
+  background: #FFFFFF;
   color: var(--status-ok);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-ok) 12%, transparent);
 }
 
 .equipment-action-btn.running:hover {
-  background: color-mix(in srgb, var(--status-ok) 22%, transparent);
-  border-color: color-mix(in srgb, var(--status-ok) 82%, transparent);
+  background: color-mix(in srgb, var(--status-ok) 10%, #FFFFFF);
+  border-color: color-mix(in srgb, var(--status-ok) 85%, transparent);
 }
 
 .equipment-action-btn.idle {
-  border: 1px solid color-mix(in srgb, var(--accent-neutral) 34%, transparent);
-  background: color-mix(in srgb, var(--accent-neutral) 8%, transparent);
+  border: 1px solid #D7E0DC;
+  background: #FFFFFF;
   color: var(--text-secondary);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .equipment-action-btn.idle:hover {
-  background: var(--bg-subtle);
-  border-color: var(--accent-neutral);
-  color: var(--text-primary);
+  background: #F5F8F7;
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
 .equipment-action-btn.danger {
-  border: 1px solid color-mix(in srgb, var(--status-error) 62%, transparent);
-  background: color-mix(in srgb, var(--status-error) 14%, transparent);
+  border: 1px solid var(--status-error);
+  background: #FFFFFF;
   color: var(--status-error);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-error) 12%, transparent);
 }
 
 .equipment-action-btn.danger:hover {
-  background: color-mix(in srgb, var(--status-error) 22%, transparent);
+  background: color-mix(in srgb, var(--status-error) 8%, #FFFFFF);
   border-color: color-mix(in srgb, var(--status-error) 85%, transparent);
 }
 
@@ -1613,9 +1621,41 @@ body.clear-mode {
 }
 
 .site-building-sign--hazwaste {
-  color: var(--status-warn);
-  border-color: color-mix(in srgb, var(--status-warn) 46%, var(--glass-border-soft));
-  background: color-mix(in srgb, var(--status-warn) 12%, rgba(11, 14, 20, 0.94));
+  min-width: 220px;
+  padding: 12px 18px 12px 22px;
+  border: 1px solid rgba(234, 88, 12, 0.4);
+  border-top-color: rgba(234, 88, 12, 0.85);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  box-shadow: 
+    0 8px 32px 0 rgba(15, 23, 42, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  color: #fb923c; /* Warm orange */
+}
+
+.site-building-sign--hazwaste::before {
+  left: 9px;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  background: #fb923c;
+  box-shadow: 0 0 12px #ea580c;
+}
+
+.site-building-sign--hazwaste span {
+  font-size: 24px;
+  font-weight: 900;
+  color: #f97316;
+  text-shadow: 0 2px 8px rgba(234, 88, 12, 0.3);
+  letter-spacing: 1px;
+}
+
+.site-building-sign--hazwaste small {
+  color: rgba(251, 146, 60, 0.8);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  margin-top: 2px;
 }
 
 .site-building-sign--office {

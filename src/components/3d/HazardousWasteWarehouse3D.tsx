@@ -114,7 +114,7 @@ export const HazardousWasteWarehouse3D: React.FC<{ isNight?: boolean }> = ({ isN
         <meshStandardMaterial color="#F59E0B" roughness={0.48} />
       </mesh>
 
-      <Html position={[0, h + 0.38, northZ - 0.46]} center zIndexRange={[70, 0]} distanceFactor={11}>
+      <Html position={[0, h + 0.58, northZ - 0.46]} center zIndexRange={[70, 0]} distanceFactor={20}>
         <div className="site-building-sign site-building-sign--hazwaste">
           <span>危废仓库</span>
           <small>HAZARDOUS WASTE</small>

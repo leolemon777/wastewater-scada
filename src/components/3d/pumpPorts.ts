@@ -3,6 +3,12 @@ import * as THREE from 'three';
 const MACHINE_SCALE = 0.5;
 const DISCHARGE_LOCAL = new THREE.Vector3(0, 1.68, -0.78).multiplyScalar(MACHINE_SCALE);
 const SUCTION_LOCAL = new THREE.Vector3(0, 0.78, -1.54).multiplyScalar(MACHINE_SCALE);
+/**
+ * Suction mouth face offset along the nozzle axis in *unscaled* Pump3D local space
+ * (PumpProcessFlanges suction group: mouth disk at local Y ≈ -0.047 after the π/2 X tilt,
+ * which is world −Z before pump yaw). Scaled and rotated in getSuctionFacePoint.
+ */
+const SUCTION_MOUTH_UNSCALED = 0.047;
 const DISCHARGE_AXIS = new THREE.Vector3(0, 1, 0);
 const SUCTION_AXIS = new THREE.Vector3(0, 0, -1);
 const FLANGE_FACE_INSET = -0.025;
@@ -74,6 +80,19 @@ export function getSuctionStub(
   return [flange[0] + ox, flange[1] + oy, flange[2] + oz];
 }
 
+/**
+ * Outer suction mouth centre (flange face the process pipe seats into).
+ * Offset from the suction group centre along the outward suction axis.
+ */
+export function getSuctionFacePoint(
+  position: [number, number, number],
+  rotationY: number,
+): [number, number, number] {
+  const { suction } = getPumpFlanges(position, rotationY);
+  const [ox, oy, oz] = axisOffset(rotationY, SUCTION_AXIS, SUCTION_MOUTH_UNSCALED * MACHINE_SCALE);
+  return [suction[0] + ox, suction[1] + oy, suction[2] + oz];
+}
+
 export function getDischargeDirection(rotationY: number): [number, number, number] {
   return worldAxis(rotationY, DISCHARGE_AXIS);
 }
@@ -91,7 +110,43 @@ export function getDischargeBranch(
 ): [number, number, number][] {
   const { discharge } = getPumpFlanges(position, rotationY);
   const face = getFlangeFacePoint(discharge, rotationY);
+  if (Math.abs(face[2] - headerZ) < 1e-6) {
+    // Header shares the discharge flange Z: short vertical riser only (no over-motor run).
+    return [face, pt(face[0], headerY, face[2])];
+  }
   return [face, pt(face[0], headerY, face[2]), pt(face[0], headerY, headerZ)];
+}
+
+/** Vertical discharge riser from flange face up to header height at the same X/Z. */
+export function getDischargeRiser(
+  position: [number, number, number],
+  rotationY: number,
+  headerY: number,
+): [number, number, number][] {
+  const { discharge } = getPumpFlanges(position, rotationY);
+  const face = getFlangeFacePoint(discharge, rotationY);
+  return [face, pt(face[0], headerY, face[2])];
+}
+
+/**
+ * Discharge: flange face → short vertical riser → short horizontal spool to the
+ * shared header centreline at (headerY, headerZ). Header must sit on the volute
+ * / collection side of the pump (same side as the discharge nozzle), never on
+ * the motor-cowl side, so the horizontal leg does not span the motor barrel.
+ */
+export function getDischargeToHeader(
+  position: [number, number, number],
+  rotationY: number,
+  headerY: number,
+  headerZ: number,
+): [number, number, number][] {
+  const { discharge } = getPumpFlanges(position, rotationY);
+  const face = getFlangeFacePoint(discharge, rotationY);
+  const riserTop = pt(face[0], headerY, face[2]);
+  if (Math.abs(face[2] - headerZ) < 1e-6) {
+    return [face, riserTop];
+  }
+  return [face, riserTop, pt(face[0], headerY, headerZ)];
 }
 
 /** Suction: manifold → align → approach pump row → flange centre (no stub vertex). */
@@ -109,7 +164,7 @@ export function getSuctionBranch(
   ];
 }
 
-/** Tank wall → pump suction flange (equipment overlap seats the pipe into the pump). */
+/** Tank wall → pump suction mouth face (equipment overlap seats the pipe into the nozzle). */
 export function getDirectTankSuctionBranch(
   position: [number, number, number],
   rotationY: number,
@@ -117,6 +172,37 @@ export function getDirectTankSuctionBranch(
 ): [number, number, number][] {
   const { suction } = getPumpFlanges(position, rotationY);
   return [pt(tankInsertion[0], suction[1], tankInsertion[2]), suction];
+}
+
+/**
+ * Elevated axial suction: wall high → run high → drop outside mouth → axial into mouth.
+ * Much more visible in wide/intake cameras than a deck-height pin stub.
+ */
+export function getElevatedAxialSuctionBranch(
+  position: [number, number, number],
+  rotationY: number,
+  tankInsertion: [number, number, number],
+  runY = 1.32,
+  approachOut = 0.22,
+): [number, number, number][] {
+  const mouth = getSuctionFacePoint(position, rotationY);
+  const [ox, oy, oz] = axisOffset(rotationY, SUCTION_AXIS, approachOut);
+  const approach = pt(mouth[0] + ox, mouth[1] + oy, mouth[2] + oz);
+  const wallHigh = pt(mouth[0], runY, tankInsertion[2]);
+  const approachHigh = pt(approach[0], runY, approach[2]);
+  const approachLow = pt(approach[0], mouth[1], approach[2]);
+  return [wallHigh, approachHigh, approachLow, mouth];
+}
+
+/** World position of the external suction joint (for open-flange fittings). */
+export function getSuctionJointPoint(
+  position: [number, number, number],
+  rotationY: number,
+  jointLen = 0.22,
+): [number, number, number] {
+  const mouth = getSuctionFacePoint(position, rotationY);
+  const [ox, oy, oz] = axisOffset(rotationY, SUCTION_AXIS, jointLen);
+  return [mouth[0] + ox, mouth[1] + oy, mouth[2] + oz];
 }
 
 export function pt(x: number, y: number, z: number): [number, number, number] {
