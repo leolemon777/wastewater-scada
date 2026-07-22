@@ -11,6 +11,5 @@ if errorlevel 1 (
 )
 echo.
 echo Build finished. dist/ is ready.
-echo - Electron 桌面版: npm run electron:dev
-echo - 打包 exe:        npm run dist:win
+echo Preview locally with: npm run preview
 pause

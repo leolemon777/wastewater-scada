@@ -4,7 +4,7 @@
  *
  * World position = INTAKE_GROUP + local (x, y, z).
  */
-import { INTAKE_GROUP } from '../pipeRouting';
+import { INTAKE_GROUP } from '../pipes/pipeRouting';
 
 export type V3 = [number, number, number];
 

@@ -2,14 +2,14 @@ import React from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Html, Sparkles } from '@react-three/drei';
-import { Tank3D } from '../Tank3D';
-import { Pump3D } from '../Pump3D';
-import { PIPE_COLORS } from '../pipeRouting';
-import { Platform3D } from '../Platform3D';
-import { DAFTank3D } from '../DAFTank3D';
+import { Tank3D } from '../equipment/Tank3D';
+import { Pump3D } from '../equipment/Pump3D';
+import { PIPE_COLORS } from '../pipes/pipeRouting';
+import { Platform3D } from '../site/Platform3D';
+import { DAFTank3D } from '../equipment/DAFTank3D';
 import { useScadaStore } from '../../../store/useScadaStore';
 import { getTank } from '../../../store/equipmentUtils';
-import { PoolLadder3D } from '../PoolLadder3D';
+import { PoolLadder3D } from '../site/PoolLadder3D';
 
 const DEEP_ORIGIN: [number, number, number] = [20, 0, -15];
 

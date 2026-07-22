@@ -1,10 +1,10 @@
 import React from 'react';
-import { Tank3D } from '../Tank3D';
-import { Pump3D } from '../Pump3D';
-import { Platform3D } from '../Platform3D';
-import { SludgePlatformAccessRamp3D, SludgePlatformRampOpening3D } from '../PlatformAccessRamp3D';
-import { SLUDGE_GROUP_ORIGIN, SLUDGE_PLATFORM_SIZE } from '../sludgePlatformLayout';
-import { ScrewPress3D } from '../ScrewPress3D';
+import { Tank3D } from '../equipment/Tank3D';
+import { Pump3D } from '../equipment/Pump3D';
+import { Platform3D } from '../site/Platform3D';
+import { SludgePlatformAccessRamp3D, SludgePlatformRampOpening3D } from '../site/PlatformAccessRamp3D';
+import { SLUDGE_GROUP_ORIGIN, SLUDGE_PLATFORM_SIZE } from '../site/sludgePlatformLayout';
+import { ScrewPress3D } from '../equipment/ScrewPress3D';
 
 interface SludgeSectionProps {
   isDafSludgeRunning: boolean;

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Tank3D } from '../Tank3D';
-import { Pump3D } from '../Pump3D';
-import { Platform3D } from '../Platform3D';
-import { INTAKE_GROUP } from '../pipeRouting';
+import { Tank3D } from '../equipment/Tank3D';
+import { Pump3D } from '../equipment/Pump3D';
+import { Platform3D } from '../site/Platform3D';
+import { INTAKE_GROUP } from '../pipes/pipeRouting';
 import {
   LIFT_PUMP_LOCAL_Y,
   LIFT_PUMP_LOCAL_Z,

@@ -2,10 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { useScadaStore } from './store/useScadaStore';
-import './index.css';
-import './scada-hmi-theme.css';
-import './ui/scada-shell.css';
-import './ui/scada-statusbar-refresh.css';
+import './styles/index.css';
+import './styles/scada-hmi-theme.css';
+import './styles/scada-shell.css';
+import './styles/scada-statusbar-refresh.css';
 
 // Expose the store for perf diagnostics (draw-call measurement scripts).
 if (typeof window !== 'undefined') {

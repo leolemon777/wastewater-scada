@@ -8,7 +8,6 @@
 - **React 19 + TypeScript + Vite** — 前端框架与构建
 - **Three.js + React Three Fiber + Drei** — 3D 工艺可视化
 - **Zustand** — 状态管理（单一数据源）
-- **Electron** — 桌面应用打包（工控机现场形态）
 - **lucide-react** — 图标
 
 ## 快速开始
@@ -25,8 +24,8 @@ npm run lint       # ESLint
 | 形态 | 命令 | 说明 |
 |------|------|------|
 | 浏览器开发 | `npm run dev` | HMR 热更新，日常开发 |
-| Electron 桌面 | `npm run electron:dev` | 先 build 再以桌面窗口打开 |
-| 打包 exe | `npm run dist:win` | 生成 `release/污水SCADA_1.0.0_win64.exe`（Win x64） |
+| 生产构建 | `npm run build` | 生成可部署的 `dist/` |
+| 本地预览 | `npm run preview` | 验收生产构建结果 |
 
 部署到工控机现场见 [`docs/deployment/`](docs/deployment/)。
 
@@ -35,7 +34,7 @@ npm run lint       # ESLint
 ```bash
 npm run dev          # 启动开发服务器（端口 5173）
 npm run build        # TypeScript 检查 + Vite 生产构建
-npm run check:scene  # 3D 场景静态检查（设备覆盖、Zustand selector、管路端点等，共 23 项）
+npm run check:scene  # 3D 场景静态检查（状态、管路、场景、UI，共 21 项）
 npm run verify:scene # check:scene + build，修改 3D/UI/管路后优先运行
 npm run lint         # ESLint 检查
 npm run preview      # 预览生产构建
@@ -74,12 +73,14 @@ src/
 │   └── equipmentUtils.ts    # 类型安全访问器（getPump/getTank/isPumpRunning）
 ├── components/
 │   ├── 3d/                  # 3D 场景
-│   │   ├── SCADAScene.tsx   # 组合 6 个工艺段
-│   │   ├── sections/        # 进水/主工艺/深度处理/污泥/加药/加药管路
-│   │   └── (Tank3D/Pump3D/Pipe3D 等设备组件)
+│   │   ├── SCADAScene.tsx   # 场景总装入口
+│   │   ├── equipment/       # 泵、池体、流量计、叠螺机、电柜
+│   │   ├── pipes/           # 管路、管件、泵口锚点与颜色语义
+│   │   ├── site/            # 厂房、平台、消防与物流设施
+│   │   ├── shared/          # 材质、水体、标签与静态几何工具
+│   │   └── sections/        # 进水/主工艺/深度处理/污泥/加药分区
 │   └── ui/                  # 叠层 UI（Overlay 详情/报警面板、DataDashboard 看板）
-├── ui/                      # Shell 与状态栏 CSS、场景 UI token
-└── hooks/ utils/            # （预留）
+└── styles/                  # 全局主题、Shell 与状态栏样式
 ```
 
 完整开发指引见 [`AGENTS.md`](AGENTS.md)。
@@ -111,9 +112,11 @@ src/
 ## 文档
 
 - [`AGENTS.md`](AGENTS.md) — 完整开发指引（架构、数据流、组件约定）
-- [`docs/`](docs/) — 接入路线图、总控数据协议、管路流程表、现场调试记录
-- [`docs/deployment/`](docs/deployment/) — 工控机/Electron 部署说明与启动脚本
-- [`docs/archive/`](docs/archive/) — 历史开发笔记存档
+- [`docs/architecture/`](docs/architecture/) — 总控数据协议与管路流程基准
+- [`docs/integration/`](docs/integration/) — M100 接入路线图与现场调试记录
+- [`docs/deployment/`](docs/deployment/) — Web 版构建和工控机部署说明
+- [`docs/development/`](docs/development/) — 当前实现与维护记录
+- [`docs/reference/`](docs/reference/) — 现场确认与建模参考资料
 
 ## 本地演示模式
 

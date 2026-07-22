@@ -1,9 +1,9 @@
 import React from 'react';
-import { Tank3D } from '../Tank3D';
-import { Pump3D } from '../Pump3D';
-import { Platform3D } from '../Platform3D';
-import { Clarifier3D } from '../Clarifier3D';
-import { OverflowCascade3D } from '../OverflowCascade3D';
+import { Tank3D } from '../equipment/Tank3D';
+import { Pump3D } from '../equipment/Pump3D';
+import { Platform3D } from '../site/Platform3D';
+import { Clarifier3D } from '../equipment/Clarifier3D';
+import { OverflowCascade3D } from '../shared/OverflowCascade3D';
 
 interface MainProcessSectionProps {
   mainFlowActive: boolean;

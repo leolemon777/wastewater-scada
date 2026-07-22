@@ -59,9 +59,15 @@ The store owns the equipment catalog and starts with default zero values. During
 | ChemicalDosingSection | sections/ChemicalDosingSection.tsx | PAC/CaCl2/PAM chemical tanks |
 | ChemicalPipeRouting | sections/ChemicalPipeRouting.tsx | Chemical delivery pipes |
 
-Shared `sections/ZoneLabel.tsx` renders floating section labels in 3D space.
+The 3D module is grouped by responsibility:
 
-Individual 3D equipment components (Tank3D, Pump3D, Pipe3D, etc.) are in the parent `components/3d/` directory. Each equipment component reads its data from the store by `id` prop and handles click selection.
+- `equipment/` — pumps, tanks, meters, screw presses, and cabinets
+- `pipes/` — `Pipe3D`, fittings, pump-port geometry, and pipe color semantics
+- `site/` — buildings, platforms, safety equipment, and layout constants
+- `shared/` — materials, water rendering, labels, and geometry utilities
+- `sections/` — process-stage composition and network routing
+
+Equipment components read their data from the store by `id` prop and handle click selection.
 
 ### UI Layer (src/components/ui/)
 
@@ -72,7 +78,7 @@ Both are wrapped in `ErrorBoundary` in `App.tsx` so a crash in either doesn't af
 
 ### Styling
 
-- `src/index.css` — Dark industrial theme, Inter + JetBrains Mono fonts, component-level CSS classes (`.scada-switch`, `.scada-progress-fill`, `.panel-solid`, `.digit-font`, etc.)
+- `src/styles/` — Dark industrial theme, Inter + JetBrains Mono fonts, shell/status styles, and component-level CSS classes
 - Vite config uses `base: './'` for relative asset paths (portable static hosting)
 
 ## Equipment ID Convention
@@ -89,5 +95,6 @@ Alarms are auto-generated on alarm state transitions (`none` → `warning`/`crit
 
 ## Current Notes
 
-- `DiegeticPanel3D.tsx` is used by pump and tank hover/selection panels.
-- The current project directory is not a git repository. A timestamped sibling backup was created before the latest frontend-demo work.
+- `shared/DiegeticPanel3D.tsx` is used by pump and tank hover/selection panels.
+- Static checks are grouped under `scripts/checks/{state,pipes,scene,ui}/` and orchestrated by `scripts/check-scene.mjs`.
+- The project is version-controlled and tracks the GitHub `origin` remote.

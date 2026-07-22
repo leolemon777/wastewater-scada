@@ -13,12 +13,12 @@
  * than by external closed pipework.
  */
 import React from 'react';
-import { Pipe3D } from '../Pipe3D';
-import { PipeWallPort3D } from '../PipeWallPort3D';
-import { PipeOpenFlange3D } from '../PipeOpenFlange3D';
-import { ConvergingHeader3D } from '../ConvergingHeader3D';
-import { PumpPipeReducer3D } from '../PumpPipeReducer3D';
-import { PIPE_COLORS } from '../pipeRouting';
+import { Pipe3D } from '../pipes/Pipe3D';
+import { PipeWallPort3D } from '../pipes/PipeWallPort3D';
+import { PipeOpenFlange3D } from '../pipes/PipeOpenFlange3D';
+import { ConvergingHeader3D } from '../pipes/ConvergingHeader3D';
+import { PumpPipeReducer3D } from '../pipes/PumpPipeReducer3D';
+import { PIPE_COLORS } from '../pipes/pipeRouting';
 import {
   getDirectTankSuctionBranch,
   getDischargeBranch,
@@ -27,9 +27,9 @@ import {
   getPumpFlanges,
   getSuctionDirection,
   getSuctionFacePoint,
-} from '../pumpPorts';
-import { FlowMeter3D } from '../FlowMeter3D';
-import { Valve3D } from '../Valve3D';
+} from '../pipes/pumpPorts';
+import { FlowMeter3D } from '../equipment/FlowMeter3D';
+import { Valve3D } from '../pipes/Valve3D';
 
 type Point = [number, number, number];
 

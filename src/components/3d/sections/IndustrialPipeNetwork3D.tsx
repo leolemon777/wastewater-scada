@@ -1,9 +1,9 @@
 import React from 'react';
-import { Pipe3D } from '../Pipe3D';
-import { PipeWallPort3D } from '../PipeWallPort3D';
-import { ConvergingHeader3D } from '../ConvergingHeader3D';
-import { PIPE_COLORS } from '../pipeRouting';
-import { getDischargeRiser } from '../pumpPorts';
+import { Pipe3D } from '../pipes/Pipe3D';
+import { PipeWallPort3D } from '../pipes/PipeWallPort3D';
+import { ConvergingHeader3D } from '../pipes/ConvergingHeader3D';
+import { PIPE_COLORS } from '../pipes/pipeRouting';
+import { getDischargeRiser } from '../pipes/pumpPorts';
 import { LIFT_ROT } from './intakeLayout';
 import {
   INTAKE_DISCHARGE_R,

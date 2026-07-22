@@ -17,10 +17,10 @@
  * wall. Coordinates are bare world-space per docs/pipe-flow-map.md §5.
  */
 import React from 'react';
-import { Pipe3D } from '../Pipe3D';
-import { ChemicalMeteringPump3D } from '../ChemicalMeteringPump3D';
-import { PumpPipeReducer3D } from '../PumpPipeReducer3D';
-import { PIPE_COLORS } from '../pipeRouting';
+import { Pipe3D } from '../pipes/Pipe3D';
+import { ChemicalMeteringPump3D } from '../equipment/ChemicalMeteringPump3D';
+import { PumpPipeReducer3D } from '../pipes/PumpPipeReducer3D';
+import { PIPE_COLORS } from '../pipes/pipeRouting';
 
 const CHEM_R = 0.06;
 const CHEM_BRANCH_R = 0.04;

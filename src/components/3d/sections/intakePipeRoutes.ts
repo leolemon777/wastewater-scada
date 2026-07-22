@@ -20,7 +20,7 @@ import {
   getSuctionFacePoint,
   getSuctionJointPoint,
   pt,
-} from '../pumpPorts';
+} from '../pipes/pumpPorts';
 import {
   COLLECTION_SOUTH_WALL_Z,
   LIFT_PUMPS,

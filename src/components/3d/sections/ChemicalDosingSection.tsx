@@ -1,9 +1,9 @@
 import React from 'react';
 import { Html } from '@react-three/drei';
-import { ChemicalTank3D } from '../ChemicalTank3D';
-import { DistributionCabinet3D, DISTRIBUTION_CABINET_BACK_OFFSET } from '../DistributionCabinet3D';
-import { FireExtinguisher3D } from '../FireExtinguisher3D';
-import { wallMountPosition, wallInnerFace, WALL_MOUNT_STANDOFF } from '../wallPlacement';
+import { ChemicalTank3D } from '../equipment/ChemicalTank3D';
+import { DistributionCabinet3D, DISTRIBUTION_CABINET_BACK_OFFSET } from '../equipment/DistributionCabinet3D';
+import { FireExtinguisher3D } from '../site/FireExtinguisher3D';
+import { wallMountPosition, wallInnerFace, WALL_MOUNT_STANDOFF } from '../site/wallPlacement';
 
 const WALL_T = 0.18;
 const TOOL_CABINET_BACK_OFFSET = 0.25;

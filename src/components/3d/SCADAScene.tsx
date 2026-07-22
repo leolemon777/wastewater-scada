@@ -50,8 +50,8 @@ function SkyGradientDome() {
 }
 
 import { useScadaStore } from '../../store/useScadaStore';
-import { SCENE_VISUAL } from './sceneVisualDefaults';
-import { ConcreteNoiseTexture, Materials } from './Materials';
+import { SCENE_VISUAL } from './shared/sceneVisualDefaults';
+import { ConcreteNoiseTexture, Materials } from './shared/Materials';
 import { isPumpRunning } from '../../store/equipmentUtils';
 import { IntakeSection } from './sections/IntakeSection';
 import { MainProcessSection } from './sections/MainProcessSection';
@@ -61,14 +61,14 @@ import { ChemicalDosingSection } from './sections/ChemicalDosingSection';
 import { IndustrialPipeNetwork3D } from './sections/IndustrialPipeNetwork3D';
 import { ChemicalPipeRouting } from './sections/ChemicalPipeRouting';
 import { ProcessAndSludgePipeNetwork3D } from './sections/ProcessAndSludgePipeNetwork3D';
-import { StaticGeometryBaker } from './StaticGeometryBaker';
-import { SunLight } from './WaterShader';
-import { resolveSiteGroundSurfaceColor, resolveSitePoolWallColor } from './siteGround';
-import { HazardousWasteDeliveryBay3D, HazardousWasteWarehouse3D, HazwasteStagingBags3D } from './HazardousWasteWarehouse3D';
-import { DistributionCabinet3D } from './DistributionCabinet3D';
-import { Forklift3D } from './Forklift3D';
-import { SLUDGE_ACCESS_RAMP, SLUDGE_RUNOUT_Z, SLUDGE_SOUTH_RUNOUT_X } from './sludgePlatformLayout';
-import { PatrolOffice3D } from './PatrolOffice3D';
+import { StaticGeometryBaker } from './shared/StaticGeometryBaker';
+import { SunLight } from './shared/WaterShader';
+import { resolveSiteGroundSurfaceColor, resolveSitePoolWallColor } from './site/siteGround';
+import { HazardousWasteDeliveryBay3D, HazardousWasteWarehouse3D, HazwasteStagingBags3D } from './site/HazardousWasteWarehouse3D';
+import { DistributionCabinet3D } from './equipment/DistributionCabinet3D';
+import { Forklift3D } from './site/Forklift3D';
+import { SLUDGE_ACCESS_RAMP, SLUDGE_RUNOUT_Z, SLUDGE_SOUTH_RUNOUT_X } from './site/sludgePlatformLayout';
+import { PatrolOffice3D } from './site/PatrolOffice3D';
 
 
 
@@ -556,6 +556,7 @@ const StaticShadowController: React.FC<{ trigger: string }> = ({ trigger }) => {
     // Re-enable auto-update and reset the bake counter whenever the lighting
     // config changes (encoded in `trigger`).
     frameCount.current = 0;
+    // eslint-disable-next-line react-hooks/immutability -- Three.js renderer state is intentionally imperative.
     gl.shadowMap.autoUpdate = true;
     gl.shadowMap.needsUpdate = true;
     if (typeof window !== 'undefined') (window as unknown as { __scadaScene?: THREE.Scene }).__scadaScene = scene;
@@ -565,6 +566,7 @@ const StaticShadowController: React.FC<{ trigger: string }> = ({ trigger }) => {
       frameCount.current += 1;
       // After ~60 frames the shadow map has fully settled; freeze it.
       if (frameCount.current > 60) {
+        // eslint-disable-next-line react-hooks/immutability -- Three.js renderer state is intentionally imperative.
         gl.shadowMap.autoUpdate = false;
         gl.shadowMap.needsUpdate = true;
       }
