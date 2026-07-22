@@ -18,9 +18,18 @@
  */
 import React from 'react';
 import { Pipe3D } from '../Pipe3D';
+import { ChemicalMeteringPump3D } from '../ChemicalMeteringPump3D';
+import { PumpPipeReducer3D } from '../PumpPipeReducer3D';
 import { PIPE_COLORS } from '../pipeRouting';
 
 const CHEM_R = 0.06;
+const CHEM_BRANCH_R = 0.04;
+const METERING_PUMP_BASE_Y = 0.28;
+const METERING_PUMP_Z = -13.25;
+const METERING_PUMP_HALF_SPACING = 0.32;
+const SUCTION_HEADER_Z = -12.86;
+const DISCHARGE_HEADER_Z = -13.72;
+const DISCHARGE_HEADER_Y = 1.05;
 
 // Overhead gallery tiers (Y) — tiered so crossing runs clear each other.
 const GALLERY_MAIN_Y = 3.3; // CaCl2 / PAM — short runs beside their own tanks
@@ -61,6 +70,7 @@ interface ChemLine {
   key: string;
   color: string;
   points: [number, number, number][];
+  pumpIds: readonly [string, string];
 }
 
 /**
@@ -111,6 +121,7 @@ const CHEM_LINES: ChemLine[] = [
   {
     key: 'pac-to-coagulation',
     color: PAC,
+    pumpIds: ['p-pac-1', 'p-pac-2'],
     points: [
       [-35, TANK_TOP_Y, TANK_TOP_Z],
       [-35, GALLERY_PAC_Y, TANK_TOP_Z],
@@ -123,6 +134,7 @@ const CHEM_LINES: ChemLine[] = [
   {
     key: 'cacl2-to-ph2',
     color: CACL2,
+    pumpIds: ['p-cacl2-1', 'p-cacl2-2'],
     points: [
       [-30, TANK_TOP_Y, TANK_TOP_Z],
       [-30, GALLERY_MAIN_Y, TANK_TOP_Z],
@@ -135,6 +147,7 @@ const CHEM_LINES: ChemLine[] = [
   {
     key: 'pam-to-flocculation',
     color: PAM,
+    pumpIds: ['p-pam-1', 'p-pam-2'],
     points: [
       [-25, TANK_TOP_Y, TANK_TOP_Z],
       [-25, GALLERY_MAIN_Y, TANK_TOP_Z],
@@ -148,6 +161,7 @@ const CHEM_LINES: ChemLine[] = [
   {
     key: 'daf-pac-to-daf',
     color: PAC,
+    pumpIds: ['p-daf-coag-1', 'p-daf-coag-2'],
     points: [
       [-20, TANK_TOP_Y, TANK_TOP_Z],
       [-20, GALLERY_DAF_Y, TANK_TOP_Z],
@@ -164,6 +178,7 @@ const CHEM_LINES: ChemLine[] = [
   {
     key: 'daf-pam-to-daf',
     color: PAM,
+    pumpIds: ['p-daf-floc-1', 'p-daf-floc-2'],
     points: [
       [-15, TANK_TOP_Y, TANK_TOP_Z],
       [-15, GALLERY_DAF_Y, TANK_TOP_Z],
@@ -181,6 +196,7 @@ const CHEM_LINES: ChemLine[] = [
   {
     key: 'screw-pam-to-press',
     color: PAM,
+    pumpIds: ['p-screw-pam-1', 'p-screw-pam-2'],
     points: [
       [-10, TANK_TOP_Y, TANK_TOP_Z],
       [-10, GALLERY_SCREW_Y, TANK_TOP_Z],
@@ -192,29 +208,136 @@ const CHEM_LINES: ChemLine[] = [
   },
 ];
 
+const MeteringPumpSkid: React.FC<{ line: ChemLine }> = ({ line }) => {
+  const tankOutlet = line.points[0];
+  const centerX = tankOutlet[0];
+  const pumpXs = [centerX - METERING_PUMP_HALF_SPACING, centerX + METERING_PUMP_HALF_SPACING] as const;
+  const pumpPositions = pumpXs.map((x) => [x, METERING_PUMP_BASE_Y, METERING_PUMP_Z] as [number, number, number]);
+  const suctionY = METERING_PUMP_BASE_Y + 0.36;
+  const suctionZ = METERING_PUMP_Z + 0.2;
+  const dischargeY = METERING_PUMP_BASE_Y + 0.46;
+  const dischargeZ = METERING_PUMP_Z - 0.18;
+  const suctionCenter: [number, number, number] = [centerX, suctionY, SUCTION_HEADER_Z];
+  const dischargeCenter: [number, number, number] = [centerX, DISCHARGE_HEADER_Y, DISCHARGE_HEADER_Z];
+  const deliveryStart: [number, number, number] = [centerX, DISCHARGE_HEADER_Y + 0.12, DISCHARGE_HEADER_Z];
+  const galleryY = line.points[1][1];
+  const deliveryPoints: [number, number, number][] = [
+    deliveryStart,
+    [centerX, galleryY, DISCHARGE_HEADER_Z],
+    [centerX, galleryY, tankOutlet[2]],
+    ...line.points.slice(2),
+  ];
+
+  return (
+    <group>
+      <DosingPort position={tankOutlet} axis="+y" color={line.color} />
+
+      {/* Tank outlet clears the vessel crown before dropping to the suction manifold. */}
+      <Pipe3D
+        points={[
+          tankOutlet,
+          [centerX, tankOutlet[1] + 0.25, tankOutlet[2]],
+          [centerX, tankOutlet[1] + 0.25, SUCTION_HEADER_Z],
+          suctionCenter,
+        ]}
+        radius={CHEM_BRANCH_R}
+        color={line.color}
+        flowType="chemical"
+        animated={true}
+        startConnection="equipment"
+        endConnection="junction"
+        endJunctionRole="continuous"
+      />
+
+      {pumpPositions.map((pumpPosition, index) => {
+        const x = pumpPosition[0];
+        const suctionHeaderPoint: [number, number, number] = [x, suctionY, SUCTION_HEADER_Z];
+        const suctionPort: [number, number, number] = [x, suctionY, suctionZ];
+        const dischargePort: [number, number, number] = [x, dischargeY, dischargeZ];
+        const dischargeHeaderPoint: [number, number, number] = [x, DISCHARGE_HEADER_Y, DISCHARGE_HEADER_Z];
+        return (
+          <React.Fragment key={line.pumpIds[index]}>
+            <ChemicalMeteringPump3D
+              id={line.pumpIds[index]}
+              position={pumpPosition}
+              color={line.color}
+            />
+            <Pipe3D
+              points={[suctionCenter, suctionHeaderPoint]}
+              radius={CHEM_BRANCH_R}
+              color={line.color}
+              flowType="chemical"
+              animated={true}
+              startConnection="junction"
+              endConnection="junction"
+              startJunctionRole="continuous"
+              endJunctionRole="continuous"
+            />
+            <Pipe3D
+              points={[suctionHeaderPoint, suctionPort]}
+              radius={CHEM_BRANCH_R}
+              color={line.color}
+              flowType="chemical"
+              animated={true}
+              startConnection="junction"
+              endConnection="equipment"
+              startJunctionRole="continuous"
+            />
+            <Pipe3D
+              points={[
+                dischargePort,
+                [x, DISCHARGE_HEADER_Y, dischargeZ],
+                dischargeHeaderPoint,
+              ]}
+              radius={CHEM_BRANCH_R}
+              color={line.color}
+              flowType="chemical"
+              animated={true}
+              startConnection="equipment"
+              endConnection="junction"
+              endJunctionRole="continuous"
+            />
+            <Pipe3D
+              points={[dischargeHeaderPoint, dischargeCenter]}
+              radius={CHEM_BRANCH_R}
+              color={line.color}
+              flowType="chemical"
+              animated={true}
+              startConnection="junction"
+              endConnection="junction"
+              startJunctionRole="continuous"
+              endJunctionRole="continuous"
+            />
+          </React.Fragment>
+        );
+      })}
+
+      <PumpPipeReducer3D
+        position={dischargeCenter}
+        direction={[0, 1, 0]}
+        pumpRadius={CHEM_BRANCH_R}
+        pipeRadius={CHEM_R}
+        color={line.color}
+        length={0.12}
+      />
+      <Pipe3D
+        points={deliveryPoints}
+        radius={CHEM_R}
+        color={line.color}
+        flowType="chemical"
+        animated={true}
+        startConnection="junction"
+        endConnection="equipment"
+        startJunctionRole="continuous"
+        showSupports
+      />
+      <DosingPort position={deliveryPoints[deliveryPoints.length - 1]} axis="-y" color={line.color} />
+    </group>
+  );
+};
+
 export const ChemicalPipeRouting: React.FC = () => (
   <group>
-    {CHEM_LINES.map((line) => {
-      const start = line.points[0];
-      const end = line.points[line.points.length - 1];
-      return (
-        <React.Fragment key={line.key}>
-          {/* Tank-top outlet port (+Y) */}
-          <DosingPort position={start} axis="+y" color={line.color} />
-          {/* Delivery pipe: tank top → gallery → basin drop */}
-          <Pipe3D
-            points={line.points}
-            radius={CHEM_R}
-            color={line.color}
-            flowType="chemical"
-            animated={true}
-            startConnection="equipment"
-            endConnection="equipment"
-          />
-          {/* Dosing port (−Y) over the basin liquor / feed inlet */}
-          <DosingPort position={end} axis="-y" color={line.color} />
-        </React.Fragment>
-      );
-    })}
+    {CHEM_LINES.map((line) => <MeteringPumpSkid key={line.key} line={line} />)}
   </group>
 );

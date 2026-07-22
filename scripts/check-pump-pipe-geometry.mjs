@@ -52,10 +52,13 @@ if (equipmentOverlapMultiplier !== null && equipmentMaxOverlap !== null) {
 if (!directTankSuctionBranch) {
   issues.push('Missing getDirectTankSuctionBranch in pumpPorts.ts');
 } else {
-  const directBranchKeepsPumpHeight =
-    /return\s*\[\s*pt\(tankInsertion\[0\],\s*suction\[1\],\s*tankInsertion\[2\]\),\s*suction\s*\];/.test(directTankSuctionBranch);
-  if (!directBranchKeepsPumpHeight) {
-    issues.push('getDirectTankSuctionBranch must return [wall-at-pump-height, suction] with no intermediate stub vertex');
+  // The wall start must stay at pump-mouth height (suction[1]). A leading
+  // basin-side point that crosses the tank wall is allowed so the mouth opens
+  // inside the basin instead of stranded in the concrete (it is collinear with
+  // the wall point, so Pipe3D strips it — no visible stub).
+  const wallStartsAtPumpHeight = /pt\(tankInsertion\[0\],\s*suction\[1\],\s*tankInsertion\[2\]\)/.test(directTankSuctionBranch);
+  if (!wallStartsAtPumpHeight) {
+    issues.push('getDirectTankSuctionBranch must enter the tank at pump-mouth height (suction[1])');
   }
   if (/tankInsertion\[1\]/.test(directTankSuctionBranch)) {
     issues.push('getDirectTankSuctionBranch must not use tankInsertion[1]; suction pipes should enter the tank at pump-mouth height');

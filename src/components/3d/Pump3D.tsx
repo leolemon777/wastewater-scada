@@ -35,8 +35,10 @@ const PumpProcessFlanges: React.FC<{
 
   return (
     <>
-      {/* Suction nozzle and bolted flange, matching pumpPorts.ts SUCTION_LOCAL. */}
-      <group position={[0, 0.78, -1.54]} rotation={[Math.PI / 2, 0, 0]}>
+      {/* Suction nozzle and bolted flange, matching pumpPorts.ts SUCTION_LOCAL.
+          Z is set so the nozzle seats into the volute end face (volute centre
+          z=-0.78, half-length 0.23 → face at z≈-1.01), not floating outside it. */}
+      <group position={[0, 0.78, -0.98]} rotation={[Math.PI / 2, 0, 0]}>
         <mesh castShadow receiveShadow position={[0, 0.07, 0]}>
           <cylinderGeometry args={[0.165, 0.165, 0.16, 32]} />
           <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
@@ -59,8 +61,10 @@ const PumpProcessFlanges: React.FC<{
         ))}
       </group>
 
-      {/* Discharge nozzle and bolted flange, matching pumpPorts.ts DISCHARGE_LOCAL. */}
-      <group position={[0, 1.68, -0.78]}>
+      {/* Discharge nozzle and bolted flange, matching pumpPorts.ts DISCHARGE_LOCAL.
+          Y is set so the nozzle bottom sits on the volute crown (centre y=0.78,
+          r=0.56 → top y=1.34); old y=1.68 left a ~12 cm air gap above the casing. */}
+      <group position={[0, 1.54, -0.78]}>
         <mesh castShadow receiveShadow position={[0, -0.1, 0]}>
           <cylinderGeometry args={[0.15, 0.15, 0.2, 32]} />
           <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
@@ -724,8 +728,8 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
           </mesh>
         </group>
 
-        {/* ── Top priming / vent plug ── */}
-        <group position={[0, 1.35, -0.78]}>
+        {/* ── Top priming / vent plug (offset off the discharge neck) ── */}
+        <group position={[0.22, 1.28, -0.55]}>
           <mesh castShadow>
             <cylinderGeometry args={[0.035, 0.035, 0.025, 8]} />
             <meshStandardMaterial color="#5A6268" roughness={0.4} metalness={0.5} />

@@ -3,19 +3,11 @@ import path from 'node:path';
 
 const ROOT = process.cwd();
 const PUMP_FILE = path.join(ROOT, 'src/components/3d/ChemicalMeteringPump3D.tsx');
-const SECTION_FILE = path.join(ROOT, 'src/components/3d/sections/ChemicalDosingSection.tsx');
+const ROUTING_FILE = path.join(ROOT, 'src/components/3d/sections/ChemicalPipeRouting.tsx');
 
 const pumpText = fs.readFileSync(PUMP_FILE, 'utf8');
-const sectionText = fs.readFileSync(SECTION_FILE, 'utf8');
+const routingText = fs.readFileSync(ROUTING_FILE, 'utf8');
 const issues = [];
-
-const hasChemicalPipeRouting =
-  /<Pipe3D\b|<AnchoredPipe3D\b|<PipeWallPort3D\b|MeteringPumpBranch/.test(sectionText);
-
-if (!hasChemicalPipeRouting) {
-  console.log('Chemical metering ports: skipped (pipe routing removed for rebuild).');
-  process.exit(0);
-}
 
 const expectedPumpPorts = [
   '[0, 0.36, 0.2]',
@@ -28,35 +20,29 @@ for (const port of expectedPumpPorts) {
   }
 }
 
-const branchExpectations = [
-  '[pumpX, 1.18, METERING_PUMP_Z + 0.2]',
-  '[pumpX, 1.28, METERING_PUMP_Z - 0.18]',
+const expectedPumpIds = [
+  'p-pac-1', 'p-pac-2', 'p-cacl2-1', 'p-cacl2-2', 'p-pam-1', 'p-pam-2',
+  'p-daf-coag-1', 'p-daf-coag-2', 'p-daf-floc-1', 'p-daf-floc-2',
+  'p-screw-pam-1', 'p-screw-pam-2',
 ];
-
-for (const point of branchExpectations) {
-  if (!sectionText.includes(point)) {
-    issues.push(`ChemicalDosingSection missing metering-pump pipe endpoint ${point}`);
-  }
+for (const id of expectedPumpIds) {
+  if (!routingText.includes(`'${id}'`)) issues.push(`ChemicalPipeRouting missing metering pump ${id}`);
 }
 
-const smallPipeCount = (sectionText.match(/radius=\{0\.028\}/g) ?? []).length;
-if (smallPipeCount < 2) {
-  issues.push(`Expected at least two 0.028 chemical metering pipe routes, found ${smallPipeCount}`);
+for (const token of ['suctionPort', 'dischargePort', 'suctionCenter', 'dischargeCenter']) {
+  if (!routingText.includes(token)) issues.push(`ChemicalPipeRouting missing ${token} connection anchor`);
+}
+if (!/<ChemicalMeteringPump3D\b/.test(routingText)) {
+  issues.push('ChemicalPipeRouting does not render ChemicalMeteringPump3D');
+}
+if (!/const\s+MeteringPumpSkid/.test(routingText)) {
+  issues.push('ChemicalPipeRouting missing duty/standby MeteringPumpSkid');
 }
 
-const branchBody = sectionText.match(/const MeteringPumpBranch[\s\S]*?const CleanWaterDilutionPiping/)?.[0] ?? '';
-if (!branchBody) {
-  issues.push('Missing MeteringPumpBranch body in ChemicalDosingSection');
-} else if (/<PipeWallPort3D\b/.test(branchBody)) {
-  issues.push('MeteringPumpBranch must not render per-pump source PipeWallPort3D; use one shared source port per chemical pump group');
-}
+const smallPipeCount = (routingText.match(/radius=\{CHEM_BRANCH_R\}/g) ?? []).length;
+if (smallPipeCount < 5) issues.push(`Expected at least five metering branch route declarations, found ${smallPipeCount}`);
 
-const sharedSourcePortCount = (sectionText.match(/position=\{\[x,\s*1\.18,\s*-0\.42\]\}/g) ?? []).length;
-if (sharedSourcePortCount !== 1) {
-  issues.push(`Expected exactly one shared metering source PipeWallPort3D declaration, found ${sharedSourcePortCount}`);
-}
-
-console.log(`Chemical metering ports: pumpPorts=${expectedPumpPorts.length}, smallPipeRoutes=${smallPipeCount}, sharedSourcePorts=${sharedSourcePortCount}`);
+console.log(`Chemical metering ports: pumpPorts=${expectedPumpPorts.length}, pumpIds=${expectedPumpIds.length}, branchRoutes=${smallPipeCount}`);
 
 if (issues.length > 0) {
   console.error('\nChemical metering port issues found:');

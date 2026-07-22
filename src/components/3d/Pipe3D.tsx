@@ -16,30 +16,42 @@ interface PipeLogisticsProps {
   /** Seal pipe end with a cap (use only on true network terminals). Default: open. */
   sealedStart?: boolean;
   sealedEnd?: boolean;
-  /** Trim branch pipe ends back to the header surface at tee junctions. Use only for branch-to-header joins. */
+  /** Marks a branch-to-header tee. Tee endpoints remain on the header centreline for a seamless mesh overlap. */
   junctionTrim?: 'none' | 'start' | 'end' | 'both';
+  /**
+   * Host (header / trunk) radius used when junctionTrim is active.
+   * Defaults to this pipe's own radius. Pass the larger header radius when the
+   * branch is thinner so the branch end lands on the host outer surface.
+   */
+  junctionHostRadius?: number;
   /** Static audit marker for untrimmed junction endpoints that are section handoffs or continuous route joins. */
   startJunctionRole?: 'handoff' | 'continuous';
   endJunctionRole?: 'handoff' | 'continuous';
   /** Show support brackets on long runs. Default: false */
   showSupports?: boolean;
+  /** Render the solid outer tube. False is used for flow-only overlays on a shared continuous header shell. */
+  renderShell?: boolean;
 }
 
 const yAxis = new THREE.Vector3(0, 1, 0);
-const zAxis = new THREE.Vector3(0, 0, 1);
 const PIPE_WATER = PIPE_COLORS.processWater;
 const PIPE_METAL = '#C4CED6';
 const FLANGE_METAL = '#B4C0C8';
 const SLUDGE_PIPE_METAL = PIPE_COLORS.sludge;
 const CHEMICAL_PIPE_METAL = PIPE_COLORS.pac;
-const EQUIPMENT_CONNECTION_OVERLAP = 1.35;
-const EQUIPMENT_CONNECTION_MAX_OVERLAP = 0.12;
-const JUNCTION_CONNECTION_OVERLAP = 0;
-const JUNCTION_SURFACE_TRIM = 0.92;
+const EQUIPMENT_CONNECTION_OVERLAP = 0.35;
+const EQUIPMENT_CONNECTION_MAX_OVERLAP = 0.04;
+// Keep a short overlap inside the host tube. TubeGeometry has open end rings;
+// stopping exactly on the centreline can expose a hairline gap at oblique views.
+// 0.35R stays fully buried inside an equal/larger host and never forms a dead leg.
+const JUNCTION_CONNECTION_OVERLAP = 0.35;
+/** Tee branches terminate on the host centreline; overlapping equal-colour tubes read as one continuous fitting. */
+const JUNCTION_SURFACE_TRIM = 0;
 const SEALED_CONNECTION_OVERLAP = 0;
-const BEND_RADIUS_MULTIPLIER = 2.6;
-const JUNCTION_WELD_RADIUS = 0.985;
-const JUNCTION_WELD_THICKNESS = 0.012;
+// 1.0 ≈ a standard 1D elbow. The previous 2.6 (long-radius fillet) plus the
+// 0.42 leg cap ate short runs — a 0.55 m riser ended up mostly arc, so banks
+// read as curved instead of horizontal-and-vertical. See maxTrim leg caps below.
+const BEND_RADIUS_MULTIPLIER = 1.0;
 
 /* ── Fitting constants ── */
 const SUPPORT_SPACING = 6;        // world units between supports
@@ -47,12 +59,6 @@ const MIN_PIPE_LEN_FOR_SUPPORTS = 3;
 
 function eulerFromDirection(direction: THREE.Vector3): [number, number, number] {
   const q = new THREE.Quaternion().setFromUnitVectors(yAxis, direction.clone().normalize());
-  const e = new THREE.Euler().setFromQuaternion(q);
-  return [e.x, e.y, e.z];
-}
-
-function eulerFromZDirection(direction: THREE.Vector3): [number, number, number] {
-  const q = new THREE.Quaternion().setFromUnitVectors(zAxis, direction.clone().normalize());
   const e = new THREE.Euler().setFromQuaternion(q);
   return [e.x, e.y, e.z];
 }
@@ -190,8 +196,8 @@ function buildRoundedPath(
       radius * BEND_RADIUS_MULTIPLIER,
       Math.max(0, prevLen - minResidual),
       Math.max(0, nextLen - minResidual),
-      prevLen * 0.42,
-      nextLen * 0.42,
+      prevLen * 0.15,
+      nextLen * 0.15,
     );
     if (maxTrim < radius * 0.55) {
       if (cursor.distanceToSquared(cur) > DUP_EPS_SQ) {
@@ -230,6 +236,7 @@ function extendEndpoint(
   isStart: boolean,
   connection: NonNullable<PipeLogisticsProps['startConnection']>,
   trimJunction: boolean,
+  junctionHostRadius?: number,
 ): THREE.Vector3 {
   if (!sealed && connection === 'terminal') {
     return point.clone();
@@ -239,8 +246,14 @@ function extendEndpoint(
     : new THREE.Vector3().subVectors(point, neighbor).normalize();
 
   if (!sealed && connection === 'junction' && trimJunction) {
-    const trim = radius * JUNCTION_SURFACE_TRIM;
-    return point.clone().addScaledVector(direction, isStart ? trim : -trim);
+    // Route tables place tee endpoints on the host centreline. Continue the
+    // branch a few centimetres *inside* the host so both open TubeGeometry end
+    // rings are buried; the overlap is shorter than the host radius and cannot
+    // become a visible dead leg on the far side.
+    void junctionHostRadius;
+    void JUNCTION_SURFACE_TRIM;
+    const hiddenJunctionOverlap = radius * JUNCTION_CONNECTION_OVERLAP;
+    return point.clone().addScaledVector(direction, isStart ? -hiddenJunctionOverlap : hiddenJunctionOverlap);
   }
 
   const overlapMultiplier = sealed
@@ -266,6 +279,7 @@ function extendConnectionEnds(
   startConnection: NonNullable<PipeLogisticsProps['startConnection']>,
   endConnection: NonNullable<PipeLogisticsProps['endConnection']>,
   junctionTrim: NonNullable<PipeLogisticsProps['junctionTrim']>,
+  junctionHostRadius?: number,
 ): THREE.Vector3[] {
   if (points.length < 2) return points;
   const extended = points.map((point) => point.clone());
@@ -277,6 +291,7 @@ function extendConnectionEnds(
     true,
     startConnection,
     junctionTrim === 'start' || junctionTrim === 'both',
+    junctionHostRadius,
   );
   extended[extended.length - 1] = extendEndpoint(
     points[points.length - 1],
@@ -286,6 +301,7 @@ function extendConnectionEnds(
     false,
     endConnection,
     junctionTrim === 'end' || junctionTrim === 'both',
+    junctionHostRadius,
   );
   return extended;
 }
@@ -327,23 +343,6 @@ const PipeSupport: React.FC<{
   );
 };
 
-const PipeJunctionWeld: React.FC<{
-  position: THREE.Vector3;
-  direction: THREE.Vector3;
-  radius: number;
-  color: string;
-}> = ({ position, direction, radius, color }) => {
-  const rotation = eulerFromZDirection(direction);
-  return (
-    <group position={position.toArray()} rotation={rotation}>
-      <mesh castShadow receiveShadow>
-        <torusGeometry args={[radius * JUNCTION_WELD_RADIUS, radius * JUNCTION_WELD_THICKNESS, 6, 24]} />
-        <meshStandardMaterial color={color} roughness={0.6} metalness={0.2} />
-      </mesh>
-    </group>
-  );
-};
-
 /* ── Calculate support positions along pipe path ── */
 function computeSupportPositions(
   pipePath: THREE.CurvePath<THREE.Vector3>,
@@ -379,7 +378,9 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   sealedStart = false,
   sealedEnd = false,
   junctionTrim = 'none',
+  junctionHostRadius,
   showSupports = false,
+  renderShell = true,
 }) => {
   const jointPoints = useMemo(
     () => normalizePipePolyline(points, radius),
@@ -387,8 +388,17 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   );
 
   const pipePoints = useMemo(
-    () => extendConnectionEnds(jointPoints, radius, sealedStart, sealedEnd, startConnection, endConnection, junctionTrim),
-    [jointPoints, radius, sealedStart, sealedEnd, startConnection, endConnection, junctionTrim],
+    () => extendConnectionEnds(
+      jointPoints,
+      radius,
+      sealedStart,
+      sealedEnd,
+      startConnection,
+      endConnection,
+      junctionTrim,
+      junctionHostRadius,
+    ),
+    [jointPoints, radius, sealedStart, sealedEnd, startConnection, endConnection, junctionTrim, junctionHostRadius],
   );
 
   const pathLength = useMemo(() => {
@@ -428,7 +438,7 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   useEffect(() => () => { pipeGeometry?.dispose(); }, [pipeGeometry]);
 
   const routeColor = color ?? pipeShellColor(flowType);
-  let flowColor =
+  const flowColor =
     routeColor === PIPE_COLORS.rawWater ||
     routeColor === PIPE_COLORS.deepWater ||
     routeColor === PIPE_COLORS.cleanWater ||
@@ -509,47 +519,16 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
 
   if (!pipeGeometry || jointPoints.length < 2 || pipePoints.length < 2) return null;
 
-  const showStartJunctionWeld =
-    startConnection === 'junction' &&
-    (junctionTrim === 'start' || junctionTrim === 'both');
-  const showEndJunctionWeld =
-    endConnection === 'junction' &&
-    (junctionTrim === 'end' || junctionTrim === 'both');
-  const startJunctionDir = showStartJunctionWeld
-    ? new THREE.Vector3().subVectors(pipePoints[1], pipePoints[0]).normalize()
-    : null;
-  const endJunctionDir = showEndJunctionWeld
-    ? new THREE.Vector3().subVectors(pipePoints[pipePoints.length - 1], pipePoints[pipePoints.length - 2]).normalize()
-    : null;
-  const weldColor = usesDefaultMetal ? FLANGE_METAL : outerColor;
-
   return (
     <group>
-      <mesh geometry={pipeGeometry} material={pipeMaterial} castShadow receiveShadow />
+      {renderShell && <mesh geometry={pipeGeometry} material={pipeMaterial} castShadow receiveShadow />}
 
       {flowMaterial && (
         <mesh geometry={pipeGeometry} material={flowMaterial} userData={{ bakeExclude: true }} />
       )}
 
-      {showStartJunctionWeld && startJunctionDir && (
-        <PipeJunctionWeld
-          position={pipePoints[0]}
-          direction={startJunctionDir}
-          radius={radius}
-          color={weldColor}
-        />
-      )}
-      {showEndJunctionWeld && endJunctionDir && (
-        <PipeJunctionWeld
-          position={pipePoints[pipePoints.length - 1]}
-          direction={endJunctionDir}
-          radius={radius}
-          color={weldColor}
-        />
-      )}
-
       {/* ── Pipe supports along long runs ── */}
-      {supportPositions.map((sup, i) => (
+      {renderShell && supportPositions.map((sup, i) => (
         <PipeSupport
           key={`support-${i}`}
           position={sup.position}

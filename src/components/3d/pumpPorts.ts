@@ -1,17 +1,24 @@
 import * as THREE from 'three';
 
 const MACHINE_SCALE = 0.5;
-const DISCHARGE_LOCAL = new THREE.Vector3(0, 1.68, -0.78).multiplyScalar(MACHINE_SCALE);
-const SUCTION_LOCAL = new THREE.Vector3(0, 0.78, -1.54).multiplyScalar(MACHINE_SCALE);
+/** Matches Pump3D discharge group — nozzle bottom on volute crown (unscaled y=1.54). */
+const DISCHARGE_LOCAL = new THREE.Vector3(0, 1.54, -0.78).multiplyScalar(MACHINE_SCALE);
+/** Matches Pump3D suction group — flange seated on volute end face (unscaled z=-0.98). */
+const SUCTION_LOCAL = new THREE.Vector3(0, 0.78, -0.98).multiplyScalar(MACHINE_SCALE);
 /**
- * Suction mouth face offset along the nozzle axis in *unscaled* Pump3D local space
- * (PumpProcessFlanges suction group: mouth disk at local Y ≈ -0.047 after the π/2 X tilt,
- * which is world −Z before pump yaw). Scaled and rotated in getSuctionFacePoint.
+ * Outer face of the suction mouth disk in *unscaled* Pump3D local space
+ * (disk centre Y≈-0.047, half-height 0.009 → outer face Y≈-0.056 after the π/2 X tilt,
+ * world −Z before pump yaw). Scaled and rotated in getSuctionFacePoint.
  */
-const SUCTION_MOUTH_UNSCALED = 0.047;
+const SUCTION_MOUTH_OUTER_UNSCALED = 0.056;
 const DISCHARGE_AXIS = new THREE.Vector3(0, 1, 0);
 const SUCTION_AXIS = new THREE.Vector3(0, 0, -1);
-const FLANGE_FACE_INSET = -0.025;
+/**
+ * Positive offset along discharge (+Y) to the mouth-disk outer face
+ * (unscaled local Y = 0.032 + 0.018/2 = 0.041 → 0.0205 after scale).
+ * Pipe3D equipment overlap then buries the tube end inside the nozzle.
+ */
+const FLANGE_FACE_INSET = 0.041 * MACHINE_SCALE;
 /** Legacy constants kept for geometry guard scripts; routes no longer insert stub vertices. */
 const DISCHARGE_STUB_LEN = 0;
 const SUCTION_STUB_LEN = 0;
@@ -89,7 +96,7 @@ export function getSuctionFacePoint(
   rotationY: number,
 ): [number, number, number] {
   const { suction } = getPumpFlanges(position, rotationY);
-  const [ox, oy, oz] = axisOffset(rotationY, SUCTION_AXIS, SUCTION_MOUTH_UNSCALED * MACHINE_SCALE);
+  const [ox, oy, oz] = axisOffset(rotationY, SUCTION_AXIS, SUCTION_MOUTH_OUTER_UNSCALED * MACHINE_SCALE);
   return [suction[0] + ox, suction[1] + oy, suction[2] + oz];
 }
 
@@ -164,14 +171,25 @@ export function getSuctionBranch(
   ];
 }
 
-/** Tank wall → pump suction mouth face (equipment overlap seats the pipe into the nozzle). */
+/** Tank wall → pump suction mouth face. The polyline starts INSIDE the basin so the tube crosses the 0.3 m wall and its mouth opens in the water (equipment overlap still seats the pump end into the nozzle). Uses the full wall→suction vector so east/west-wall suctions (drainage, sludge-out) enter along X, not just Z. */
 export function getDirectTankSuctionBranch(
   position: [number, number, number],
   rotationY: number,
   tankInsertion: [number, number, number],
 ): [number, number, number][] {
   const { suction } = getPumpFlanges(position, rotationY);
-  return [pt(tankInsertion[0], suction[1], tankInsertion[2]), suction];
+  const wallStart = pt(tankInsertion[0], suction[1], tankInsertion[2]);
+  // Basin side = full vector away from the pump suction (works for N/S/E/W walls).
+  const dx = wallStart[0] - suction[0];
+  const dy = wallStart[1] - suction[1];
+  const dz = wallStart[2] - suction[2];
+  const len = Math.hypot(dx, dy, dz) || 1;
+  const poolInner = pt(
+    wallStart[0] + (dx / len) * 0.4,
+    wallStart[1] + (dy / len) * 0.4,
+    wallStart[2] + (dz / len) * 0.4,
+  );
+  return [poolInner, wallStart, suction];
 }
 
 /**

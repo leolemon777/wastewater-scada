@@ -127,5 +127,12 @@ export function getSludgeForkliftSurfaceY(x: number, z: number): number {
     return SLUDGE_PLATFORM_DECK_Y;
   }
 
+  // Warehouse interior floor slab elevation
+  // Warehouse center X is 43.5, width is 14
+  // North wall is at Z = 20.2, South wall is at Z = 27.8
+  if (x >= 43.5 - 7 && x <= 43.5 + 7 && z >= 20.2 && z <= 27.8) {
+    return 0.08;
+  }
+
   return PATROL_GROUND_Y;
 }

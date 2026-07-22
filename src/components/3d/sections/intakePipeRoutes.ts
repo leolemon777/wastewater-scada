@@ -31,15 +31,27 @@ import {
 } from './intakeLayout';
 
 export const INTAKE_RAW_WATER_R = 0.1;
-/** ~ pump suction nozzle bore after scale 0.5 */
-export const INTAKE_SUCTION_R = 0.09;
+/**
+ * Suction spool OD — matches Pump3D suction nozzle after MACHINE_SCALE 0.5
+ * (unscaled cylinder r=0.165 → 0.0825) so the open-flange joint seats flush.
+ */
+export const INTAKE_SUCTION_R = 0.0825;
+/**
+ * Discharge riser OD — matches Pump3D discharge mouth disk after scale
+ * (unscaled r=0.17 → 0.085) so the riser seats in the pump flange bore.
+ * Tee join to the thicker header uses junctionHostRadius=INTAKE_RAW_WATER_R.
+ */
 export const INTAKE_DISCHARGE_R = 0.085;
 export const INTAKE_HEADER_Y = 2.15;
 export const INTAKE_MIN_SUCTION_LEN = 0.55;
 export const PH1_INLET: V3 = [-40, 1.12, -3.05];
 export const INTAKE_FLANGE_TOLERANCE_M = 0.08;
-/** External joint length outside suction mouth (hosts pipe-side open flange). */
-export const INTAKE_SUCTION_JOINT_LEN = 0.18;
+/**
+ * Pipe-side open flange standoff from the suction mouth sealing face.
+ * Kept short so the open flange reads as a true flange-to-flange pair with the
+ * pump nozzle (old 0.18 m left a long green stub that looked unmated).
+ */
+export const INTAKE_SUCTION_JOINT_LEN = 0;
 
 export type IntakePumpRoute = {
   id: string;
@@ -56,12 +68,9 @@ export type IntakePumpRoute = {
 };
 
 function suctionWallPoint(source: LiftSuctionSource, mouth: V3): V3 {
-  if (source === 'collection-1' || source === 'collection-2') {
-    // Same X as mouth, mouth height, collection south wall — pure axial Z run.
-    return pt(mouth[0], mouth[1], COLLECTION_SOUTH_WALL_Z);
-  }
-  // Gas lifts: free axial stub north of mouth.
-  return pt(mouth[0], mouth[1], mouth[2] + 0.7);
+  void source;
+  // Same X as mouth, mouth height, collection north wall — pure axial Z run.
+  return pt(mouth[0], mouth[1], COLLECTION_SOUTH_WALL_Z);
 }
 
 /**
@@ -140,6 +149,8 @@ export function buildIntakeLiftPipeNetwork(): {
     [westClearX, PH1_INLET[1], 3.8],
     [PH1_INLET[0], PH1_INLET[1], 3.8],
     PH1_INLET,
+    // Cross the 0.3 m PH1 wall so the pipe mouth opens inside the basin.
+    [PH1_INLET[0], PH1_INLET[1], PH1_INLET[2] + 0.4],
   ];
 
   return {

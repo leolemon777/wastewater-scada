@@ -870,9 +870,9 @@ export const SCADAScene: React.FC = () => {
 
       {/* ===== REALISTIC DISTRIBUTION CABINETS ===== */}
       {/* 1. Intake Pumps Cabinet (stands on Intake platform) */}
-      <DistributionCabinet3D position={[-29.5, 0.5, 19.0]} rotation={[0, -Math.PI / 2, 0]} cabinetName="1# 进水提升控制柜" />
-      <DistributionCabinet3D position={[5, 0.5, -5.2]} rotation={[0, Math.PI / 2, 0]} cabinetName="2# 沉淀回流控制柜" />
-      <DistributionCabinet3D position={[10.5, 0.5, 11.5]} rotation={[0, 0, 0]} cabinetName="4# 污泥脱水控制柜" />
+      <DistributionCabinet3D position={[-29.5, 0.5, 19.0]} rotation={[0, 0, 0]} cabinetName="1# 进水提升控制柜" />
+      <DistributionCabinet3D position={[5.5, 0.5, 5.0]} rotation={[0, 0, 0]} cabinetName="2# 沉淀回流控制柜" />
+      <DistributionCabinet3D position={[13.5, 0.5, 19.2]} rotation={[0, 0, 0]} cabinetName="4# 污泥脱水控制柜" />
 
       <group userData={{ bakeExclude: true }}>
           {/* Sludge ton-bag forklift: picks up at the screw-press discharge,
@@ -893,7 +893,7 @@ export const SCADAScene: React.FC = () => {
               [34.5, 0, 22.4],       // 6. east along road to warehouse west lane
               [34.5, 0, 16.0],       // 7. north up the west lane
               [43.5, 0, 16.0],       // 8. east to the north door centerline
-              [43.5, 0.04, 22.85],   // 9. straight south through door, unload inside ← UNLOAD
+              [43.5, 0.08, 24.35],   // 9. straight south through door, unload deep inside ← UNLOAD
               [43.5, 0, 16.0],       // 10. reverse out the door, back north
               [34.5, 0, 16.0],       // 11. west along the north lane
               [34.5, 0, 22.4],       // 12. south back to the service road

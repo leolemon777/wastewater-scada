@@ -14,6 +14,8 @@ const NON_PUMP_EQUIPMENT_FITTING_RE =
   /<(?:ChemicalMeteringPump3D|PipeWallPort3D|PipeFloorSleeve3D|PipeOpenFlange3D|DosingPort|CleanWaterHeaderTerminal|OutfallDropNozzle3D)\b/g;
 const PUMP_ROUTE_HELPER_RE =
   /\b(?:getDischargeBranch|getSuctionBranch|getDirectTankSuctionBranch)\s*\(/g;
+const PUMP_ENDPOINT_REF_RE =
+  /\b(?:suctionPort|dischargePort|branch\.suctionMouth)\b/g;
 /**
  * AnchoredPipe3D blocks render their end fittings (wall-port / open-flange /
  * blind-flange) at runtime from the route's startFitting/endFitting fields, so
@@ -106,7 +108,9 @@ for (const file of walk(SECTION_DIR)) {
     const visibleFittingCount = (context.match(NON_PUMP_EQUIPMENT_FITTING_RE) ?? []).length;
     const namedFittingCount = namedEndpointFittingCount(pipe.block, text, context);
     const sharedFittingCount = sharedSourceFittingCount(pipe.block, text);
-    const pumpHelperEndpointCount = (pipe.block.match(PUMP_ROUTE_HELPER_RE) ?? []).length;
+    const pumpHelperEndpointCount =
+      (pipe.block.match(PUMP_ROUTE_HELPER_RE) ?? []).length +
+      (pipe.block.match(PUMP_ENDPOINT_REF_RE) ?? []).length;
     // Each neighbouring <AnchoredPipe3D> renders 2 runtime fittings (start + end
     // anchor), counted into this pipe's fitting budget so anchored pipes satisfy
     // the endpoint-fitting check without duplicate visible source markers.

@@ -91,27 +91,18 @@ for (const rule of FITTING_RULES) {
 }
 
 const pipeText = read(PIPE_3D);
-const weldRadius = Number(pipeText.match(/const\s+JUNCTION_WELD_RADIUS\s*=\s*([0-9.]+)/)?.[1]);
-const weldThickness = Number(pipeText.match(/const\s+JUNCTION_WELD_THICKNESS\s*=\s*([0-9.]+)/)?.[1]);
 const junctionOverlap = numericConst(pipeText, 'JUNCTION_CONNECTION_OVERLAP');
 const junctionSurfaceTrim = numericConst(pipeText, 'JUNCTION_SURFACE_TRIM');
 const sealedOverlap = numericConst(pipeText, 'SEALED_CONNECTION_OVERLAP');
 const bendRadiusMultiplier = numericConst(pipeText, 'BEND_RADIUS_MULTIPLIER');
 
-if (!Number.isFinite(weldRadius)) {
-  issues.push(`${PIPE_3D}: missing JUNCTION_WELD_RADIUS`);
-} else if (weldRadius > 0.99) {
-  issues.push(`${PIPE_3D}: JUNCTION_WELD_RADIUS ${weldRadius} exceeds 0.99`);
-}
-if (!Number.isFinite(weldThickness)) {
-  issues.push(`${PIPE_3D}: missing JUNCTION_WELD_THICKNESS`);
-} else if (weldThickness > 0.014) {
-  issues.push(`${PIPE_3D}: JUNCTION_WELD_THICKNESS ${weldThickness} exceeds 0.014`);
+if (/PipeJunctionWeld|JUNCTION_WELD_/.test(pipeText)) {
+  issues.push(`${PIPE_3D}: tee joins must use centreline mesh overlap, not a protruding weld-ring patch`);
 }
 if (junctionOverlap === null) {
   issues.push(`${PIPE_3D}: missing JUNCTION_CONNECTION_OVERLAP`);
-} else if (junctionOverlap !== 0) {
-  issues.push(`${PIPE_3D}: JUNCTION_CONNECTION_OVERLAP must stay 0 so tee endpoints do not protrude through headers`);
+} else if (junctionOverlap < 0.2 || junctionOverlap > 0.5) {
+  issues.push(`${PIPE_3D}: JUNCTION_CONNECTION_OVERLAP ${junctionOverlap} must stay within 0.2–0.5R so open tube rings close inside the host without creating a visible dead leg`);
 }
 if (sealedOverlap === null) {
   issues.push(`${PIPE_3D}: missing SEALED_CONNECTION_OVERLAP`);
@@ -120,18 +111,18 @@ if (sealedOverlap === null) {
 }
 if (junctionSurfaceTrim === null) {
   issues.push(`${PIPE_3D}: missing JUNCTION_SURFACE_TRIM`);
-} else if (junctionSurfaceTrim < 0.85 || junctionSurfaceTrim > 0.98) {
-  issues.push(`${PIPE_3D}: JUNCTION_SURFACE_TRIM ${junctionSurfaceTrim} should stay between 0.85 and 0.98 for flush tee joins`);
+} else if (junctionSurfaceTrim !== 0) {
+  issues.push(`${PIPE_3D}: JUNCTION_SURFACE_TRIM must stay 0 so tee branches reach the host centreline`);
 }
 if (bendRadiusMultiplier === null) {
   issues.push(`${PIPE_3D}: missing BEND_RADIUS_MULTIPLIER`);
-} else if (bendRadiusMultiplier < 2.0 || bendRadiusMultiplier > 5) {
-  issues.push(`${PIPE_3D}: BEND_RADIUS_MULTIPLIER ${bendRadiusMultiplier} should stay between 2.0 and 5 (lower = tighter elbows, less protruding straight stubs)`);
+} else if (bendRadiusMultiplier < 1.0 || bendRadiusMultiplier > 5) {
+  issues.push(`${PIPE_3D}: BEND_RADIUS_MULTIPLIER ${bendRadiusMultiplier} should stay between 1.0 and 5 (1.0 ≈ a standard 1D elbow for orthogonal banks; higher = long-radius fillet)`);
 }
 if (/<sphereGeometry\b/.test(pipeText)) {
   issues.push(`${PIPE_3D}: Pipe3D must not use sphereGeometry as a junction/bend patch`);
 }
-stats.push(`${PIPE_3D}: junctionWeldRadius=${weldRadius}, junctionWeldThickness=${weldThickness}, junctionOverlap=${junctionOverlap}, junctionSurfaceTrim=${junctionSurfaceTrim}, sealedOverlap=${sealedOverlap}, bendRadiusMultiplier=${bendRadiusMultiplier}`);
+stats.push(`${PIPE_3D}: teeMode=centerline-overlap, junctionOverlap=${junctionOverlap}, junctionSurfaceTrim=${junctionSurfaceTrim}, sealedOverlap=${sealedOverlap}, bendRadiusMultiplier=${bendRadiusMultiplier}`);
 
 console.log('Pipe fitting proportions:');
 for (const stat of stats) console.log(`- ${stat}`);

@@ -8,9 +8,10 @@ interface Valve3DProps {
   id: string;
   position: [number, number, number];
   rotation?: [number, number, number];
+  scale?: number | [number, number, number];
 }
 
-export const Valve3D: React.FC<Valve3DProps> = ({ id, position, rotation = [0, 0, 0] }) => {
+export const Valve3D: React.FC<Valve3DProps> = ({ id, position, rotation = [0, 0, 0], scale = 1 }) => {
   const valveData = useScadaStore((state) => state.equipments[id] as ValveData);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
@@ -25,7 +26,7 @@ export const Valve3D: React.FC<Valve3DProps> = ({ id, position, rotation = [0, 0
   const bodyColor = isSelected ? '#60758a' : '#465a6c';
 
   return (
-    <group position={position} rotation={rotation}>
+    <group position={position} rotation={rotation} scale={scale}>
       <mesh 
         visible={false} 
         onClick={(e) => { e.stopPropagation(); setSelectedEquipment(id); }}

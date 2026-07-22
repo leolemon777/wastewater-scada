@@ -15,10 +15,19 @@
 import React from 'react';
 import { Pipe3D } from '../Pipe3D';
 import { PipeWallPort3D } from '../PipeWallPort3D';
-import { PipeBlindFlange3D } from '../PipeBlindFlange3D';
 import { PipeOpenFlange3D } from '../PipeOpenFlange3D';
+import { ConvergingHeader3D } from '../ConvergingHeader3D';
+import { PumpPipeReducer3D } from '../PumpPipeReducer3D';
 import { PIPE_COLORS } from '../pipeRouting';
-import { getDirectTankSuctionBranch, getDischargeBranch } from '../pumpPorts';
+import {
+  getDirectTankSuctionBranch,
+  getDischargeBranch,
+  getDischargeDirection,
+  getFlangeFacePoint,
+  getPumpFlanges,
+  getSuctionDirection,
+  getSuctionFacePoint,
+} from '../pumpPorts';
 import { FlowMeter3D } from '../FlowMeter3D';
 import { Valve3D } from '../Valve3D';
 
@@ -38,24 +47,41 @@ const SLUDGE_EAST_CORRIDOR_X = 33;
 const PROCESS_CORRIDOR_Z = -5.15;
 const DEEP_CORRIDOR_Z = -20.35;
 const MIX_DRAIN_CORRIDOR_Z = -19.35;
+/** Basin-side penetration: crosses the 0.3 m Tank3D wall so the pipe mouth opens inside the water, not stranded in the concrete. */
+const WALL_PEN = 0.4;
 
 /**
  * Continuous U-jumper: wall → corridor → corridor → wall.
  * One polyline so Pipe3D draws a single tube with filleted elbows (no mid joints).
  */
 function wallJumper(from: Point, to: Point, corridorZ: number): Point[] {
+  // Every fitting is mounted on a north wall. The insertion leg must therefore
+  // stay at the same X and cross the wall only along Z; diagonal corner entries
+  // do not align with the circular wall sleeve.
+  const fromInner: Point = [
+    from[0],
+    from[1],
+    from[2] + Math.sign(from[2] - corridorZ) * WALL_PEN,
+  ];
+  const toInner: Point = [
+    to[0],
+    to[1],
+    to[2] + Math.sign(to[2] - corridorZ) * WALL_PEN,
+  ];
   return [
+    fromInner,
     from,
     [from[0], from[1], corridorZ],
     [to[0], to[1], corridorZ],
     to,
+    toInner,
   ];
 }
 
 // Main water line — world positions, placed on the external north-side corridor
 // of each basin so pipes do not pass through water volumes or agitators.
-const FLOC_OUTLET: Point = [-13.15, PROCESS_PORT_Y, -3.05];
-const CLARIFIER_INLET: Point = [-1.15, PROCESS_PORT_Y, -4.05];
+const FLOC_OUTLET: Point = [-14, PROCESS_PORT_Y, -3.05];
+const CLARIFIER_INLET: Point = [-0.5, PROCESS_PORT_Y, -4.05];
 const CLARIFIER_OUTLET: Point = [3.45, PROCESS_PORT_Y, -4.05];
 const PH3_INLET: Point = [10.15, PROCESS_PORT_Y, -3.05];
 const PH3_OUTLET: Point = [13.55, PROCESS_PORT_Y, -3.05];
@@ -71,10 +97,10 @@ const INTERMEDIATE_HEADER_END: Point = [18.8, PUMP_HEADER_Y, -7.61];
 const INTERMEDIATE_TO_DAF_TAKEOFF: Point = [16, PUMP_HEADER_Y, -7.61];
 const DAF_INLET: Point = [5.2, PROCESS_PORT_Y, -19.05];
 
-const DAF_OUTLET: Point = [12, PROCESS_PORT_Y, -19.05];
-const MIXING_INLET: Point = [15, PROCESS_PORT_Y, -18.05];
-const MIXING_OUTLET: Point = [21, PROCESS_PORT_Y, -18.05];
-const DRAINAGE_INLET: Point = [24, PROCESS_PORT_Y, -18.05];
+const DAF_OUTLET: Point = [11.2, PROCESS_PORT_Y, -19.05];
+const MIXING_INLET: Point = [15.8, PROCESS_PORT_Y, -18.05];
+const MIXING_OUTLET: Point = [20.2, PROCESS_PORT_Y, -18.05];
+const DRAINAGE_INLET: Point = [24.8, PROCESS_PORT_Y, -18.05];
 
 const DRAIN_PUMP_A: Point = [32, 0.5, -17];
 const DRAIN_PUMP_B: Point = [32, 0.5, -13];
@@ -114,8 +140,6 @@ const SLUDGE_OUT_PUMP_B: Point = [11, 0.5, 17];
 const SLUDGE_OUT_ROTATION = Math.PI / 2;
 const SLUDGE_TANK_SUCTION_A: Point = [9.05, SLUDGE_PORT_Y, 13];
 const SLUDGE_TANK_SUCTION_B: Point = [9.05, SLUDGE_PORT_Y, 17];
-const SLUDGE_OUT_HEADER_START: Point = [10.61, PUMP_HEADER_Y, 12.3];
-const SLUDGE_OUT_HEADER_END: Point = [10.61, PUMP_HEADER_Y, 17.7];
 const SLUDGE_TO_PRESS_TAKEOFF: Point = [10.61, PUMP_HEADER_Y, 15];
 // Actual top flange on ScrewPress3D's nested flocculation feed inlet.
 const SCREW_PRESS_FEED: Point = [17.15, 1.72, 15];
@@ -138,6 +162,48 @@ const DAF_SLUDGE_SUCTION_PTS_A = getDirectTankSuctionBranch(DAF_SLUDGE_PUMP_A, D
 const DAF_SLUDGE_SUCTION_PTS_B = getDirectTankSuctionBranch(DAF_SLUDGE_PUMP_B, DAF_SLUDGE_ROTATION, DAF_SLUDGE_SUCTION_B);
 const SLUDGE_OUT_SUCTION_A = getDirectTankSuctionBranch(SLUDGE_OUT_PUMP_A, SLUDGE_OUT_ROTATION, SLUDGE_TANK_SUCTION_A);
 const SLUDGE_OUT_SUCTION_B = getDirectTankSuctionBranch(SLUDGE_OUT_PUMP_B, SLUDGE_OUT_ROTATION, SLUDGE_TANK_SUCTION_B);
+// The dewatering-pump discharges are intentionally modelled as two continuous
+// L-shaped tubes: pump flange -> vertical riser -> common takeoff.  Keeping the
+// riser and its half-header in one Pipe3D removes the visible open-ring seam
+// that appeared when separate riser and header meshes merely touched.
+const SLUDGE_OUT_DISCHARGE_A: Point[] = [
+  ...getDischargeBranch(SLUDGE_OUT_PUMP_A, SLUDGE_OUT_ROTATION, PUMP_HEADER_Y, 13),
+  SLUDGE_TO_PRESS_TAKEOFF,
+];
+const SLUDGE_OUT_DISCHARGE_B: Point[] = [
+  ...getDischargeBranch(SLUDGE_OUT_PUMP_B, SLUDGE_OUT_ROTATION, PUMP_HEADER_Y, 17),
+  SLUDGE_TO_PRESS_TAKEOFF,
+];
+
+const PUMP_SUCTION_RADIUS = 0.0825;
+const PUMP_DISCHARGE_RADIUS = 0.085;
+
+const PumpConnectionReducers: React.FC<{
+  position: Point;
+  rotationY: number;
+  pipeRadius: number;
+  color: string;
+}> = ({ position, rotationY, pipeRadius, color }) => {
+  const { discharge } = getPumpFlanges(position, rotationY);
+  return (
+    <>
+      <PumpPipeReducer3D
+        position={getSuctionFacePoint(position, rotationY)}
+        direction={getSuctionDirection(rotationY)}
+        pumpRadius={PUMP_SUCTION_RADIUS}
+        pipeRadius={pipeRadius}
+        color={color}
+      />
+      <PumpPipeReducer3D
+        position={getFlangeFacePoint(discharge, rotationY)}
+        direction={getDischargeDirection(rotationY)}
+        pumpRadius={PUMP_DISCHARGE_RADIUS}
+        pipeRadius={pipeRadius}
+        color={color}
+      />
+    </>
+  );
+};
 
 export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
   <group userData={{ bakeExclude: true }}>
@@ -172,12 +238,14 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
     <PipeWallPort3D position={INTERMEDIATE_INLET} rotation={northWall} radius={PROCESS_RADIUS} color={PIPE_COLORS.processWater} />
     <Pipe3D
       points={[
+        [PH3_OUTLET[0], PH3_OUTLET[1], PH3_OUTLET[2] + WALL_PEN],
         PH3_OUTLET,
         [PH3_OUTLET[0], ELEVATED_TRANSFER_Y, PH3_OUTLET[2]],
         [PH3_OUTLET[0], ELEVATED_TRANSFER_Y, PROCESS_CORRIDOR_Z],
         [INTERMEDIATE_INLET[0], ELEVATED_TRANSFER_Y, PROCESS_CORRIDOR_Z],
         [INTERMEDIATE_INLET[0], ELEVATED_TRANSFER_Y, INTERMEDIATE_INLET[2]],
         INTERMEDIATE_INLET,
+        [INTERMEDIATE_INLET[0], INTERMEDIATE_INLET[1], INTERMEDIATE_INLET[2] + WALL_PEN],
       ]}
       radius={PROCESS_RADIUS}
       color={PIPE_COLORS.processWater}
@@ -188,6 +256,8 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
     />
 
     {/* 中间池 → 中间提升泵组 */}
+    <PumpConnectionReducers position={INTERMEDIATE_PUMP_A} rotationY={INTERMEDIATE_PUMP_ROTATION} pipeRadius={DEEP_PROCESS_RADIUS} color={PIPE_COLORS.deepWater} />
+    <PumpConnectionReducers position={INTERMEDIATE_PUMP_B} rotationY={INTERMEDIATE_PUMP_ROTATION} pipeRadius={DEEP_PROCESS_RADIUS} color={PIPE_COLORS.deepWater} />
     <PipeWallPort3D position={INTERMEDIATE_SUCTION_A} rotation={northWall} radius={DEEP_PROCESS_RADIUS} color={PIPE_COLORS.deepWater} />
     <Pipe3D
       points={INTER_SUCTION_A}
@@ -228,19 +298,14 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       endConnection="junction"
       junctionTrim="end"
     />
-    <Pipe3D
-      points={[INTERMEDIATE_HEADER_START, INTERMEDIATE_HEADER_END]}
+    <ConvergingHeader3D
+      start={INTERMEDIATE_HEADER_START}
+      takeoff={INTERMEDIATE_TO_DAF_TAKEOFF}
+      end={INTERMEDIATE_HEADER_END}
       radius={DEEP_PROCESS_RADIUS}
       color={PIPE_COLORS.deepWater}
       flowType="water"
-      animated={true}
-      startConnection="terminal"
-      endConnection="terminal"
-      sealedStart
-      sealedEnd
     />
-    <PipeBlindFlange3D position={INTERMEDIATE_HEADER_START} axis="-x" radius={DEEP_PROCESS_RADIUS} color={PIPE_COLORS.deepWater} />
-    <PipeBlindFlange3D position={INTERMEDIATE_HEADER_END} axis="+x" radius={DEEP_PROCESS_RADIUS} color={PIPE_COLORS.deepWater} />
 
     <PipeWallPort3D position={DAF_INLET} rotation={northWall} radius={DEEP_PROCESS_RADIUS} color={PIPE_COLORS.deepWater} />
     <Pipe3D
@@ -252,6 +317,7 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
         [5.2, PUMP_HEADER_Y, -20.2],
         [5.2, PROCESS_PORT_Y, -20.2],
         DAF_INLET,
+        [DAF_INLET[0], DAF_INLET[1], DAF_INLET[2] + WALL_PEN],
       ]}
       radius={DEEP_PROCESS_RADIUS}
       color={PIPE_COLORS.deepWater}
@@ -288,6 +354,8 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
     />
 
     {/* 排水池 → 排水泵组 → 外排检测池 */}
+    <PumpConnectionReducers position={DRAIN_PUMP_A} rotationY={DRAIN_PUMP_ROTATION} pipeRadius={PROCESS_RADIUS} color={PIPE_COLORS.treatedWater} />
+    <PumpConnectionReducers position={DRAIN_PUMP_B} rotationY={DRAIN_PUMP_ROTATION} pipeRadius={PROCESS_RADIUS} color={PIPE_COLORS.treatedWater} />
     <PipeWallPort3D position={DRAINAGE_SUCTION_A} rotation={eastWall} radius={PROCESS_RADIUS} color={PIPE_COLORS.treatedWater} />
     <Pipe3D
       points={DRAIN_SUCTION_A}
@@ -328,21 +396,16 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       endConnection="junction"
       junctionTrim="end"
     />
-    <Pipe3D
-      points={[DRAIN_HEADER_START, DRAIN_HEADER_END]}
+    <ConvergingHeader3D
+      start={DRAIN_HEADER_START}
+      takeoff={DRAIN_TO_OUTFALL_TAKEOFF}
+      end={DRAIN_HEADER_END}
       radius={PROCESS_RADIUS}
       color={PIPE_COLORS.treatedWater}
       flowType="water"
-      animated={true}
-      startConnection="terminal"
-      endConnection="terminal"
-      sealedStart
-      sealedEnd
     />
-    <PipeBlindFlange3D position={DRAIN_HEADER_START} axis="-z" radius={PROCESS_RADIUS} color={PIPE_COLORS.treatedWater} />
-    <PipeBlindFlange3D position={DRAIN_HEADER_END} axis="+z" radius={PROCESS_RADIUS} color={PIPE_COLORS.treatedWater} />
     <PipeOpenFlange3D position={OUTFALL_INLET} axis="-y" radius={PROCESS_RADIUS} color={PIPE_COLORS.treatedWater} />
-    <Valve3D id="v-outflow" position={[34.0, PUMP_HEADER_Y, -15]} rotation={[0, 0, 0]} />
+    <Valve3D id="v-outflow" position={[35.0, PUMP_HEADER_Y, -15]} rotation={[0, 0, 0]} scale={0.42} />
     <FlowMeter3D id="fm-outfall" position={[36.8, PUMP_HEADER_Y, -15]} rotation={[0, 0, 0]} />
     <Pipe3D
       points={[DRAIN_TO_OUTFALL_TAKEOFF, [40, PUMP_HEADER_Y, -15], OUTFALL_INLET]}
@@ -377,6 +440,8 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
     />
 
     {/* ===== Sludge collection and dewatering ===== */}
+    <PumpConnectionReducers position={CLARIFIER_SLUDGE_PUMP_A} rotationY={CLARIFIER_SLUDGE_ROTATION} pipeRadius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
+    <PumpConnectionReducers position={CLARIFIER_SLUDGE_PUMP_B} rotationY={CLARIFIER_SLUDGE_ROTATION} pipeRadius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <PipeWallPort3D position={CLARIFIER_SLUDGE_SUCTION_A} rotation={southWall} radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <Pipe3D
       points={CLAR_SLUDGE_SUCTION_A}
@@ -417,19 +482,14 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       endConnection="junction"
       junctionTrim="end"
     />
-    <Pipe3D
-      points={[CLARIFIER_SLUDGE_HEADER_START, CLARIFIER_SLUDGE_HEADER_END]}
+    <ConvergingHeader3D
+      start={CLARIFIER_SLUDGE_HEADER_START}
+      takeoff={CLARIFIER_SLUDGE_TAKEOFF}
+      end={CLARIFIER_SLUDGE_HEADER_END}
       radius={SLUDGE_RADIUS}
       color={PIPE_COLORS.sludge}
       flowType="sludge"
-      animated={true}
-      startConnection="terminal"
-      endConnection="terminal"
-      sealedStart
-      sealedEnd
     />
-    <PipeBlindFlange3D position={CLARIFIER_SLUDGE_HEADER_START} axis="-x" radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
-    <PipeBlindFlange3D position={CLARIFIER_SLUDGE_HEADER_END} axis="+x" radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <Pipe3D
       points={[
         CLARIFIER_SLUDGE_TAKEOFF,
@@ -448,6 +508,8 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       showSupports
     />
 
+    <PumpConnectionReducers position={DAF_SLUDGE_PUMP_A} rotationY={DAF_SLUDGE_ROTATION} pipeRadius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
+    <PumpConnectionReducers position={DAF_SLUDGE_PUMP_B} rotationY={DAF_SLUDGE_ROTATION} pipeRadius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <PipeWallPort3D position={DAF_SLUDGE_SUCTION_A} rotation={northWall} radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <Pipe3D
       points={DAF_SLUDGE_SUCTION_PTS_A}
@@ -488,19 +550,14 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       endConnection="junction"
       junctionTrim="end"
     />
-    <Pipe3D
-      points={[DAF_SLUDGE_HEADER_START, DAF_SLUDGE_HEADER_END]}
+    <ConvergingHeader3D
+      start={DAF_SLUDGE_HEADER_START}
+      takeoff={DAF_SLUDGE_TAKEOFF}
+      end={DAF_SLUDGE_HEADER_END}
       radius={SLUDGE_RADIUS}
       color={PIPE_COLORS.sludge}
       flowType="sludge"
-      animated={true}
-      startConnection="terminal"
-      endConnection="terminal"
-      sealedStart
-      sealedEnd
     />
-    <PipeBlindFlange3D position={DAF_SLUDGE_HEADER_START} axis="-x" radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
-    <PipeBlindFlange3D position={DAF_SLUDGE_HEADER_END} axis="+x" radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <Pipe3D
       points={[
         DAF_SLUDGE_TAKEOFF,
@@ -521,7 +578,7 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
     />
     <PipeWallPort3D position={SLUDGE_TANK_INLET} rotation={northWall} radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <Pipe3D
-      points={[SLUDGE_RECEIVING_MANIFOLD, [5, SLUDGE_GALLERY_Y, 10.4], SLUDGE_TANK_INLET]}
+      points={[SLUDGE_RECEIVING_MANIFOLD, [5, SLUDGE_GALLERY_Y, 10.4], SLUDGE_TANK_INLET, [SLUDGE_TANK_INLET[0], SLUDGE_TANK_INLET[1], SLUDGE_TANK_INLET[2] + WALL_PEN]]}
       radius={SLUDGE_RADIUS}
       color={PIPE_COLORS.sludge}
       flowType="sludge"
@@ -531,6 +588,8 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       junctionTrim="start"
     />
 
+    <PumpConnectionReducers position={SLUDGE_OUT_PUMP_A} rotationY={SLUDGE_OUT_ROTATION} pipeRadius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
+    <PumpConnectionReducers position={SLUDGE_OUT_PUMP_B} rotationY={SLUDGE_OUT_ROTATION} pipeRadius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <PipeWallPort3D position={SLUDGE_TANK_SUCTION_A} rotation={eastWall} radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <Pipe3D
       points={SLUDGE_OUT_SUCTION_A}
@@ -552,7 +611,7 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       endConnection="equipment"
     />
     <Pipe3D
-      points={getDischargeBranch(SLUDGE_OUT_PUMP_A, SLUDGE_OUT_ROTATION, PUMP_HEADER_Y, 13)}
+      points={SLUDGE_OUT_DISCHARGE_A}
       radius={SLUDGE_RADIUS}
       color={PIPE_COLORS.sludge}
       flowType="sludge"
@@ -562,7 +621,7 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       junctionTrim="end"
     />
     <Pipe3D
-      points={getDischargeBranch(SLUDGE_OUT_PUMP_B, SLUDGE_OUT_ROTATION, PUMP_HEADER_Y, 17)}
+      points={SLUDGE_OUT_DISCHARGE_B}
       radius={SLUDGE_RADIUS}
       color={PIPE_COLORS.sludge}
       flowType="sludge"
@@ -571,19 +630,6 @@ export const ProcessAndSludgePipeNetwork3D: React.FC = () => (
       endConnection="junction"
       junctionTrim="end"
     />
-    <Pipe3D
-      points={[SLUDGE_OUT_HEADER_START, SLUDGE_OUT_HEADER_END]}
-      radius={SLUDGE_RADIUS}
-      color={PIPE_COLORS.sludge}
-      flowType="sludge"
-      animated={true}
-      startConnection="terminal"
-      endConnection="terminal"
-      sealedStart
-      sealedEnd
-    />
-    <PipeBlindFlange3D position={SLUDGE_OUT_HEADER_START} axis="-z" radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
-    <PipeBlindFlange3D position={SLUDGE_OUT_HEADER_END} axis="+z" radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <PipeOpenFlange3D position={SCREW_PRESS_FEED} axis="-y" radius={SLUDGE_RADIUS} color={PIPE_COLORS.sludge} />
     <Pipe3D
       points={[SLUDGE_TO_PRESS_TAKEOFF, [17.15, PUMP_HEADER_Y, 15], SCREW_PRESS_FEED]}

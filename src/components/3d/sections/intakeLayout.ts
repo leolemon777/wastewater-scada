@@ -14,7 +14,7 @@ export const LIFT_ROT = Math.PI;
 export const LIFT_PUMP_LOCAL_Y = 0.5;
 export const LIFT_PUMP_LOCAL_Z = -4.85;
 
-export type LiftSuctionSource = 'collection-1' | 'collection-2' | 'gas';
+export type LiftSuctionSource = 'collection-1' | 'collection-2';
 
 export const LIFT_PUMPS: ReadonlyArray<{
   id:
@@ -27,12 +27,13 @@ export const LIFT_PUMPS: ReadonlyArray<{
   localX: number;
   source: LiftSuctionSource;
 }> = [
-  { id: 'p-lift-1', localX: -3, source: 'collection-1' },
-  { id: 'p-lift-2', localX: -1, source: 'collection-1' },
-  { id: 'p-lift-3', localX: 3, source: 'collection-2' },
-  { id: 'p-lift-4', localX: 5, source: 'collection-2' },
+  // Keep every wall penetration at least 0.5 m away from a basin corner.
+  { id: 'p-lift-1', localX: -2.4, source: 'collection-1' },
+  { id: 'p-lift-2', localX: -0.8, source: 'collection-1' },
+  { id: 'p-lift-3', localX: 3.6, source: 'collection-2' },
+  { id: 'p-lift-4', localX: 5.2, source: 'collection-2' },
   { id: 'p-gas-lift-1', localX: 7, source: 'collection-2' },
-  { id: 'p-gas-lift-2', localX: 9, source: 'collection-2' },
+  { id: 'p-gas-lift-2', localX: 8.4, source: 'collection-2' },
 ];
 
 export function liftPumpWorldPosition(localX: number): V3 {

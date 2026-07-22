@@ -42,14 +42,12 @@ export const PipeWallPort3D: React.FC<PipeWallPort3DProps> = ({
       {/* Rubber Gasket / Seal */}
       <mesh position={[0, radius * 0.045, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[radius * 1.1, radius * 1.1, radius * 0.01, 24]} />
-        <meshStandardMaterial color="#111" roughness={0.9} />
+        <meshStandardMaterial color={color} roughness={0.72} metalness={0.05} />
       </mesh>
 
-      {/* Pipe Stub (colored) */}
-      <mesh position={[0, radius * 0.06, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[radius * 0.98, radius * 0.98, radius * 0.08, 24]} />
-        <meshStandardMaterial color={color} roughness={0.56} metalness={0.04} />
-      </mesh>
+      {/* The route tube crosses the wall sleeve directly. Do not add a second
+          coloured stub here; overlapping stubs were the visible extra segment
+          in front of wall flanges. */}
 
       {/* Bolts */}
       {bolts.map((pos, i) => (
