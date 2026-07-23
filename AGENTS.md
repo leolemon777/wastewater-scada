@@ -46,7 +46,7 @@ The store owns the equipment catalog and starts with default zero values. During
 - `demoScenarios.ts` — no-server local scenario adapter that feeds realistic KPI/equipment snapshots into the store
 - `equipmentUtils.ts` — Type-safe accessors (`getPump()`, `getTank()`, `isPumpRunning()`) to avoid raw `as` type assertions
 
-### 3D Scene (src/components/3d/)
+### 3D Scene (src/components/scene/)
 
 `SCADAScene.tsx` composes 6 independent section components from `sections/`:
 
@@ -59,20 +59,26 @@ The store owns the equipment catalog and starts with default zero values. During
 | ChemicalDosingSection | sections/ChemicalDosingSection.tsx | PAC/CaCl2/PAM chemical tanks |
 | ChemicalPipeRouting | sections/ChemicalPipeRouting.tsx | Chemical delivery pipes |
 
-Shared `sections/ZoneLabel.tsx` renders floating section labels in 3D space.
+Scene files are grouped by responsibility:
 
-Individual 3D equipment components (Tank3D, Pump3D, Pipe3D, etc.) are in the parent `components/3d/` directory. Each equipment component reads its data from the store by `id` prop and handles click selection.
+- `equipment/` — stateful equipment models such as tanks, pumps, meters, valves, and screw presses
+- `piping/` — pipe geometry, fittings, pump ports, and pipe visual semantics
+- `sections/` — process-stage composition and layout data
+- `site/` — platforms, buildings, access, and logistics props
+- `shared/` — materials, labels, shaders, and scene-wide utilities
+
+Each equipment component reads its data from the store by `id` prop and handles click selection.
 
 ### UI Layer (src/components/ui/)
 
 - `Overlay.tsx` — Top bar (time, status, view tabs, local demo scenario controls, alarm bell), equipment detail panel (slides from right), zoom controls, alarm history panel. Auto-opens alarm panel on new unacknowledged alarms.
 - `DataDashboard.tsx` — Dashboard view: demo-mode status strip, KPI cards, tank level bars, pH monitoring, equipment control switches.
 
-Both are wrapped in `ErrorBoundary` in `App.tsx` so a crash in either doesn't affect the other.
+The application composition and error boundary live in `src/app/`.
 
 ### Styling
 
-- `src/index.css` — Dark industrial theme, Inter + JetBrains Mono fonts, component-level CSS classes (`.scada-switch`, `.scada-progress-fill`, `.panel-solid`, `.digit-font`, etc.)
+- `src/styles/` — Global tokens, theme, shell, and component-level CSS classes (`.scada-switch`, `.scada-progress-fill`, `.panel-solid`, `.digit-font`, etc.)
 - Vite config uses `base: './'` for relative asset paths (portable static hosting)
 
 ## Equipment ID Convention
@@ -89,5 +95,6 @@ Alarms are auto-generated on alarm state transitions (`none` → `warning`/`crit
 
 ## Current Notes
 
-- `DiegeticPanel3D.tsx` is used by pump and tank hover/selection panels.
-- The current project directory is not a git repository. A timestamped sibling backup was created before the latest frontend-demo work.
+- The project is a browser-only Web application; obsolete Electron packaging and deployment files have been removed.
+- `scripts/check-scene.mjs` automatically runs every check under `scripts/checks/scene/`.
+- The directory is a Git repository. Preserve unrelated working-tree changes during maintenance.

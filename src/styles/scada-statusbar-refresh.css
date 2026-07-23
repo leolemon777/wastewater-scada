@@ -1,0 +1,288 @@
+/**
+ * Status-bar refresh
+ * Unified light industrial HMI styling for the top command/status bar.
+ * Loaded after scada-shell.css so it overrides the old mixed dark/light header.
+ */
+
+.scada-overlay-root {
+  --topbar-height: 64px;
+}
+
+.scada-overlay-root.overlay-scene-mode {
+  --topbar-height: 118px;
+}
+
+.scada-topbar.scada-topbar-v2.scada-topbar-pro {
+  --tb-shell: #F5F7F6;
+  --tb-shell-2: #EDF2F0;
+  --tb-card: #FFFFFF;
+  --tb-line: #D7E0DC;
+  --tb-line-strong: #B9C8C2;
+  --tb-ink: #17211F;
+  --tb-muted: #66736F;
+  --tb-accent: #0A8F72;
+  --tb-accent-dark: #06624F;
+  --tb-accent-soft: rgba(10, 143, 114, 0.13);
+  --tb-blueprint: rgba(15, 118, 110, 0.055);
+  --tb-alarm: #C2413A;
+
+  padding: 0;
+  background:
+    linear-gradient(90deg, var(--tb-blueprint) 0 1px, transparent 1px 100%) 0 0 / 28px 28px,
+    linear-gradient(180deg, #FAFBFA 0%, var(--tb-shell) 52%, var(--tb-shell-2) 100%);
+  border-bottom: 1px solid var(--tb-line-strong);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.88) inset,
+    0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.scada-topbar.scada-topbar-v2.scada-topbar-pro::after {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(10, 143, 114, 0.42), transparent);
+}
+
+.scada-topbar-pro .topbar-row-primary,
+.scada-topbar-pro .topbar-row-tools {
+  background: transparent;
+}
+
+.scada-topbar-pro .topbar-row-primary {
+  height: 64px;
+  padding: 8px 28px 7px;
+  gap: 16px;
+}
+
+.scada-topbar-pro .topbar-row-tools {
+  height: 54px;
+  padding: 0 28px 8px;
+  border-top: 1px solid rgba(183, 197, 191, 0.62);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.76) inset;
+}
+
+.scada-topbar-pro .topbar-cluster-brand {
+  min-height: 48px;
+  padding: 5px 16px 5px 6px;
+  gap: 12px;
+  border: 1px solid var(--tb-line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,250,249,0.94));
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.scada-topbar-pro .topbar-brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,0.95), transparent 18%),
+    linear-gradient(135deg, #59E5E4 0%, #16B8B0 44%, #0A8F72 100%);
+  border: 1px solid rgba(255,255,255,0.88);
+  box-shadow:
+    0 0 0 1px rgba(10, 143, 114, 0.20),
+    0 8px 18px rgba(10, 143, 114, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.72);
+}
+
+.scada-topbar-pro .topbar-brand-copy h1 {
+  color: var(--tb-ink);
+  font-size: 19px;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  text-shadow: none;
+}
+
+.scada-topbar-pro .topbar-status {
+  height: 24px;
+  padding: 0 9px;
+  gap: 7px;
+  border-radius: 999px;
+  background: var(--tb-accent-soft);
+  border: 1px solid rgba(10, 143, 114, 0.20);
+}
+
+.scada-topbar-pro .topbar-status-label {
+  color: var(--tb-accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scada-topbar-pro .topbar-status-lamp {
+  width: 8px;
+  height: 8px;
+  background: #17B883;
+  box-shadow: 0 0 0 3px rgba(23, 184, 131, 0.14), 0 0 10px rgba(23, 184, 131, 0.58);
+}
+
+.scada-topbar-pro .topbar-seg {
+  height: 44px;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--tb-line);
+  border-radius: 18px;
+  background: rgba(232, 238, 235, 0.82);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.scada-topbar-pro .topbar-seg-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  color: var(--tb-muted);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.scada-topbar-pro .topbar-seg-btn:hover {
+  color: var(--tb-ink);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.scada-topbar-pro .topbar-seg-btn.active {
+  color: var(--tb-accent-dark);
+  background: var(--tb-card);
+  border-color: rgba(10, 143, 114, 0.26);
+  box-shadow:
+    0 5px 14px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.scada-topbar-pro .topbar-clock,
+.scada-topbar-pro .topbar-icon-btn,
+.scada-topbar-pro .system-menu-trigger,
+.scada-topbar-pro .scene-hud-legend-btn,
+.scada-topbar-pro .scene-hud-zoom button {
+  border: 1px solid var(--tb-line);
+  border-top-color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(180deg, var(--tb-card), #F5F8F7);
+  color: var(--tb-ink);
+  box-shadow:
+    0 6px 14px rgba(15, 23, 42, 0.075),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.scada-topbar-pro .topbar-clock {
+  height: 40px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+}
+
+.scada-topbar-pro .topbar-clock svg {
+  color: var(--tb-accent);
+}
+
+.scada-topbar-pro .topbar-icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+}
+
+.scada-topbar-pro .system-menu-trigger {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.scada-topbar-pro .topbar-icon-btn:hover,
+.scada-topbar-pro .system-menu-trigger:hover,
+.scada-topbar-pro .scene-hud-legend-btn:hover,
+.scada-topbar-pro .scene-hud-zoom button:hover {
+  color: var(--tb-accent-dark);
+  border-color: rgba(10, 143, 114, 0.34);
+  background: linear-gradient(180deg, #FFFFFF, #EFFAF6);
+  transform: translateY(-1px);
+}
+
+.scada-topbar-pro .topbar-icon-btn.alert {
+  color: var(--tb-alarm);
+  border-color: rgba(194, 65, 58, 0.28);
+  background: linear-gradient(180deg, #FFF9F8, #FDF0EE);
+}
+
+.scada-topbar-pro .topbar-row-tools .scene-hud {
+  gap: 18px;
+}
+
+.scada-topbar-pro .scene-hud-tools {
+  gap: 8px;
+}
+
+.scada-topbar-pro .scene-hud-legend-btn {
+  height: 38px;
+  padding: 0 13px;
+  border-radius: 14px;
+  color: var(--tb-muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.scada-topbar-pro .scene-hud-legend-btn.active {
+  color: var(--tb-accent-dark);
+  border-color: rgba(10, 143, 114, 0.30);
+  background: linear-gradient(180deg, #FFFFFF, #EAFBF6);
+}
+
+.scada-topbar-pro .scene-hud-views {
+  gap: 6px;
+}
+
+.scada-topbar-pro .scene-hud-views button {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 12px;
+  color: var(--tb-muted);
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.scada-topbar-pro .scene-hud-views button:hover {
+  color: var(--tb-ink);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.scada-topbar-pro .scene-hud-views button.active {
+  color: var(--tb-accent-dark);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 -2px 0 var(--tb-accent);
+}
+
+.scada-topbar-pro .scene-hud-views button.active::after {
+  display: none;
+}
+
+.scada-topbar-pro .scene-hud-zoom {
+  gap: 9px;
+}
+
+.scada-topbar-pro .scene-hud-zoom button {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+}
+
+.scada-topbar-pro .topbar-nav,
+.scada-topbar-pro .scene-hud-presets {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+body.clear-mode .scada-topbar.scada-topbar-v2.scada-topbar-pro,
+body.clear-mode .scada-topbar-pro .topbar-cluster-brand,
+body.clear-mode .scada-topbar-pro .topbar-seg,
+body.clear-mode .scada-topbar-pro .topbar-clock,
+body.clear-mode .scada-topbar-pro .topbar-icon-btn,
+body.clear-mode .scada-topbar-pro .system-menu-trigger,
+body.clear-mode .scada-topbar-pro .scene-hud-legend-btn,
+body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
