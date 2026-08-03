@@ -5,6 +5,12 @@ export const HIDDEN_PROCESS_PIPE_Y = -0.18;
 /** Visible external pipe route beside tank walls. Keep process pipes outside the open water volume. */
 export const EXTERNAL_POOL_PIPE_Y = 1.02;
 export const EXTERNAL_POOL_PIPE_Z = -4.35;
+/**
+ * Centreline for process pipes that cross a pedestrian platform.
+ * Main platform top is Y=0.50; a 0.10 m-radius pipe at this elevation leaves
+ * 2.15 m clear headroom beneath it.
+ */
+export const WALKWAY_OVERHEAD_PIPE_Y = 2.75;
 /** Offset toward tank back wall so pipes miss centre-mounted agitators (z = 0). */
 export const SUBMERGED_PIPE_Z = -2.15;
 export const PROCESS_PIPE_RADIUS = 0.12;
@@ -20,6 +26,10 @@ export const PROCESS_PIPE_RADIUS = 0.12;
 //   sludge      污泥    — brown
 //   pac / pam   加药    — purple / magenta
 //   cacl2              — mustard gold
+//   pwFeed      纯水原水 — steel grey
+//   pwPermeate  纯水产水 — bright aqua
+//   pwAntiscalant 阻垢剂 — amber
+//   pwNaoh      NaOH    — caustic red
 export const PIPE_COLORS = {
   rawWater: '#528B4A',
   processWater: '#208890',
@@ -31,6 +41,11 @@ export const PIPE_COLORS = {
   pac: '#7858C8',
   cacl2: '#C4B040',
   pam: '#C84890',
+  // 纯水房(二级 RO)— 独立系统语义色,与污水十色保持 DeltaE ≥ 20。
+  pwFeed: '#6E7B8A',
+  pwPermeate: '#3EDAD4',
+  pwAntiscalant: '#F09818',
+  pwNaoh: '#E03838',
 } as const;
 
 export const BRANCH_PIPE_R = 0.1;

@@ -93,6 +93,54 @@ Equipment IDs follow a prefix pattern used throughout the 3D scene and dashboard
 
 Alarms are auto-generated on alarm state transitions (`none` → `warning`/`critical`) in the store's `detectAlarms()`. The `AlarmRecord` includes equipment info, severity, timestamp, and acknowledgment state. The Overlay renders: a bell icon with unacknowledged count, a critical alarm banner, and a full alarm history panel with per-alarm acknowledge and bulk clear.
 
+## 现场网络接入 (On-site Network)
+
+本项目的真实数据接入对象是现场设备,通过无线网桥组网回中控电脑。维护或讨论现场接入时先读本节。
+
+### 两个网段(必须分清)
+
+- `192.168.2.x` — **网桥管理网段**(同时也是上位机/中控电脑所在网段)。仅用于设备管理与本地服务访问。
+- `192.168.0.x` — **M100 数据网段**(M100 网关专属)。`http://<ip>/ioread.cgi?read` 读取本机 IO。
+
+### 网桥管理 IP 分配表 (`192.168.2.x`)
+
+| IP | 现场位置 | 角色 | 状态 |
+| --- | --- | --- | --- |
+| `192.168.2.66` | 主网桥 (ST508S) | 接入点 (AP) | ✅ 在线 |
+| `192.168.2.68` | 地下池 | 站点 | 已上线 |
+| `192.168.2.69` | 混合池 | 站点 | 已上线 |
+| `192.168.2.70` | 气浮池网桥 | 站点 | 已上线(注意:此 IP 是网桥管理页,不是 M100) |
+| `192.168.2.78` | **药剂房网桥 (ST508S)** | **站点** | ✅ 2026-07-25 已配置(后接药剂房上位机 `192.168.2.79`,非 M100) |
+| `192.168.2.80` | 水泵电机远程操作 | — | 交换机直连(不走无线网桥) |
+
+> 其余 `.67 .72 .74 .76` 等见 `docs/integration/M100网桥现场通讯调试记录-2026-06-30.md` 完整表。
+
+### M100 数据 IP 分配表 (`192.168.0.x`)
+
+M100 出厂默认全是 `192.168.0.7`,多台同网会**冲突**,必须逐台改唯一 IP。已规划:
+
+| IP | 现场模块 | 网桥 | 状态 |
+| --- | --- | --- | --- |
+| `192.168.0.7` | 气浮前端控制 | `.70` | ✅ 已确认(AI=[0,0]) |
+| `192.168.0.8` | 中间池地下池液位 | `.68` | ✅ 2026-07-02 已改并验证(AI2=16.916mA≈4.04m) |
+| `192.168.0.9` | 混合池 PH1 | `.69` | 待确认 |
+| `192.168.0.10` | 末端排水 PH | `.67` | 待确认 |
+| `192.168.0.11`~`.13` | 收集池流量计/收集池液位/纯水房 | `.76/.72/.74` | 待确认 |
+
+### ST508S 网桥配置要点
+
+- 默认管理 IP `192.168.2.66`,账号 `admin` / 密码 `admin01`(出厂默认,说明书公开)。
+- 新增从站网桥**必须先单机改 IP 再上无线**,否则默认 `.66` 会与主网桥冲突导致全网瘫痪。
+- 站点模式选 `站点 (WDS/iPoll2/iPoll3)` 即可,会自动适应主网桥的信道与模式。
+- **无线凭据(SSID/密码)不写入 git 文档**,记录在本地被忽略的 `docs/integration/本地凭据.local.md`。
+
+### 相关文档
+
+- `docs/integration/M100网桥现场通讯调试记录-2026-06-30.md` — 网桥/M100/有人云联调全过程、IP 总表、安全操作规则
+- `docs/integration/药剂房网桥配置记录-2026-07-24.md` — 药剂房新增 ST508S 网桥配置流程(后接上位机,非 M100)
+- `docs/integration/接入路线图.md` — 现场接入导航索引与目标架构
+- `docs/integration/总控统一数据协议.md` — 统一信封 `scada.v1`、设备/Tag 命名
+
 ## Current Notes
 
 - The project is a browser-only Web application; obsolete Electron packaging and deployment files have been removed.

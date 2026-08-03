@@ -51,7 +51,10 @@ if (!directTankSuctionBranch) {
     issues.push('getDirectTankSuctionBranch must place the wall point at mouth height (mouth[1])');
   }
   if (!directTankSuctionBranch.includes('return [poolInner, wall, mouth]')) {
-    issues.push('getDirectTankSuctionBranch must return [pool interior, wall sleeve, mouth sealing face]');
+    issues.push('getDirectTankSuctionBranch must return [pool interior, wall sleeve, mouth sealing face] for axial runs');
+  }
+  if (!directTankSuctionBranch.includes('outside') || !directTankSuctionBranch.includes('alignPt')) {
+    issues.push('getDirectTankSuctionBranch must jog outside the basin when the wall port is laterally offset');
   }
   if (!directTankSuctionBranch.includes('* 0.4')) {
     issues.push('getDirectTankSuctionBranch must retain a 0.4m normal penetration into the basin');

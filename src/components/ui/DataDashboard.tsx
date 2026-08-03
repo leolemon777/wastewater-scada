@@ -4,16 +4,18 @@ import { getDemoScenario } from '../../store/demoScenarios';
 import { Activity, Power, Database, Droplets, FlaskConical, RefreshCw } from 'lucide-react';
 import { LEVEL_MONITORED_TANKS } from '../../store/equipmentUtils';
 
-type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator';
+type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator' | 'pureWater';
 
 function groupPumps(pumps: PumpData[]) {
   return {
-    lift: pumps.filter((p) => p.id.includes('lift') || p.id.includes('gas-lift')),
+    lift: pumps.filter((p) => (p.id.includes('lift') || p.id.includes('gas-lift')) && !p.id.startsWith('pw-')),
     process: pumps.filter((p) =>
-      p.id.includes('drain') || p.id.includes('daf') ||
-      p.id.includes('pac') || p.id.includes('pam') || p.id.includes('cacl'),
+      (p.id.includes('drain') || p.id.includes('daf') ||
+      p.id.includes('pac') || p.id.includes('pam') || p.id.includes('cacl')) && !p.id.startsWith('pw-'),
     ),
-    sludge: pumps.filter((p) => p.id.includes('sludge') || p.id.includes('screw')),
+    sludge: pumps.filter((p) => (p.id.includes('sludge') || p.id.includes('screw')) && !p.id.startsWith('pw-')),
+    // 纯水房(二级 RO)— 完全独立的泵组分区,第一版纯监视(控制预留)。
+    pureWater: pumps.filter((p) => p.id.startsWith('pw-')),
   };
 }
 
@@ -67,7 +69,8 @@ export const DataDashboard: React.FC = () => {
   const activePumps =
     controlTab === 'lift' ? pumpGroups.lift :
     controlTab === 'process' ? pumpGroups.process :
-    controlTab === 'sludge' ? pumpGroups.sludge : [];
+    controlTab === 'sludge' ? pumpGroups.sludge :
+    controlTab === 'pureWater' ? pumpGroups.pureWater : [];
 
   const displayTankName = (tankId: string) => {
     const map: Record<string, string> = {
@@ -170,6 +173,7 @@ export const DataDashboard: React.FC = () => {
               ['lift', '提升泵组'],
               ['process', '工艺泵组'],
               ['sludge', '污泥泵组'],
+              ['pureWater', '纯水泵组'],
               ['agitator', '搅拌设备'],
             ] as const).map(([id, label]) => (
               <button
@@ -190,7 +194,8 @@ export const DataDashboard: React.FC = () => {
                 key={pump.id}
                 label={pump.name}
                 checked={pump.runStatus === 'running'}
-                onChange={() => toggleEquipmentRunStatus(pump.id)}
+                onChange={controlTab === 'pureWater' ? () => {} : () => toggleEquipmentRunStatus(pump.id)}
+                readOnly={controlTab === 'pureWater'}
               />
             ))}
             {controlTab === 'agitator' && agitators.map((tank) => (
@@ -202,7 +207,11 @@ export const DataDashboard: React.FC = () => {
               />
             ))}
           </div>
-          <p className="dash-control-hint">操作即时同步至 3D 现场视图</p>
+          <p className="dash-control-hint">
+            {controlTab === 'pureWater'
+              ? '纯水房为独立系统 · 当前纯监视,手动控制预留'
+              : '操作即时同步至 3D 现场视图'}
+          </p>
         </section>
       </div>
 
@@ -382,11 +391,20 @@ const TankLevelRow = ({ tank, displayName }: { tank: TankData; displayName: stri
   );
 };
 
-const ControlRow = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => (
-  <label className={`dash-control-row ${checked ? 'is-active' : ''}`}>
+const ControlRow = ({ label, checked, onChange, readOnly = false }: {
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+  /** 纯监视行:状态可见,开关禁用(控制预留)。 */
+  readOnly?: boolean;
+}) => (
+  <label
+    className={`dash-control-row ${checked ? 'is-active' : ''} ${readOnly ? 'is-readonly' : ''}`}
+    title={readOnly ? '纯监视 · 控制预留' : undefined}
+  >
     <span className="dash-control-label" title={label}>{label}</span>
     <span className="scada-switch">
-      <input type="checkbox" checked={checked} onChange={onChange} />
+      <input type="checkbox" checked={checked} onChange={onChange} disabled={readOnly} />
       <span className="scada-switch-slider" />
     </span>
   </label>

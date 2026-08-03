@@ -69,8 +69,10 @@ for (const [label, value] of [
 ]) {
   if (value === null) {
     issues.push(`Missing ${label}`);
-  } else if (value > 0.3) {
-    issues.push(`${label} is ${value}; header blind ends should not leave a visible half-pipe overhang`);
+  } else if (value < 0.1 || value > 0.2) {
+    issues.push(
+      `${label} is ${value}; keep in 0.10–0.20 so outer tees are enclosed without long blind overhangs`,
+    );
   }
 }
 

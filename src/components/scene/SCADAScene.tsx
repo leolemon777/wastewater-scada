@@ -58,6 +58,7 @@ import { MainProcessSection } from './sections/MainProcessSection';
 import { DeepTreatmentSection } from './sections/DeepTreatmentSection';
 import { SludgeSection } from './sections/SludgeSection';
 import { ChemicalDosingSection } from './sections/ChemicalDosingSection';
+import { PureWaterSection } from './sections/PureWaterSection';
 import { IndustrialPipeNetwork3D } from './sections/IndustrialPipeNetwork3D';
 import { ChemicalPipeRouting } from './sections/ChemicalPipeRouting';
 import { ProcessAndSludgePipeNetwork3D } from './sections/ProcessAndSludgePipeNetwork3D';
@@ -65,6 +66,7 @@ import { StaticGeometryBaker } from './shared/StaticGeometryBaker';
 import { SunLight } from './shared/WaterShader';
 import { resolveSiteGroundSurfaceColor, resolveSitePoolWallColor } from './site/siteGround';
 import { HazardousWasteDeliveryBay3D, HazardousWasteWarehouse3D, HazwasteStagingBags3D } from './site/HazardousWasteWarehouse3D';
+import { AreaSign3D } from './site/AreaSign3D';
 import { DistributionCabinet3D } from './equipment/DistributionCabinet3D';
 import { Forklift3D } from './site/Forklift3D';
 import {
@@ -73,6 +75,11 @@ import {
   HAZWASTE_NORTH_LANE_Z,
   HAZWASTE_WEST_LANE_X,
   SLUDGE_ACCESS_RAMP,
+  SLUDGE_DEWATERING_DOOR_APPROACH_Z,
+  SLUDGE_DEWATERING_DOOR_X,
+  SLUDGE_LOAD_X,
+  SLUDGE_LOAD_Z,
+  SLUDGE_PLATFORM_DECK_Y,
   SLUDGE_RUNOUT_Z,
   SLUDGE_SOUTH_ROAD_Z,
   SLUDGE_SOUTH_RUNOUT_X,
@@ -432,7 +439,7 @@ const SiteContext3D: React.FC<{
 
   const expansionJoints = React.useMemo(() => {
     const joints: React.ReactNode[] = [];
-    for (let x = -56; x <= 52; x += 12) {
+    for (let x = -92; x <= 52; x += 12) {
       joints.push(
         <SiteLine
           key={`joint-x-${x}`}
@@ -447,8 +454,8 @@ const SiteContext3D: React.FC<{
       joints.push(
         <SiteLine
           key={`joint-z-${z}`}
-          position={[-4, lineY, z]}
-          size={[118, 0.02]}
+          position={[-19.5, lineY, z]}
+          size={[149, 0.02]}
           color={jointColor}
           opacity={jointOpacity}
         />
@@ -459,11 +466,12 @@ const SiteContext3D: React.FC<{
 
   return (
     <group>
-      {/* Main paved base inside the factory fence (lowered to avoid z-fighting with roads) */}
-      <GroundRect position={[-4, -0.048, -0.4]} size={[120, 58]} color={groundSurfaceColor} roughness={0.95} />
+      {/* Main paved base inside the factory fence (lowered to avoid z-fighting with roads).
+          Extended west (x −94…56) for the pure-water RO house. */}
+      <GroundRect position={[-19, -0.048, -0.4]} size={[150, 58]} color={groundSurfaceColor} roughness={0.95} />
 
       {/* Darker asphalt service roads break up the large gray slab and describe operator circulation. */}
-      <GroundRect position={[-4, roadY, 8.3]} size={[112, 3.4]} color={roadColor} roughness={0.92} />
+      <GroundRect position={[-20.5, roadY, 8.3]} size={[145, 3.4]} color={roadColor} roughness={0.92} />
       <GroundRect position={[29, roadY, -3]} size={[3.4, 50]} color={roadColor} roughness={0.92} />
       <GroundRect position={[-18, roadY, -23.4]} size={[60, 2.8]} color={roadColor} roughness={0.9} />
       <GroundRect position={[39, roadY, -23.4]} size={[26, 2.8]} color={roadColor} roughness={0.9} />
@@ -493,11 +501,14 @@ const SiteContext3D: React.FC<{
           in front of the sludge platform). The road alone covers that area. */}
       <GroundRect position={[40.7, padY, -14.8]} size={[20, 6.2]} color={servicePadColor} roughness={0.86} />
       <GroundRect position={[-19, padY, -9.2]} size={[42, 2.2]} color={servicePadColor} roughness={0.86} />
+      {/* Pure-water house service pad — covers the building footprint and the
+          east-door approach, meeting the main road edge. */}
+      <GroundRect position={[-75, padY, 4]} size={[22, 15]} color={servicePadColor} roughness={0.86} />
 
       {/* Perimeter and road curbs give the site a real boundary instead of an infinite plane. */}
-      <SiteCurb position={[-4, curbY, 27.6]} size={[118, 0.18]} color={curbColor} />
-      <SiteCurb position={[-4, curbY, -28.4]} size={[118, 0.18]} color={curbColor} />
-      <SiteCurb position={[-63, curbY, -0.4]} size={[0.18, 56]} color={curbColor} />
+      <SiteCurb position={[-19.5, curbY, 27.6]} size={[149, 0.18]} color={curbColor} />
+      <SiteCurb position={[-19.5, curbY, -28.4]} size={[149, 0.18]} color={curbColor} />
+      <SiteCurb position={[-93, curbY, -0.4]} size={[0.18, 56]} color={curbColor} />
       <SiteCurb position={[55, curbY, -0.4]} size={[0.18, 56]} color={curbColor} />
       <SiteCurb position={[-4, curbY, 10.1]} size={[112, 0.12]} color={curbColor} />
       <SiteCurb position={[-4, curbY, 6.5]} size={[112, 0.12]} color={curbColor} />
@@ -520,9 +531,9 @@ const SiteContext3D: React.FC<{
       {expansionJoints}
 
       <>
-          <SiteFenceX3D position={[-4, 0.0, 28.5]} length={118} postCount={15} color={fenceColor} />
-          <SiteFenceX3D position={[-4, 0.0, -29.3]} length={118} postCount={15} color={fenceColor} />
-          <SiteFenceZ3D position={[-63.8, 0.0, -0.4]} length={58} postCount={9} color={fenceColor} />
+          <SiteFenceX3D position={[-19.5, 0.0, 28.5]} length={149} postCount={19} color={fenceColor} />
+          <SiteFenceX3D position={[-19.5, 0.0, -29.3]} length={149} postCount={19} color={fenceColor} />
+          <SiteFenceZ3D position={[-93.8, 0.0, -0.4]} length={58} postCount={9} color={fenceColor} />
           <SiteFenceZ3D position={[55.8, 0.0, -0.4]} length={58} postCount={9} color={fenceColor} />
 
           <HazardousWasteWarehouse3D isNight={isNight} />
@@ -531,6 +542,11 @@ const SiteContext3D: React.FC<{
           <InspectorPreview3D position={[-50, 0, -16]} rotationY={Math.PI * 0.35} />
           <HazardousWasteDeliveryBay3D />
           <HazwasteStagingBags3D />
+
+          {/* 功能分区大标牌(Billboard,永远正向可读):一眼分清污水/危废/纯水。 */}
+          <AreaSign3D position={[0, 5, 6]} name="污水处理区" en="WASTEWATER TREATMENT" tone="wastewater" />
+          <AreaSign3D position={[43.5, 5, 21]} name="危废处理区" en="HAZARDOUS WASTE" tone="hazwaste" />
+          <AreaSign3D position={[-76, 5, 0]} name="纯水产水区" en="PURE WATER (RO)" tone="purewater" />
           <PipeStorageRack3D position={[52.2, 0.02, 24.0]} rotationY={Math.PI / 2} />
           <PipeStorageRack3D position={[47.8, 0.02, -24.2]} rotationY={0} />
           <SiteSignBoard3D position={[53.5, 0.03, 10.8]} rotationY={-Math.PI / 2} />
@@ -539,7 +555,12 @@ const SiteContext3D: React.FC<{
           <SafetyCone3D position={[-30.5, 0.02, 10.6]} rotationY={-0.4} />
           <SafetyCone3D position={[25.8, 0.02, 7.0]} rotationY={0.5} />
           <SafetyCone3D position={[31.9, 0.02, -13.6]} rotationY={-0.2} />
-          <SafetyCone3D position={[15.2, 0.02, 21.0]} rotationY={0.9} />
+          {/* Sludge-platform cone: seat on the raised deck and keep its full
+              0.42 m base clear of the south coping / ramp retaining wall. */}
+          <SafetyCone3D
+            position={[15.2, SLUDGE_PLATFORM_DECK_Y + 0.01, 20.3]}
+            rotationY={0.9}
+          />
           <SafetyCone3D position={[38.2, 0.02, -21.8]} rotationY={-0.7} />
 
           <SafetyBarrier3D position={[-41.0, 0.03, 5.7]} rotationY={0.05} />
@@ -878,6 +899,8 @@ export const SCADAScene: React.FC = () => {
       <DeepTreatmentSection isInterRunning={isInterRunning} isDrainRunning={isDrainRunning} mainFlowActive={mainFlowActive} />
       <SludgeSection isDafSludgeRunning={isDafSludgeRunning} isOutSludgeRunning={isOutSludgeRunning} />
       <ChemicalDosingSection />
+      {/* 纯水房(二级 RO)— 独立系统工艺段,含建筑/设备/全管路。 */}
+      <PureWaterSection />
       <IndustrialPipeNetwork3D />
       {/* Chemical dosing delivery (tank → gallery → basin) */}
       <ChemicalPipeRouting />
@@ -890,34 +913,39 @@ export const SCADAScene: React.FC = () => {
       <DistributionCabinet3D position={[13.5, 0.5, 19.2]} rotation={[0, 0, 0]} cabinetName="4# 污泥脱水控制柜" />
 
       <group userData={{ bakeExclude: true }}>
-          {/* Sludge ton-bag forklift: picks up at the screw-press discharge,
-              runs down the ramp → south service road → west/north lanes around
-              the hazwaste warehouse → in through the north roll-up door, then
-              unloads inside. load = patrolPath[1] (screw press), unload = [9]
-              (warehouse interior). Y values are nominal — getSludgeForkliftSurfaceY
-              re-grounds the chassis every frame from the platform/ramp/road bounds. */}
+          {/* Sludge ton-bag forklift: enters/exits the dewatering house only on
+              the south roll-up door centreline, loads at the screw press, then
+              runs down the ramp → service road → hazardous-waste warehouse.
+              Y values are nominal — getSludgeForkliftSurfaceY re-grounds the
+              chassis every frame from the platform/ramp/road bounds. */}
           <Forklift3D
-            position={[17, 0.5, 17.17]}
+            position={[SLUDGE_DEWATERING_DOOR_X, 0.5, SLUDGE_DEWATERING_DOOR_APPROACH_Z]}
             patrolPath={[
-              [17, 0.5, 17.17],      // 0. standby west of screw press (sludge deck)
-              [21.35, 0.5, 17.17],   // 1. drive in to load ton bag ← LOAD
-              [19, 0.5, 20],         // 2. retreat to platform south, face the ramp
-              [19, 0, SLUDGE_ACCESS_RAMP.zGround], // 3. descend ramp to south service road
-              [19, 0, SLUDGE_RUNOUT_Z], // 4. roll straight off the widened ramp before turning
-              [SLUDGE_SOUTH_RUNOUT_X, 0, SLUDGE_RUNOUT_Z], // 5. clear the retaining walls
-              [HAZWASTE_WEST_LANE_X, 0, SLUDGE_SOUTH_ROAD_Z], // 6. east along road to warehouse west lane
-              [HAZWASTE_WEST_LANE_X, 0, HAZWASTE_NORTH_LANE_Z], // 7. north up the west lane
-              [HAZWASTE_DOOR_X, 0, HAZWASTE_NORTH_LANE_Z], // 8. east to the north door centerline
-              [HAZWASTE_DOOR_X, 0.08, HAZWASTE_INTERIOR_UNLOAD_Z], // 9. unload deep inside
-              [HAZWASTE_DOOR_X, 0, HAZWASTE_NORTH_LANE_Z], // 10. reverse out the door
-              [HAZWASTE_WEST_LANE_X, 0, HAZWASTE_NORTH_LANE_Z], // 11. west along north lane
-              [HAZWASTE_WEST_LANE_X, 0, SLUDGE_SOUTH_ROAD_Z], // 12. south to service road
-              [SLUDGE_SOUTH_RUNOUT_X, 0, SLUDGE_RUNOUT_Z], // 13. line up with the widened ramp
-              [19, 0, SLUDGE_RUNOUT_Z], // 14. center before entering the ramp
-              [19, 0, SLUDGE_ACCESS_RAMP.zGround], // 15. reach the ramp foot
-              [19, 0.5, 20],         // 16. climb the ramp onto the deck (loops to 0)
+              // Dewatering house: approach → enter → load → leave through the
+              // same clear door opening. The movement controller travels X
+              // first and then Z, so these aligned points are intentional.
+              [SLUDGE_DEWATERING_DOOR_X, 0.5, SLUDGE_DEWATERING_DOOR_APPROACH_Z], // 0. outside standby
+              [SLUDGE_DEWATERING_DOOR_X, 0.5, SLUDGE_LOAD_Z], // 1. inside door aisle
+              [SLUDGE_LOAD_X, 0.5, SLUDGE_LOAD_Z], // 2. ton-bag loading stop ← LOAD
+              [SLUDGE_DEWATERING_DOOR_X, 0.5, SLUDGE_LOAD_Z], // 3. return to door aisle
+              [SLUDGE_DEWATERING_DOOR_X, 0.5, SLUDGE_DEWATERING_DOOR_APPROACH_Z], // 4. exit room
+              [SLUDGE_ACCESS_RAMP.x, 0.5, SLUDGE_DEWATERING_DOOR_APPROACH_Z], // 5. align with ramp
+              [SLUDGE_ACCESS_RAMP.x, 0, SLUDGE_ACCESS_RAMP.zGround], // 6. descend ramp
+              [SLUDGE_ACCESS_RAMP.x, 0, SLUDGE_RUNOUT_Z], // 7. clear ramp toe
+              [SLUDGE_SOUTH_RUNOUT_X, 0, SLUDGE_RUNOUT_Z], // 8. clear retaining walls
+              [HAZWASTE_WEST_LANE_X, 0, SLUDGE_SOUTH_ROAD_Z], // 9. east to warehouse west lane
+              [HAZWASTE_WEST_LANE_X, 0, HAZWASTE_NORTH_LANE_Z], // 10. north up west lane
+              [HAZWASTE_DOOR_X, 0, HAZWASTE_NORTH_LANE_Z], // 11. warehouse door centreline
+              [HAZWASTE_DOOR_X, 0.08, HAZWASTE_INTERIOR_UNLOAD_Z], // 12. unload inside ← UNLOAD
+              [HAZWASTE_DOOR_X, 0, HAZWASTE_NORTH_LANE_Z], // 13. reverse out
+              [HAZWASTE_WEST_LANE_X, 0, HAZWASTE_NORTH_LANE_Z], // 14. west along north lane
+              [HAZWASTE_WEST_LANE_X, 0, SLUDGE_SOUTH_ROAD_Z], // 15. south to service road
+              [SLUDGE_SOUTH_RUNOUT_X, 0, SLUDGE_RUNOUT_Z], // 16. return toward ramp
+              [SLUDGE_ACCESS_RAMP.x, 0, SLUDGE_RUNOUT_Z], // 17. centre on ramp
+              [SLUDGE_ACCESS_RAMP.x, 0, SLUDGE_ACCESS_RAMP.zGround], // 18. ramp foot
+              [SLUDGE_ACCESS_RAMP.x, 0.5, SLUDGE_DEWATERING_DOOR_APPROACH_Z], // 19. deck apron; loop to 0
             ]}
-            pauseAtIndices={[1, 9]}
+            pauseAtIndices={[2, 12]}
             speed={1.6}
             pauseTime={4.0}
           />

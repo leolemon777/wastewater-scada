@@ -309,7 +309,8 @@ const GEO = {
   mountPad: new THREE.BoxGeometry(0.18, 0.025, 0.18),
   // anchorStud / anchorNut removed — mount-pad studs+nuts are now InstancedMesh
   // (cylinderGeometry args inline), cutting 8 standalone draw calls to 2.
-  gasketRing: new THREE.TorusGeometry(0.36, 0.016, 8, 32),
+  // Solid gasket washer (not torus) — torus edges read as floating rings on the deck.
+  gasketRing: new THREE.CylinderGeometry(0.38, 0.38, 0.012, 32),
   gearboxBase: new THREE.CylinderGeometry(0.38, 0.4, 0.1, 32),
   gearboxBody: new THREE.CylinderGeometry(0.3, 0.38, 0.3, 32),
   gearboxTop: new THREE.CylinderGeometry(0.26, 0.3, 0.07, 32),
@@ -329,12 +330,14 @@ const GEO = {
   termNeck: new THREE.BoxGeometry(0.05, 0.12, 0.15),
   termBody: new THREE.BoxGeometry(0.16, 0.16, 0.2),
   termLid: new THREE.BoxGeometry(0.02, 0.18, 0.22),
-  cowlBand: new THREE.TorusGeometry(0.272, 0.012, 8, 32),
+  // Solid collar instead of torus band — torus edges read as floating rings.
+  cowlBand: new THREE.CylinderGeometry(0.286, 0.286, 0.018, 32),
   cowlBody: new THREE.CylinderGeometry(0.275, 0.285, 0.095, 32),
   cowlTaper: new THREE.CylinderGeometry(0.215, 0.275, 0.075, 32),
   louver: new THREE.BoxGeometry(0.009, 0.024, 0.074),
-  grilleRing: new THREE.TorusGeometry(0.155, 0.006, 6, 28),
-  grilleSpoke: new THREE.BoxGeometry(0.31, 0.006, 0.005),
+  // Flush end disk + vent recesses (replaces concentric torus grille rings).
+  cowlEndFace: new THREE.CylinderGeometry(0.215, 0.215, 0.012, 32),
+  cowlVent: new THREE.BoxGeometry(0.028, 0.004, 0.085),
   grilleHub: new THREE.CylinderGeometry(0.038, 0.038, 0.012, 16),
   eyeBase: new THREE.CylinderGeometry(0.032, 0.032, 0.028, 12),
   eyeRing: new THREE.TorusGeometry(0.039, 0.01, 8, 18),
@@ -518,7 +521,7 @@ export const MixerDrive3D: React.FC<MixerDrive3DProps> = ({
           ))}
           <mesh geometry={GEO.bridgeDeck} material={GEARBOX_DARK} position={[0, 0.065, 0]} castShadow receiveShadow />
           <mesh geometry={GEO.mountBoss} material={GALV} position={[0, 0.035, 0]} castShadow receiveShadow />
-          <mesh geometry={GEO.gasketRing} material={RUBBER} position={[0, 0.068, 0]} rotation={[Math.PI / 2, 0, 0]} />
+          <mesh geometry={GEO.gasketRing} material={RUBBER} position={[0, 0.068, 0]} castShadow />
           {/* Mount pads: 4 galvanized pads as individual meshes (square plates),
               but anchor studs + nuts collapsed into two InstancedMesh draw calls. */}
           {MOUNT_PAD_POSITIONS.map(([x, y, z], i) => (
@@ -668,9 +671,9 @@ export const MixerDrive3D: React.FC<MixerDrive3DProps> = ({
 
           </group>
 
-          {/* --- Fan cowl + intake grille --- */}
+          {/* --- Fan cowl (closed TEFC shroud; no floating torus grille rings) --- */}
           <group position={[0, motorTopY, 0]}>
-            <mesh geometry={GEO.cowlBand} material={COWL} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} castShadow />
+            <mesh geometry={GEO.cowlBand} material={COWL} position={[0, 0.006, 0]} castShadow />
             <mesh geometry={GEO.cowlBody} material={COWL} position={[0, 0.055, 0]} castShadow receiveShadow />
             <mesh geometry={GEO.cowlTaper} material={COWL} position={[0, 0.14, 0]} castShadow receiveShadow />
             {Array.from({ length: 6 }, (_, i) => {
@@ -688,20 +691,21 @@ export const MixerDrive3D: React.FC<MixerDrive3DProps> = ({
             })}
           </group>
 
-          <group position={[0, motorTopY + 0.175, 0]}>
-            <mesh geometry={GEO.grilleRing} material={GRILLE} rotation={[Math.PI / 2, 0, 0]} />
-            <mesh geometry={GEO.grilleRing} material={GRILLE} rotation={[Math.PI / 2, 0, 0]} scale={0.7} />
-            <mesh geometry={GEO.grilleRing} material={GRILLE} rotation={[Math.PI / 2, 0, 0]} scale={0.42} />
-            {Array.from({ length: 12 }, (_, i) => (
-              <mesh
-                key={`spoke-${i}`}
-                geometry={GEO.grilleSpoke}
-                material={GRILLE}
-                rotation={[0, (i / 12) * Math.PI, 0]}
-                castShadow
-              />
-            ))}
-            <mesh geometry={GEO.grilleHub} material={COWL} rotation={[Math.PI / 2, 0, 0]} castShadow />
+          <group position={[0, motorTopY + 0.182, 0]}>
+            <mesh geometry={GEO.cowlEndFace} material={COWL} castShadow receiveShadow />
+            {Array.from({ length: 10 }, (_, i) => {
+              const angle = (i / 10) * Math.PI * 2;
+              return (
+                <mesh
+                  key={`vent-${i}`}
+                  geometry={GEO.cowlVent}
+                  material={GRILLE}
+                  position={[Math.sin(angle) * 0.12, 0.008, Math.cos(angle) * 0.12]}
+                  rotation={[0, angle, 0]}
+                />
+              );
+            })}
+            <mesh geometry={GEO.grilleHub} material={COWL} position={[0, 0.01, 0]} castShadow />
           </group>
 
           <group ref={fanRef} position={[0, motorTopY + 0.09, 0]} userData={{ bakeExclude: true }}>

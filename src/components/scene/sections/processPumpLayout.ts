@@ -14,7 +14,9 @@ export interface ProcessPumpPlacement {
 /** World-space pump placements shared by equipment sections and pipe routing. */
 export const PROCESS_PUMP_LAYOUT = {
   intermediateA: { id: 'p-inter-1', position: [18, 0.5, -8], rotationY: Math.PI },
-  intermediateB: { id: 'p-inter-2', position: [16, 0.5, -8], rotationY: Math.PI },
+  // Keep clear of tk-intermediate west wall (outer face x=16); axial suction on
+  // the wall corner was clipping the coping and showing a half-pipe in the basin.
+  intermediateB: { id: 'p-inter-2', position: [16.85, 0.5, -8], rotationY: Math.PI },
   drainA: { id: 'p-drain-1', position: [32, 0.5, -17], rotationY: Math.PI / 2 },
   drainB: { id: 'p-drain-2', position: [32, 0.5, -13], rotationY: Math.PI / 2 },
   clarifierSludgeA: { id: 'p-sludge-clar-1', position: [1, 0.5, 5], rotationY: 0 },

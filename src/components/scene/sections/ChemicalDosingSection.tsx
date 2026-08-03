@@ -161,12 +161,12 @@ export const ChemicalDosingSection: React.FC = () => (
     </mesh>
 
     {/* ================= CHEMICAL TANKS (RAISED TO 1.7 TO SIT ON THE BASE) ================= */}
-    <ChemicalTank3D id="tk-ph-pac" position={[-15, 1.7, 0]} size={[0.6, 1.8]} color="#D97706" compactLabel />
-    <ChemicalTank3D id="tk-ph-cacl2" position={[-10, 1.7, 0]} size={[0.6, 1.8]} color="#E2E8F0" compactLabel />
-    <ChemicalTank3D id="tk-ph-pam" position={[-5, 1.7, 0]} size={[0.6, 1.8]} color="#BAE6FD" compactLabel />
-    <ChemicalTank3D id="tk-daf-pac" position={[0, 1.7, 0]} size={[0.6, 1.8]} color="#D97706" compactLabel />
-    <ChemicalTank3D id="tk-daf-pam" position={[5, 1.7, 0]} size={[0.6, 1.8]} color="#BAE6FD" compactLabel />
-    <ChemicalTank3D id="tk-screw-pam" position={[10, 1.7, 0]} size={[0.6, 1.8]} color="#BAE6FD" compactLabel />
+    <ChemicalTank3D id="tk-ph-pac" position={[-15, 1.7, 0]} size={[0.6, 1.8]} color="#D97706" compactLabel emphasizeLabel />
+    <ChemicalTank3D id="tk-ph-cacl2" position={[-10, 1.7, 0]} size={[0.6, 1.8]} color="#E2E8F0" compactLabel emphasizeLabel />
+    <ChemicalTank3D id="tk-ph-pam" position={[-5, 1.7, 0]} size={[0.6, 1.8]} color="#BAE6FD" compactLabel emphasizeLabel />
+    <ChemicalTank3D id="tk-daf-pac" position={[0, 1.7, 0]} size={[0.6, 1.8]} color="#D97706" compactLabel emphasizeLabel />
+    <ChemicalTank3D id="tk-daf-pam" position={[5, 1.7, 0]} size={[0.6, 1.8]} color="#BAE6FD" compactLabel emphasizeLabel />
+    <ChemicalTank3D id="tk-screw-pam" position={[10, 1.7, 0]} size={[0.6, 1.8]} color="#BAE6FD" compactLabel emphasizeLabel />
 
     {/* Duty/standby metering pumps. Pipe routes use the same world-space layout. */}
     {CHEMICAL_PUMP_GROUPS.flatMap((group) =>

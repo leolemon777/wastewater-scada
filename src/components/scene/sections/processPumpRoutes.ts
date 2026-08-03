@@ -22,8 +22,12 @@ import {
 export const PUMP_HEADER_Y = 2.55;
 export const PUMP_SUCTION_RADIUS = 0.085;
 export const PUMP_DISCHARGE_RADIUS = 0.082;
-/** Enough straight pipe beyond the outer riser for one compact blind flange. */
-export const PUMP_HEADER_END_CLEARANCE = 0.24;
+/**
+ * Short runout past the outer riser centreline so the tee is fully enclosed.
+ * Keep ≈ header/branch radius (not 0 — that leaves an open white circle at the
+ * tee and reads as a broken joint). Ends are pipe-colored plugs, not grey blinds.
+ */
+export const PUMP_HEADER_END_CLEARANCE = 0.13;
 
 export type ProcessPumpRoute = {
   id: string;
@@ -99,7 +103,7 @@ export const ALL_PROCESS_PUMP_ROUTES: readonly ProcessPumpRoute[] = [
   ...SLUDGE_OUT_ROUTES,
 ];
 
-/** Shared header on discharge centreline; overhang past outer risers. */
+/** Shared header on discharge centreline; ends flush with the outer riser tees. */
 export function buildHeaderOnDischargeFaces(
   routes: readonly ProcessPumpRoute[],
   axis: 'x' | 'z',
@@ -111,7 +115,15 @@ export function buildHeaderOnDischargeFaces(
   const y = PUMP_HEADER_Y;
   if (axis === 'x') {
     // Header runs along X at the shared discharge face Z.
-    const z = routes[0].dischargeFace[2];
+    const zs = routes.map((r) => r.dischargeFace[2]);
+    const z = zs[0];
+    for (const zi of zs) {
+      if (Math.abs(zi - z) > 1e-3) {
+        throw new Error(
+          `buildHeaderOnDischargeFaces(x): discharge faces not coplanar on Z (${zs.join(', ')})`,
+        );
+      }
+    }
     const xs = routes.map((r) => r.dischargeFace[0]);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
@@ -121,7 +133,15 @@ export function buildHeaderOnDischargeFaces(
     return { start, end, takeoff: pt(midX, y, z), axisCoord: z };
   }
   // Header runs along Z at the shared discharge face X.
-  const x = routes[0].dischargeFace[0];
+  const xs = routes.map((r) => r.dischargeFace[0]);
+  const x = xs[0];
+  for (const xi of xs) {
+    if (Math.abs(xi - x) > 1e-3) {
+      throw new Error(
+        `buildHeaderOnDischargeFaces(z): discharge faces not coplanar on X (${xs.join(', ')})`,
+      );
+    }
+  }
   const zs = routes.map((r) => r.dischargeFace[2]);
   const minZ = Math.min(...zs);
   const maxZ = Math.max(...zs);

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
 const MACHINE_SCALE = 0.5;
-/** Matches Pump3D: discharge nozzle bottom seats on the volute crown. */
-const DISCHARGE_LOCAL = new THREE.Vector3(0, 1.54, -0.78).multiplyScalar(MACHINE_SCALE);
-/** Matches Pump3D: suction flange seats on the volute end face. */
-const SUCTION_LOCAL = new THREE.Vector3(0, 0.78, -0.98).multiplyScalar(MACHINE_SCALE);
+/** Exact Pump3D discharge-nozzle group centre (extended nozzle). */
+const DISCHARGE_LOCAL = new THREE.Vector3(0, 1.58, -0.78).multiplyScalar(MACHINE_SCALE);
+/** Exact Pump3D suction-nozzle group centre (extended nozzle). */
+const SUCTION_LOCAL = new THREE.Vector3(0, 0.78, -1.14).multiplyScalar(MACHINE_SCALE);
 /**
  * Suction mouth face offset along the nozzle axis in *unscaled* Pump3D local space
  * (PumpProcessFlanges suction group: mouth disk at local Y ≈ -0.047 after the π/2 X tilt,
@@ -17,6 +17,15 @@ const DISCHARGE_FACE_UNSCALED = 0.032 + 0.018 / 2;
 const DISCHARGE_AXIS = new THREE.Vector3(0, 1, 0);
 const SUCTION_AXIS = new THREE.Vector3(0, 0, -1);
 const FLANGE_FACE_INSET = DISCHARGE_FACE_UNSCALED * MACHINE_SCALE;
+/**
+ * Controlled pipe seat past the published sealing face into the nozzle/gasket.
+ * Deep enough to kill the air-gap "separated" look; shallow enough that the
+ * green shell stays inside the nozzle and does not stab through the volute
+ * (nozzle ~0.11 m after scale 0.5; seat must stay well under that).
+ */
+export const PUMP_FACE_SEAT = 0.045;
+/** Hard upper bound for static checks — anything deeper risks volute stabbing. */
+export const PUMP_FACE_SEAT_MAX = 0.06;
 /** Legacy constants kept for geometry guard scripts; routes no longer insert stub vertices. */
 const DISCHARGE_STUB_LEN = 0;
 const SUCTION_STUB_LEN = 0;
@@ -178,9 +187,8 @@ export function getSuctionBranch(
  * Tank wall → exact pump suction sealing face.
  * Forces the wall point onto mouth height so the spool never approaches with
  * a vertical dogleg at the flange (void/side-hit look in close-up).
- * When wall X already matches mouth X (or Z matches Z), the result is a pure
- * axial run; otherwise a single straight hypotenuse is avoided by keeping the
- * authoring sites on-axis (see processPumpRoutes axialWallSeed).
+ * When the wall port is laterally offset from the mouth (corner clamp), jog
+ * outside the basin first so the run never cuts the coping diagonally.
  */
 export function getDirectTankSuctionBranch(
   position: [number, number, number],
@@ -189,17 +197,27 @@ export function getDirectTankSuctionBranch(
 ): [number, number, number][] {
   const mouth = getSuctionFacePoint(position, rotationY);
   const wall = pt(tankInsertion[0], mouth[1], tankInsertion[2]);
-  const dx = wall[0] - mouth[0];
-  const dy = wall[1] - mouth[1];
-  const dz = wall[2] - mouth[2];
-  const length = Math.hypot(dx, dy, dz);
-  if (length < 1e-6) return [mouth];
-  const poolInner = pt(
-    wall[0] + (dx / length) * 0.4,
-    wall[1] + (dy / length) * 0.4,
-    wall[2] + (dz / length) * 0.4,
-  );
-  return [poolInner, wall, mouth];
+  const outX = mouth[0] - wall[0];
+  const outZ = mouth[2] - wall[2];
+  const outLen = Math.hypot(outX, outZ);
+  if (outLen < 1e-6) return [mouth];
+  const ox = outX / outLen;
+  const oz = outZ / outLen;
+  // Penetrate just past the inner face along the wall normal (into the basin).
+  const poolInner = pt(wall[0] - ox * 0.4, mouth[1], wall[2] - oz * 0.4);
+
+  // Pure axial: wall and mouth already share X (N/S wall) or Z (E/W wall).
+  if (Math.abs(wall[0] - mouth[0]) < 0.04 || Math.abs(wall[2] - mouth[2]) < 0.04) {
+    return [poolInner, wall, mouth];
+  }
+
+  // Lateral offset (corner clamp): stay outside the wall, then turn to the mouth.
+  const outside = pt(wall[0] + ox * 0.35, mouth[1], wall[2] + oz * 0.35);
+  const alignPt =
+    Math.abs(oz) >= Math.abs(ox)
+      ? pt(mouth[0], mouth[1], outside[2]) // north/south wall: jog in X outside
+      : pt(outside[0], mouth[1], mouth[2]); // east/west wall: jog in Z outside
+  return [poolInner, wall, outside, alignPt, mouth];
 }
 
 /**

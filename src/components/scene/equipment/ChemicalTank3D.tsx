@@ -15,6 +15,10 @@ interface ChemicalTank3DProps {
   /** Chemical liquid tint. */
   color?: string;
   compactLabel?: boolean;
+  /** Suppress the floating nameplate entirely (tight pure-water skids). */
+  hideLabel?: boolean;
+  /** Render the nameplate larger and more prominent (dosing tanks). */
+  emphasizeLabel?: boolean;
 }
 
 function seededUnit(seed: number): number {
@@ -81,6 +85,8 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
   size = [1.5, 3],
   color = '#3b82f6',
   compactLabel = false,
+  hideLabel = false,
+  emphasizeLabel = false,
 }) => {
   const [radius, height] = size;
   const tankData = useScadaStore((state) => state.equipments[id] as TankData);
@@ -340,14 +346,17 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
         ))}
       </group>
 
-      <FloatingPoolLabel3D
-        position={[0, height / 2 + 1.35, 0]}
-        name={displayName}
-        equipmentId={id}
-        selected={isSelected}
-        alarm={tankData.alarmState !== 'none'}
-        distanceFactor={compactLabel ? 11 : 9}
-      />
+      {!hideLabel && (
+        <FloatingPoolLabel3D
+          position={[0, height / 2 + 1.35, 0]}
+          name={displayName}
+          equipmentId={id}
+          selected={isSelected}
+          alarm={tankData.alarmState !== 'none'}
+          distanceFactor={compactLabel ? 11 : 9}
+          emphasis={emphasizeLabel}
+        />
+      )}
     </group>
   );
 };

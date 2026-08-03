@@ -12,6 +12,16 @@ import { EquipmentNameplate3D, RubberPad3D, PumpIndicator3D } from '../shared/In
 const PUMP_BOLT_MATERIAL = new THREE.MeshStandardMaterial({ color: '#94A3B8', roughness: 0.2, metalness: 0.8 });
 const PUMP_FLANGE_BOLT_MATERIAL = new THREE.MeshStandardMaterial({ color: '#64748B', roughness: 0.24, metalness: 0.82 });
 
+// Keep the motor/coupling train physically continuous with the volute. These
+// values are shared by the bearing housing geometry below so later edits to the
+// casing depth cannot silently reopen a visible gap between the two assemblies.
+const PUMP_VOLUTE_CENTER_Z = -0.78;
+const PUMP_VOLUTE_DEPTH = 0.46;
+const PUMP_VOLUTE_MOTOR_FACE_Z = PUMP_VOLUTE_CENTER_Z + PUMP_VOLUTE_DEPTH / 2;
+const PUMP_COUPLING_PUMP_FACE_Z = -0.15;
+const PUMP_BEARING_HOUSING_LENGTH = PUMP_COUPLING_PUMP_FACE_Z - PUMP_VOLUTE_MOTOR_FACE_Z;
+const PUMP_BEARING_HOUSING_CENTER_Z = (PUMP_COUPLING_PUMP_FACE_Z + PUMP_VOLUTE_MOTOR_FACE_Z) / 2;
+
 interface PumpInstance {
   position: [number, number, number];
   rotation?: [number, number, number];
@@ -36,10 +46,11 @@ const PumpProcessFlanges: React.FC<{
   return (
     <>
       {/* Suction nozzle and bolted flange, matching pumpPorts.ts SUCTION_LOCAL.
-          The nozzle seats on the volute end face instead of floating outside it. */}
-      <group position={[0, 0.78, -0.98]} rotation={[Math.PI / 2, 0, 0]}>
-        <mesh castShadow receiveShadow position={[0, 0.07, 0]}>
-          <cylinderGeometry args={[0.165, 0.165, 0.16, 32]} />
+          Extended neck: the tube still seats into the volute end face while the
+          flange face reaches further out for a visible pipe engagement length. */}
+      <group position={[0, 0.78, -1.14]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh castShadow receiveShadow position={[0, 0.15, 0]}>
+          <cylinderGeometry args={[0.165, 0.165, 0.32, 32]} />
           <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
         </mesh>
         <mesh castShadow receiveShadow position={[0, -0.018, 0]}>
@@ -61,10 +72,10 @@ const PumpProcessFlanges: React.FC<{
       </group>
 
       {/* Discharge nozzle and bolted flange, matching pumpPorts.ts DISCHARGE_LOCAL.
-          The nozzle bottom sits on the volute crown without an air gap. */}
-      <group position={[0, 1.54, -0.78]}>
-        <mesh castShadow receiveShadow position={[0, -0.1, 0]}>
-          <cylinderGeometry args={[0.15, 0.15, 0.2, 32]} />
+          Extended neck: tube bottom still seats on the volute crown (world y=1.34). */}
+      <group position={[0, 1.58, -0.78]}>
+        <mesh castShadow receiveShadow position={[0, -0.12, 0]}>
+          <cylinderGeometry args={[0.15, 0.15, 0.24, 32]} />
           <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
         </mesh>
         <mesh castShadow receiveShadow position={[0, 0.004, 0]}>
@@ -95,11 +106,27 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
   useCursor(hovered, 'pointer', 'auto');
   const machineRef = useRef<THREE.Group>(null);
   const fanRef = useRef<THREE.Group>(null);
+  const motorShakeRef = useRef<THREE.Group>(null);
 
-  useFrame((_, delta) => {
+  useFrame(({ clock }, delta) => {
     const running = pumpData?.runStatus === 'running';
     if (fanRef.current && running) {
       fanRef.current.rotation.z += delta * 18;
+    }
+    // Running tremor on the motor body only. Feet / adapter bracket / coupling
+    // guard stay outside this group so the shake never shears their rigid
+    // interfaces with the static skid and volute (check-pump-vibration-rigidity).
+    const shake = motorShakeRef.current;
+    if (shake) {
+      if (running) {
+        const t = clock.elapsedTime;
+        // High-frequency sub-millimetre hum (unscaled space; ×0.5 machine scale).
+        shake.position.x = Math.sin(t * 47) * 0.004;
+        shake.position.y = Math.sin(t * 59 + 1.3) * 0.003;
+        shake.position.z = Math.sin(t * 41 + 0.7) * 0.004;
+      } else {
+        shake.position.set(0, 0, 0);
+      }
     }
   });
 
@@ -210,6 +237,12 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
           <meshStandardMaterial color={riserSteelColor} roughness={0.48} metalness={0.58} />
         </mesh>
 
+        {/* Running vibration group — wraps the Motor Assembly only. The motor
+            mounting feet, adapter bracket and coupling guard share rigid
+            interfaces with the static skid/volute and must NOT ride this
+            group, or the tremor would shear a visible gap every frame.
+            bakeExclude keeps the live group out of the static bake. */}
+        <group ref={motorShakeRef} userData={{ bakeExclude: true }}>
         {/* Motor Assembly */}
         <group position={[0, 0.88, 0.58]}>
           {/* Main Motor Cylinder — cast-iron TEFC frame, painted RAL 6001.
@@ -350,6 +383,7 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
               </>
             );
           })()}
+        </group>
         </group>
 
         {/* Lifting Eye Bolt (Hoist ring) — sits on TOP of motor frame,
@@ -512,7 +546,7 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
             <meshStandardMaterial color="#3E4752" roughness={0.46} metalness={0.52} />
           </mesh>
           {/* Outer reinforcing rim around the top cap edge */}
-          <mesh castShadow receiveShadow position={[0, 0.184, 0]}>
+          <mesh castShadow receiveShadow position={[0, 0.184, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.36, 0.01, 8, 32]} />
             <meshStandardMaterial color="#4A535E" roughness={0.40} metalness={0.56} />
           </mesh>
@@ -641,11 +675,11 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
             <meshStandardMaterial color="#E5A020" roughness={0.45} metalness={0.25} side={THREE.DoubleSide} />
           </mesh>
           {/* Split-line clamp rings (top & bottom) */}
-          <mesh position={[0, 0.075, 0]}>
+          <mesh position={[0, 0.075, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.219, 0.008, 6, 32]} />
             <meshStandardMaterial color="#7A8A90" roughness={0.35} metalness={0.72} />
           </mesh>
-          <mesh position={[0, -0.075, 0]}>
+          <mesh position={[0, -0.075, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.219, 0.008, 6, 32]} />
             <meshStandardMaterial color="#7A8A90" roughness={0.35} metalness={0.72} />
           </mesh>
@@ -678,15 +712,46 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
           })}
         </group>
 
-        {/* Pump volute casing connection */}
+        {/* Motor-side bearing flange — overlaps the coupling guard and the
+            bearing housing so this joint cannot read as two separate parts. */}
         <mesh castShadow receiveShadow position={[0, 0.78, -0.10]} rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.36, 0.36, 0.1, 32, 1, true]} />
           <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
         </mesh>
 
+        {/* Pump shaft bearing housing.
+            The old model stopped the connection at z=-0.15 while the volute
+            began at z=-0.55, leaving a 0.40-unit air gap on every Pump3D.
+            This tapered housing spans those exact faces and slightly overlaps
+            its end collars, keeping the motor, bearing train and pump head
+            visually and structurally continuous from every camera angle. */}
+        <group
+          position={[0, 0.78, PUMP_BEARING_HOUSING_CENTER_Z]}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <mesh castShadow receiveShadow>
+            <cylinderGeometry args={[0.28, 0.36, PUMP_BEARING_HOUSING_LENGTH, 32]} />
+            <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
+          </mesh>
+          <mesh castShadow receiveShadow position={[0, PUMP_BEARING_HOUSING_LENGTH / 2 - 0.015, 0]}>
+            <cylinderGeometry args={[0.34, 0.34, 0.05, 32]} />
+            <meshStandardMaterial color="#4D5B60" roughness={0.5} metalness={0.36} />
+          </mesh>
+          <mesh castShadow receiveShadow position={[0, -PUMP_BEARING_HOUSING_LENGTH / 2 + 0.015, 0]}>
+            <cylinderGeometry args={[0.39, 0.39, 0.05, 32]} />
+            <meshStandardMaterial color="#4D5B60" roughness={0.5} metalness={0.36} />
+          </mesh>
+        </group>
+
+        {/* Bearing pedestal seated into the existing pump-side riser. */}
+        <mesh castShadow receiveShadow position={[0, 0.50, PUMP_BEARING_HOUSING_CENTER_Z]}>
+          <boxGeometry args={[0.54, 0.22, 0.34]} />
+          <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
+        </mesh>
+
         {/* Pump volute casing */}
-        <mesh castShadow receiveShadow position={[0, 0.78, -0.78]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.56, 0.56, 0.46, 36]} />
+        <mesh castShadow receiveShadow position={[0, 0.78, PUMP_VOLUTE_CENTER_Z]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.56, 0.56, PUMP_VOLUTE_DEPTH, 36]} />
           <meshStandardMaterial color={pumpBodyColor} roughness={pumpBodyRoughness} metalness={pumpBodyMetalness} />
         </mesh>
 
@@ -694,7 +759,7 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
             Cast-iron volutes are poured in two halves; the split line is a
             raised ring with through-bolts. This turns the "plain cylinder"
             into something that reads as a real pump casing. */}
-        <mesh position={[0, 0.78, -0.78]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh position={[0, 0.78, PUMP_VOLUTE_CENTER_Z]}>
           <torusGeometry args={[0.57, 0.018, 12, 36]} />
           <meshStandardMaterial color="#3A454A" roughness={0.5} metalness={0.35} />
         </mesh>
@@ -704,7 +769,7 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
           return (
             <mesh
               key={`casing-bolt-${i}`}
-              position={[Math.cos(a) * 0.58, Math.sin(a) * 0.58 + 0.78, -0.78]}
+              position={[Math.cos(a) * 0.58, Math.sin(a) * 0.58 + 0.78, PUMP_VOLUTE_CENTER_Z]}
               castShadow
             >
               <cylinderGeometry args={[0.018, 0.018, 0.03, 6]} />

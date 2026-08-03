@@ -57,11 +57,17 @@ export const ChemicalMeteringPump3D: React.FC<ChemicalMeteringPump3DProps> = ({
         <cylinderGeometry args={[0.055, 0.055, 0.22, 16]} />
         <meshStandardMaterial color="#cbd5e1" roughness={0.36} metalness={0.72} />
       </mesh>
-      {/* Neutral inspection ring; runtime status is surfaced in the 2D UI. */}
-      <mesh position={[0.18, 0.36, -0.12]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <torusGeometry args={[0.08, 0.01, 8, 18]} />
-        <meshStandardMaterial color="#64748b" roughness={0.38} metalness={0.65} />
-      </mesh>
+      {/* Diaphragm-pump pressure gauge boss (solid disk, not a floating torus). */}
+      <group position={[0.18, 0.36, -0.12]}>
+        <mesh castShadow>
+          <cylinderGeometry args={[0.035, 0.035, 0.02, 16]} />
+          <meshStandardMaterial color="#64748b" roughness={0.38} metalness={0.65} />
+        </mesh>
+        <mesh position={[0, 0.014, 0]} castShadow>
+          <cylinderGeometry args={[0.028, 0.028, 0.008, 16]} />
+          <meshStandardMaterial color="#94A3B8" roughness={0.32} metalness={0.55} />
+        </mesh>
+      </group>
       <group position={[0, 0.36, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
         <mesh castShadow receiveShadow>
           <cylinderGeometry args={[0.052, 0.052, 0.05, 18]} />

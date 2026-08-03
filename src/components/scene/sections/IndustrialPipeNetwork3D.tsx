@@ -2,8 +2,9 @@ import React from 'react';
 import { Pipe3D } from '../piping/Pipe3D';
 import { PipeWallPort3D } from '../piping/PipeWallPort3D';
 import { ConvergingHeader3D } from '../piping/ConvergingHeader3D';
+import { PipeElbowFitting3D } from '../piping/PipeElbowFitting3D';
 import { PIPE_COLORS } from '../piping/pipeRouting';
-import { getDischargeRiser } from '../piping/pumpPorts';
+import { getDischargeRiser, PUMP_FACE_SEAT } from '../piping/pumpPorts';
 import { PumpPipeFlanges3D } from '../piping/PumpPipeFlanges3D';
 import { LIFT_ROT } from './intakeLayout';
 import {
@@ -24,7 +25,7 @@ function intakePoolInner(wall: [number, number, number]): [number, number, numbe
 /**
  * Intake raw-water network only.
  * Each pump: 1 axial suction spool + 1 vertical discharge riser.
- * Header: sealed east end; west continues into PH1 export.
+ * Header: both runout ends sealed; PH1 leaves from an aligned interior tee.
  *
  * Tee joins: risers land on the shared header with junctionMateRadius so the
  * branch is trimmed to the header shell (no through-stubs).
@@ -57,9 +58,10 @@ export const IndustrialPipeNetwork3D: React.FC = () => (
           animated={true}
           startConnection="equipment"
           endConnection="equipment"
-          // Exact gasket face — no generic equipment over-penetration.
+          // Seat through the gasket by a controlled amount so no light gap
+          // opens between the pipe shell and the pump-side flange.
           startOverlap={0}
-          endOverlap={0}
+          endOverlap={PUMP_FACE_SEAT}
         />
       </React.Fragment>
     ))}
@@ -74,7 +76,7 @@ export const IndustrialPipeNetwork3D: React.FC = () => (
         flowType="water"
         animated={true}
         startConnection="equipment"
-        startOverlap={0}
+        startOverlap={PUMP_FACE_SEAT}
         endConnection="junction"
         junctionTrim="end"
         // Trim by header radius, not the thinner riser radius.
@@ -82,7 +84,7 @@ export const IndustrialPipeNetwork3D: React.FC = () => (
       />
     ))}
 
-    {/* ── Shared discharge header; west end continues into the PH1 export ── */}
+    {/* ── Shared discharge header; PH1 leaves from an aligned interior tee ── */}
     <ConvergingHeader3D
       start={network.headerStart}
       takeoff={network.ph1Takeoff}
@@ -90,11 +92,11 @@ export const IndustrialPipeNetwork3D: React.FC = () => (
       radius={INTAKE_RAW_WATER_R}
       color={PIPE_COLORS.rawWater}
       flowType="water"
-      showSupports
-      blindStart={false}
+      capStart={true}
+      capEnd={true}
     />
 
-    {/* ── PH1 transfer from west of bay (continuous; no mid-row orphan drop) ── */}
+    {/* ── PH1 transfer: drop beside header, run buried, then rise at pool wall ── */}
     <PipeWallPort3D
       position={network.ph1Inlet}
       rotation={[-Math.PI / 2, 0, 0]}
@@ -107,10 +109,19 @@ export const IndustrialPipeNetwork3D: React.FC = () => (
       color={PIPE_COLORS.rawWater}
       flowType="water"
       animated={true}
-      showSupports
       startConnection="junction"
       endConnection="equipment"
       startJunctionRole="handoff"
     />
+    {network.ph1VisibleElbows.map((elbow, index) => (
+      <PipeElbowFitting3D
+        key={`ph1-transfer-elbow-${index}`}
+        previous={elbow.previous}
+        corner={elbow.corner}
+        next={elbow.next}
+        radius={INTAKE_RAW_WATER_R}
+        color={PIPE_COLORS.rawWater}
+      />
+    ))}
   </group>
 );

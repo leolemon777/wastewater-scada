@@ -21,11 +21,11 @@ for (const cabinet of [
   if (!scene.includes(cabinet)) issues.push(`Missing merged cabinet placement: ${cabinet}`);
 }
 
-if (!pump.includes('position={[0, 0.78, -0.98]}') || !pump.includes('position={[0, 1.54, -0.78]}')) {
-  issues.push('Pump nozzles must remain seated on the volute body');
+if (!pump.includes('position={[0, 0.78, -1.14]}') || !pump.includes('position={[0, 1.58, -0.78]}')) {
+  issues.push('Pump nozzles must remain seated on the extended-nozzle Pump3D geometry');
 }
-if (!pumpPorts.includes('new THREE.Vector3(0, 0.78, -0.98)') ||
-    !pumpPorts.includes('new THREE.Vector3(0, 1.54, -0.78)')) {
+if (!pumpPorts.includes('new THREE.Vector3(0, 0.78, -1.14)') ||
+    !pumpPorts.includes('new THREE.Vector3(0, 1.58, -0.78)')) {
   issues.push('Pump routing anchors must match the seated Pump3D nozzle positions');
 }
 if (!pumpPorts.includes('return [poolInner, wall, mouth]')) {

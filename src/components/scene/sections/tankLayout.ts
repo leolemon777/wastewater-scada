@@ -33,6 +33,11 @@ export const TANK_LAYOUT = {
 
 export type RoutedTankId = keyof typeof TANK_LAYOUT;
 
+/** Matches Tank3D default wallThickness — used to keep sleeves off corners. */
+export const TANK_WALL_THICKNESS = 0.3;
+/** Keep wall ports this far inside from either wall end so sleeves miss the corner. */
+export const WALL_PORT_CORNER_INSET = TANK_WALL_THICKNESS + 0.25;
+
 export function getTankLayout(id: RoutedTankId): TankLayout {
   return TANK_LAYOUT[id];
 }
@@ -41,15 +46,15 @@ export function getTankLayout(id: RoutedTankId): TankLayout {
  * Return the visible outside face of a tank wall.
  *
  * `along` is the lateral offset from the wall centre: X offset for north/south
- * walls, Z offset for east/west walls. `surfaceOffset` keeps the fitting just
- * outside the concrete so it does not z-fight with the wall.
+ * walls, Z offset for east/west walls. `surfaceOffset` leaves the fitting
+ * centre just outside the concrete while the sleeve itself overlaps the wall.
  */
 export function getTankWallPort(
   id: RoutedTankId,
   wall: TankWall,
   along = 0,
   y = 1.1,
-  surfaceOffset = 0.05,
+  surfaceOffset = 0.02,
 ): Point3 {
   const { center, size } = getTankLayout(id);
   const [cx, , cz] = center;
@@ -73,11 +78,17 @@ export function getAxialTankWallPort(
   wall: TankWall,
   mouth: Point3,
 ): Point3 {
-  const { center } = getTankLayout(id);
-  const along =
+  const { center, size } = getTankLayout(id);
+  let along =
     wall === 'north' || wall === 'south'
       ? mouth[0] - center[0]
       : mouth[2] - center[2];
+  // Clamp off the corner: a sleeve on the wall end sits inside both slabs and
+  // reads as a half-pipe clipped through the coping / inner face.
+  const halfSpan = wall === 'north' || wall === 'south' ? size[0] / 2 : size[2] / 2;
+  const maxAlong = Math.max(0, halfSpan - WALL_PORT_CORNER_INSET);
+  if (along > maxAlong) along = maxAlong;
+  if (along < -maxAlong) along = -maxAlong;
   return getTankWallPort(id, wall, along, mouth[1]);
 }
 

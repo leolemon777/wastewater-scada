@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { useScadaStore, type TankData, type PumpData, type FlowMeterData, type ValveData, type ScrewPressData, type BaseEquipment, type AlarmRecord } from '../../store/useScadaStore';
-import { LEVEL_MONITORED_TANKS } from '../../store/equipmentUtils';
+import { useScadaStore, type TankData, type PumpData, type FlowMeterData, type ValveData, type ScrewPressData, type RoUnitData, type BaseEquipment, type AlarmRecord } from '../../store/useScadaStore';
+import { isLevelMonitoredTank } from '../../store/equipmentUtils';
 import {
   X,
   AlertCircle,
@@ -74,6 +74,7 @@ const VIEW_PRESETS: ViewPreset[] = [
   { name: '进水工段', target: [-40, 0, 15], pos: [-25, 12, 40] },
   { name: '药剂工段', target: [-20, 0, -15], pos: [-2, 18, 7] },
   { name: '污泥工段', target: [15, 0, 15], pos: [33, 20, 37] },
+  { name: '纯水工段', target: [-76, 1, -1], pos: [-58, 16, 20] },
 ];
 
 export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
@@ -145,7 +146,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       case 'tank':
       case 'chemicalTank': {
         const tk = eq as TankData;
-        const monitored = LEVEL_MONITORED_TANKS.includes(tk.id);
+        const monitored = isLevelMonitoredTank(tk.id);
         return (
           <>
             {monitored && (
@@ -178,7 +179,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       }
       case 'mixingTank': {
         const mix = eq as TankData;
-        const mixMonitored = LEVEL_MONITORED_TANKS.includes(mix.id);
+        const mixMonitored = isLevelMonitoredTank(mix.id);
         return (
           <>
              {mixMonitored && <DetailItem label="当前液位" value={mix.levelValue.toFixed(2)} unit="m" highlight={mix.levelValue > mix.high} />}
@@ -249,6 +250,17 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
         return (
           <>
             <DetailItem label="运行状态" value={sp.runStatus === 'running' ? '运行脱水中' : '已停止'} highlight={sp.runStatus === 'fault'} />
+          </>
+        );
+      }
+      case 'roUnit': {
+        const ro = eq as RoUnitData;
+        return (
+          <>
+            {ro.runStatus !== undefined && (
+              <DetailItem label="运行状态" value={ro.runStatus === 'running' ? '制水运行中' : '待机'} highlight={ro.runStatus === 'fault'} />
+            )}
+            <div className="equipment-detail-muted">该单元暂无在线仪表 · 压力 / 流量 / 电导率测点预留</div>
           </>
         );
       }
@@ -442,7 +454,8 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
                     mixingTank: '混合搅拌池',
                     flowMeter: '流量计',
                     valve: '控制阀',
-                    screwPress: '螺旋压滤机'
+                    screwPress: '螺旋压滤机',
+                    roUnit: 'RO 膜组/过滤单元'
                   }[selectedEq.type] || selectedEq.type}
                 </span>
                 <h2 className="equipment-drawer-title">{selectedEq.name}</h2>

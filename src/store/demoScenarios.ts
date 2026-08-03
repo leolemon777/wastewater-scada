@@ -90,6 +90,22 @@ const liftPumpIds = ['p-lift-1', 'p-lift-2', 'p-lift-3', 'p-lift-4'];
 // Drain / outfall pumps discharge to the municipal outfall -> drive totalOutflow.
 const drainPumpIds = ['p-drain-1', 'p-drain-2'];
 
+/**
+ * Pure-water (二级 RO) pump ids — an independent system: NOT coupled into the
+ * wastewater inflow/outflow KPIs. Listed separately so maintenance can stop
+ * the whole RO train the same way it stops the wastewater pumps.
+ */
+const pwPumpIds = [
+  'pw-p-raw',
+  'pw-p-ro1',
+  'pw-p-ro2-1',
+  'pw-p-ro2-2',
+  'pw-p-supply-1',
+  'pw-p-supply-2',
+  'pw-p-dose-as',
+  'pw-p-dose-naoh',
+];
+
 // ---------------------------------------------------------------------------
 // Smoothing state — persisted across ticks at module scope so that
 // `createDemoSnapshot(scenarioId, tick)` (which the store calls without any
@@ -269,6 +285,32 @@ function commonEquipment(tick: number): Record<string, EquipmentPatch> {
 
     'sp-1': { alarmState: 'none', runStatus: 'running', animationState: true },
     'v-outflow': { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' },
+
+    // ── 纯水房(二级 RO)快照 — 独立系统,不进污水 KPI ──
+    // HMI 运行态:一级/二级自动运行,供水手动;R02/供水为一用一备。
+    'pw-tk-raw': tank(2.05 + wave(tick, 3, 0.06), 3.2),
+    'pw-tk-ro1': tank(1.72 + wave(tick, 6, 0.05), 2.8),
+    'pw-tk-ro2': tank(1.64 + wave(tick, 9, 0.04), 2.8),
+    'pw-tk-antiscalant': tank(1.05 + wave(tick, 4, 0.03), 1.9),
+    'pw-tk-naoh': tank(0.92 + wave(tick, 7, 0.03), 1.9),
+    'pw-p-raw': pump('running', 12 + wave(tick, 2, 1)),
+    'pw-p-ro1': pump('running', 10.5 + wave(tick, 3, 0.8)),
+    'pw-p-ro2-1': pump('running', 9.2 + wave(tick, 4, 0.6)),
+    'pw-p-ro2-2': pump('stopped', 0),
+    'pw-p-supply-1': pump('running', 8.4 + wave(tick, 5, 0.5)),
+    'pw-p-supply-2': pump('stopped', 0),
+    'pw-p-dose-as': pump('running', 0.32),
+    'pw-p-dose-naoh': pump('running', 0.18),
+    'pw-v-inlet': { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' },
+    'pw-v-ro1-in': { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' },
+    'pw-v-ro2-in': { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' },
+    'pw-v-ro1-flush': { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 0, mode: 'auto' },
+    'pw-v-ro2-flush': { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 0, mode: 'auto' },
+    'pw-f-cart-1': { alarmState: 'none' },
+    'pw-f-cart-2': { alarmState: 'none' },
+    'pw-f-carbon': { alarmState: 'none' },
+    'pw-ro-1': { alarmState: 'none', runStatus: 'running' },
+    'pw-ro-2': { alarmState: 'none', runStatus: 'running' },
   };
 
   pumpIds.forEach((id) => {
@@ -418,6 +460,12 @@ export function createDemoSnapshot(scenarioId: DemoScenarioId, tick: number): De
     pumpIds.forEach((id) => {
       equipments[id] = pump('stopped', 0);
     });
+    // The independent pure-water RO train shuts down for maintenance as well.
+    pwPumpIds.forEach((id) => {
+      equipments[id] = pump('stopped', 0);
+    });
+    equipments['pw-ro-1'] = { alarmState: 'none', runStatus: 'stopped' };
+    equipments['pw-ro-2'] = { alarmState: 'none', runStatus: 'stopped' };
     equipments['sp-1'] = { alarmState: 'none', runStatus: 'stopped', animationState: false };
     equipments['v-outflow'] = { alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 0, mode: 'manual' };
     equipments['fm-1'] = {

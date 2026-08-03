@@ -4,7 +4,7 @@
  * Topology (first principles):
  *   collection wall ──axial spool──► pump suction mouth
  *   pump discharge face ──vertical riser──► shared header
- *   header west takeoff ──► PH1 inlet
+ *   header aligned takeoff ──drop below slab──► buried transfer ──rise into PH1
  *
  * Visual rules:
  *   - Exactly one suction + one discharge polyline per pump
@@ -22,6 +22,10 @@ import {
   pt,
 } from '../piping/pumpPorts';
 import {
+  HIDDEN_PROCESS_PIPE_Y,
+  WALKWAY_OVERHEAD_PIPE_Y,
+} from '../piping/pipeRouting';
+import {
   COLLECTION_SOUTH_WALL_Z,
   LIFT_PUMPS,
   LIFT_ROT,
@@ -35,11 +39,17 @@ export const INTAKE_RAW_WATER_R = 0.1;
 export const INTAKE_SUCTION_R = 0.085;
 /** Match discharge nozzle bore so the riser seats flush on the pump flange. */
 export const INTAKE_DISCHARGE_R = 0.085;
-export const INTAKE_HEADER_Y = 2.15;
+// Keep the lift header above the pump-bay pedestrian route; the PH1 transfer
+// drops below the slab immediately after its header takeoff.
+export const INTAKE_HEADER_Y = WALKWAY_OVERHEAD_PIPE_Y;
 export const INTAKE_MIN_SUCTION_LEN = 0.55;
 export const PH1_INLET: V3 = [-40, 1.12, -3.05];
+/** Buried collection-to-PH1 transfer centreline below the site slab. */
+export const PH1_TRANSFER_UNDERGROUND_Y = HIDDEN_PROCESS_PIPE_Y;
+/** Exposed straight length around each above-ground 90° elbow. */
+export const PH1_VISIBLE_ELBOW_LEG = 0.72;
 export const INTAKE_FLANGE_TOLERANCE_M = 0.08;
-export const INTAKE_HEADER_END_CLEARANCE = 0.24;
+export const INTAKE_HEADER_END_CLEARANCE = 0.14;
 /** External joint length outside suction mouth (hosts pipe-side open flange). */
 export const INTAKE_SUCTION_JOINT_LEN = 0;
 /** Short normal penetration so the suction shell visibly enters the basin. */
@@ -91,6 +101,7 @@ export function buildIntakeLiftPipeNetwork(): {
   headerEnd: V3;
   ph1Inlet: V3;
   ph1TransferPoints: V3[];
+  ph1VisibleElbows: Array<{ previous: V3; corner: V3; next: V3 }>;
   ph1Takeoff: V3;
 } {
   const pumps: IntakePumpRoute[] = LIFT_PUMPS.map((branch) => {
@@ -128,19 +139,41 @@ export function buildIntakeLiftPipeNetwork(): {
   const headerStart: V3 = [minX - INTAKE_HEADER_END_CLEARANCE, INTAKE_HEADER_Y, headerZ];
   const headerEnd: V3 = [maxX + INTAKE_HEADER_END_CLEARANCE, INTAKE_HEADER_Y, headerZ];
 
-  // PH1 continues from the exact west header endpoint. The previous takeoff
-  // sat 0.15 m inside the capped header and made the export tube pass through
-  // the blind flange.
-  const ph1Takeoff: V3 = headerStart;
-  const westClearX = minX - 1.8;
-
+  // PH1 inlet and the header overlap in X. Drop beside the header, run the long
+  // north/south transfer below the site slab, then rise only at the PH1 wall.
+  // This keeps the pipe clear of the PH1 platform, guardrails, and agitator.
+  const ph1Takeoff: V3 = [PH1_INLET[0], INTAKE_HEADER_Y, headerZ];
+  const headerDropElbow: V3 = [
+    PH1_INLET[0],
+    INTAKE_HEADER_Y,
+    headerZ - PH1_VISIBLE_ELBOW_LEG,
+  ];
+  const headerBuriedEntry: V3 = [
+    PH1_INLET[0],
+    PH1_TRANSFER_UNDERGROUND_Y,
+    headerDropElbow[2],
+  ];
+  const ph1BuriedRiser: V3 = [
+    PH1_INLET[0],
+    PH1_TRANSFER_UNDERGROUND_Y,
+    PH1_INLET[2] - PH1_VISIBLE_ELBOW_LEG,
+  ];
+  const ph1WallEntryElbow: V3 = [
+    PH1_INLET[0],
+    PH1_INLET[1],
+    ph1BuriedRiser[2],
+  ];
   const ph1TransferPoints: V3[] = [
     ph1Takeoff,
-    [westClearX, INTAKE_HEADER_Y, headerZ],
-    [westClearX, INTAKE_HEADER_Y, 3.8],
-    [westClearX, PH1_INLET[1], 3.8],
-    [PH1_INLET[0], PH1_INLET[1], 3.8],
+    headerDropElbow,
+    headerBuriedEntry,
+    ph1BuriedRiser,
+    ph1WallEntryElbow,
     PH1_INLET,
+  ];
+  const ph1VisibleElbows = [
+    { previous: ph1Takeoff, corner: headerDropElbow, next: headerBuriedEntry },
+    { previous: ph1BuriedRiser, corner: ph1WallEntryElbow, next: PH1_INLET },
   ];
 
   return {
@@ -151,6 +184,7 @@ export function buildIntakeLiftPipeNetwork(): {
     headerEnd,
     ph1Inlet: PH1_INLET,
     ph1TransferPoints,
+    ph1VisibleElbows,
     ph1Takeoff,
   };
 }

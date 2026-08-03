@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createDemoSnapshot, demoScenarios, type DemoScenarioId } from './demoScenarios';
 
 export type AlarmState = 'none' | 'warning' | 'critical';
-export type EquipmentType = 'pump' | 'tank' | 'mixingTank' | 'chemicalTank' | 'flowMeter' | 'valve' | 'screwPress' | 'outfall';
+export type EquipmentType = 'pump' | 'tank' | 'mixingTank' | 'chemicalTank' | 'flowMeter' | 'valve' | 'screwPress' | 'outfall' | 'roUnit';
 
 export interface BaseEquipment {
   id: string;
@@ -62,14 +62,29 @@ export interface ScrewPressData extends BaseEquipment {
   animationState: boolean;
 }
 
-export type EquipmentData = PumpData | TankData | FlowMeterData | ValveData | ScrewPressData;
+/**
+ * Pure-water RO-train passive unit (cartridge filter / carbon column / RO
+ * membrane rack). v1 is monitor-only — the numeric fields are RESERVED for
+ * the pressure / flow / conductivity transmitters planned on the pure-water
+ * M100 (192.168.0.13); do not surface them in UI until real tags land.
+ */
+export interface RoUnitData extends BaseEquipment {
+  type: 'roUnit';
+  runStatus?: 'running' | 'stopped' | 'fault';
+  feedPressure?: number;
+  permeateFlow?: number;
+  conductivity?: number;
+}
+
+export type EquipmentData = PumpData | TankData | FlowMeterData | ValveData | ScrewPressData | RoUnitData;
 export type EquipmentPatch = Partial<
   Omit<BaseEquipment, 'type'> &
   Omit<PumpData, 'type'> &
   Omit<TankData, 'type'> &
   Omit<FlowMeterData, 'type'> &
   Omit<ValveData, 'type'> &
-  Omit<ScrewPressData, 'type'>
+  Omit<ScrewPressData, 'type'> &
+  Omit<RoUnitData, 'type'>
 >;
 
 export interface AlarmRecord {
@@ -355,6 +370,45 @@ const equipmentCatalog: Record<string, EquipmentData> = {
 
   // Screw Press
   'sp-1': { id: 'sp-1', name: '叠螺脱水机1#', type: 'screwPress', alarmState: 'none', runStatus: 'stopped', animationState: false } as ScrewPressData,
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 纯水房(二级 RO 系统)— 完全独立于污水系统的设备命名空间。
+  // 现场链路:纯水房网桥 192.168.2.74 / M100 192.168.0.13(待确认)。
+  // 第一版纯监视:泵/阀不开放手动控制,roUnit 数值字段为压力/电导率预留。
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Pure-water Tanks (all three vessels have level transmitters on site)
+  'pw-tk-raw':  { id: 'pw-tk-raw',  name: '原水箱 (纯水)',   type: 'tank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 3.00, high: 2.70, low: 0.60, lowLow: 0.25 } as TankData,
+  'pw-tk-ro1':  { id: 'pw-tk-ro1',  name: 'R01水箱 (一级产水)', type: 'tank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 2.60, high: 2.35, low: 0.55, lowLow: 0.22 } as TankData,
+  'pw-tk-ro2':  { id: 'pw-tk-ro2',  name: 'R02水箱 (二级产水)', type: 'tank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 2.60, high: 2.35, low: 0.55, lowLow: 0.22 } as TankData,
+
+  // Pure-water Chemical Tanks
+  'pw-tk-antiscalant': { id: 'pw-tk-antiscalant', name: '阻垢剂药桶 (纯水)', type: 'chemicalTank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 1.90, high: 1.70, low: 0.30, lowLow: 0.10 } as TankData,
+  'pw-tk-naoh':        { id: 'pw-tk-naoh',        name: 'NaOH加药桶 (纯水)', type: 'chemicalTank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 1.90, high: 1.70, low: 0.30, lowLow: 0.10 } as TankData,
+
+  // Pure-water Pumps (R02 / supply are duty+standby pairs)
+  'pw-p-raw':      { id: 'pw-p-raw',      name: '原水泵 (纯水)',   type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-ro1':      { id: 'pw-p-ro1',      name: 'R01高压泵',       type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-ro2-1':    { id: 'pw-p-ro2-1',    name: 'R02泵A',          type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-ro2-2':    { id: 'pw-p-ro2-2',    name: 'R02泵B (备用)',   type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-supply-1': { id: 'pw-p-supply-1', name: '供水泵A (纯水)',  type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-supply-2': { id: 'pw-p-supply-2', name: '供水泵B (备用)',  type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-dose-as':  { id: 'pw-p-dose-as',  name: '阻垢剂计量泵',    type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-dose-naoh':{ id: 'pw-p-dose-naoh',name: 'NaOH计量泵',      type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+
+  // Pure-water Valves
+  'pw-v-inlet':     { id: 'pw-v-inlet',     name: '总进水阀 (纯水)', type: 'valve', alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' } as ValveData,
+  'pw-v-ro1-in':    { id: 'pw-v-ro1-in',    name: '一级进水阀',      type: 'valve', alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' } as ValveData,
+  'pw-v-ro2-in':    { id: 'pw-v-ro2-in',    name: '二级进水阀',      type: 'valve', alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 100, mode: 'auto' } as ValveData,
+  'pw-v-ro1-flush': { id: 'pw-v-ro1-flush', name: '一级冲洗阀',      type: 'valve', alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 0, mode: 'auto' } as ValveData,
+  'pw-v-ro2-flush': { id: 'pw-v-ro2-flush', name: '二级冲洗阀',      type: 'valve', alarmState: 'none', runStatus: 'stopped', animationState: false, openingPercent: 0, mode: 'auto' } as ValveData,
+
+  // Pure-water RO-train passive units (no online instruments yet — reserved)
+  'pw-f-cart-1': { id: 'pw-f-cart-1', name: '保安过滤器1# (纯水)', type: 'roUnit', alarmState: 'none' } as RoUnitData,
+  'pw-f-cart-2': { id: 'pw-f-cart-2', name: '保安过滤器2# (纯水)', type: 'roUnit', alarmState: 'none' } as RoUnitData,
+  'pw-f-carbon': { id: 'pw-f-carbon', name: '活性炭柱 (纯水)',     type: 'roUnit', alarmState: 'none' } as RoUnitData,
+  'pw-ro-1':     { id: 'pw-ro-1',     name: '一级RO膜组',          type: 'roUnit', alarmState: 'none', runStatus: 'stopped' } as RoUnitData,
+  'pw-ro-2':     { id: 'pw-ro-2',     name: '二级RO膜组',          type: 'roUnit', alarmState: 'none', runStatus: 'stopped' } as RoUnitData,
 };
 
 export { demoScenarios };

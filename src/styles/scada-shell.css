@@ -2169,6 +2169,21 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
   text-shadow: none;
 }
 
+/* Read-only control row (纯监视分区,如纯水泵组):状态可见,开关禁用 */
+.dash-control-row.is-readonly {
+  cursor: default;
+  opacity: 0.72;
+}
+.dash-control-row.is-readonly:hover {
+  border-color: var(--dash-line);
+  background: inherit;
+  box-shadow: none;
+}
+.dash-control-row.is-readonly .scada-switch {
+  pointer-events: none;
+  filter: grayscale(0.45);
+}
+
 /* Outfall panel structure */
 .dash-outfall {
   overflow: hidden;

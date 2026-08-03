@@ -57,6 +57,28 @@ export const LEVEL_MONITORED_TANKS = [
   'tk-screw-pam'
 ];
 
+/**
+ * Pure-water (二级 RO) level-monitored vessels — all three tanks have level
+ * transmitters on site. Kept separate from the wastewater list so the
+ * 集控中枢 level column stays wastewater-only; the equipment detail drawer
+ * checks `isLevelMonitoredTank` which covers both systems.
+ */
+export const PW_LEVEL_MONITORED_TANKS = [
+  'pw-tk-raw',
+  'pw-tk-ro1',
+  'pw-tk-ro2',
+];
+
+/** True when the tank's live level should be shown (either water system). */
+export function isLevelMonitoredTank(id: string): boolean {
+  return LEVEL_MONITORED_TANKS.includes(id) || PW_LEVEL_MONITORED_TANKS.includes(id);
+}
+
+/** Equipment ids belonging to the independent pure-water RO system. */
+export function isPureWaterEquipment(id: string): boolean {
+  return id.startsWith('pw-');
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Granular Zustand selector hooks                                           */
 /*                                                                            */

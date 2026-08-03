@@ -42,8 +42,11 @@ if (boltCount !== 2) {
 if (maxRadius > 0.24) {
   issues.push(`${PUMP_FILE}: pump process flange radius ${maxRadius} exceeds 0.24`);
 }
-if (maxLength > 0.2) {
-  issues.push(`${PUMP_FILE}: pump process flange/nozzle length ${maxLength} exceeds 0.2`);
+// Extended-nozzle design (check-latest-merge-contracts): the suction neck
+// tube is 0.32 long so it spans from the extended flange face back into the
+// volute end face. Cap keeps every other port cylinder low-profile.
+if (maxLength > 0.35) {
+  issues.push(`${PUMP_FILE}: pump process flange/nozzle length ${maxLength} exceeds 0.35`);
 }
 if (!block.includes('x * 0.82') || !block.includes('z * 0.82')) {
   issues.push(`${PUMP_FILE}: pump process bolt circle should stay compact at 0.82 multiplier`);

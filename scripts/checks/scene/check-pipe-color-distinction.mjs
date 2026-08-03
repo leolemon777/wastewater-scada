@@ -16,6 +16,10 @@ const REQUIRED_KEYS = [
   'pac',
   'cacl2',
   'pam',
+  'pwFeed',
+  'pwPermeate',
+  'pwAntiscalant',
+  'pwNaoh',
 ];
 const MIN_DELTA_E = 20;
 const issues = [];

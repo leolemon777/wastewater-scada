@@ -14,9 +14,11 @@ export type PoolLabelTone =
   | 'chemical-pac'
   | 'chemical-pam'
   | 'chemical-cacl2'
+  | 'purewater'
   | 'neutral';
 
 export function resolvePoolLabelTone(equipmentId: string): PoolLabelTone {
+  if (equipmentId.startsWith('pw-')) return 'purewater';
   if (equipmentId.startsWith('tk-collection')) return 'intake';
   if (equipmentId === 'tk-ph1' || equipmentId === 'tk-ph2' || equipmentId === 'tk-ph3') return 'ph';
   if (equipmentId === 'tk-fenton') return 'fenton';

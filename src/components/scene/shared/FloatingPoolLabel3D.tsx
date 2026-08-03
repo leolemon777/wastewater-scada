@@ -10,6 +10,8 @@ interface FloatingPoolLabel3DProps {
   alarm?: boolean;
   /** Lower values keep the chip larger at bird's-eye distances. */
   distanceFactor?: number;
+  /** Larger, high-visibility variant (e.g. chemical dosing tanks). */
+  emphasis?: boolean;
 }
 
 /** Glass-style pool nameplate that floats above a basin and stays readable in overview. */
@@ -20,6 +22,7 @@ export const FloatingPoolLabel3D: React.FC<FloatingPoolLabel3DProps> = ({
   selected = false,
   alarm = false,
   distanceFactor = 9,
+  emphasis = false,
 }) => {
   const tone = equipmentId ? resolvePoolLabelTone(equipmentId) : 'neutral';
 
@@ -29,7 +32,7 @@ export const FloatingPoolLabel3D: React.FC<FloatingPoolLabel3DProps> = ({
         <Html center transform distanceFactor={distanceFactor} zIndexRange={[55, 0]}>
           <div className="pool-floating-label-shell">
             <div
-              className={`pool-floating-label${selected ? ' selected' : ''}${alarm ? ' alarm' : ''}`}
+              className={`pool-floating-label${selected ? ' selected' : ''}${alarm ? ' alarm' : ''}${emphasis ? ' emphasis' : ''}`}
               data-tone={tone}
             >
               {name}

@@ -28,8 +28,6 @@ interface PipeLogisticsProps {
   /** Static audit marker for untrimmed junction endpoints that are section handoffs or continuous route joins. */
   startJunctionRole?: 'handoff' | 'continuous';
   endJunctionRole?: 'handoff' | 'continuous';
-  /** Show support brackets on long runs. Default: false */
-  showSupports?: boolean;
   /** Render the structural tube shell. Flow overlays may still be rendered when false. */
   renderShell?: boolean;
   /** Explicit endpoint insertion depth. Use 0 for a pipe that terminates on a modelled flange face. */
@@ -37,7 +35,6 @@ interface PipeLogisticsProps {
   endOverlap?: number;
 }
 
-const yAxis = new THREE.Vector3(0, 1, 0);
 const zAxis = new THREE.Vector3(0, 0, 1);
 const PIPE_WATER = PIPE_COLORS.processWater;
 const PIPE_METAL = '#C4CED6';
@@ -57,18 +54,7 @@ const JUNCTION_CONNECTION_OVERLAP = 0;
 const JUNCTION_SURFACE_TRIM = 0.92;
 const SEALED_CONNECTION_OVERLAP = 0;
 const BEND_RADIUS_MULTIPLIER = 2.6;
-const JUNCTION_WELD_RADIUS = 0.985;
-const JUNCTION_WELD_THICKNESS = 0.012;
-
-/* ── Fitting constants ── */
-const SUPPORT_SPACING = 6;        // world units between supports
-const MIN_PIPE_LEN_FOR_SUPPORTS = 3;
-
-function eulerFromDirection(direction: THREE.Vector3): [number, number, number] {
-  const q = new THREE.Quaternion().setFromUnitVectors(yAxis, direction.clone().normalize());
-  const e = new THREE.Euler().setFromQuaternion(q);
-  return [e.x, e.y, e.z];
-}
+const JUNCTION_WELD_THICKNESS = 0.018;
 
 function eulerFromZDirection(direction: THREE.Vector3): [number, number, number] {
   const q = new THREE.Quaternion().setFromUnitVectors(zAxis, direction.clone().normalize());
@@ -286,43 +272,6 @@ function extendConnectionEnds(
   return extended;
 }
 
-/* ── Pipe support bracket (U-clamp + legs) ── */
-const PipeSupport: React.FC<{
-  position: THREE.Vector3;
-  direction: THREE.Vector3; // pipe direction at this point
-  radius: number;
-  groundY?: number;
-}> = ({ position, direction, radius, groundY = 0 }) => {
-  const rotation = eulerFromDirection(direction);
-  const legH = Math.max(position.y - groundY - 0.02, 0.1);
-  const clampR = radius * 1.08;
-  const barW = radius * 0.045;
-  return (
-    <group position={position.toArray()} rotation={rotation}>
-      {/* U-clamp (half torus) */}
-      <mesh castShadow receiveShadow rotation={[0, 0, 0]}>
-        <torusGeometry args={[clampR, barW, 6, 12, Math.PI]} />
-        <meshStandardMaterial color={FLANGE_METAL} roughness={0.42} metalness={0.74} />
-      </mesh>
-      {/* Left leg */}
-      <mesh castShadow receiveShadow position={[-clampR, -legH / 2, 0]}>
-        <boxGeometry args={[barW * 2, legH, barW * 2]} />
-        <meshStandardMaterial color={FLANGE_METAL} roughness={0.42} metalness={0.74} />
-      </mesh>
-      {/* Right leg */}
-      <mesh castShadow receiveShadow position={[clampR, -legH / 2, 0]}>
-        <boxGeometry args={[barW * 2, legH, barW * 2]} />
-        <meshStandardMaterial color={FLANGE_METAL} roughness={0.42} metalness={0.74} />
-      </mesh>
-      {/* Base plate */}
-      <mesh castShadow receiveShadow position={[0, -legH, 0]}>
-        <boxGeometry args={[clampR * 2.1, barW * 1.4, barW * 2.6]} />
-        <meshStandardMaterial color={FLANGE_METAL} roughness={0.38} metalness={0.78} />
-      </mesh>
-    </group>
-  );
-};
-
 const PipeJunctionWeld: React.FC<{
   position: THREE.Vector3;
   direction: THREE.Vector3;
@@ -332,54 +281,67 @@ const PipeJunctionWeld: React.FC<{
   mateRadius?: number;
 }> = ({ position, direction, radius, color, mateRadius }) => {
   const rotation = eulerFromZDirection(direction);
-  const collarR = mateRadius != null && mateRadius > radius
-    ? mateRadius * 1.08
-    : radius * 1.14;
-  const collarLen = Math.max(radius * 0.5, 0.03);
+  const headerRadius = mateRadius ?? radius;
+  const saddleRadius = Math.max(radius * 1.24, headerRadius * 1.18);
+  const branchSeatRadius = radius * 1.08;
+  const collarLen = Math.max(radius * 0.9, 0.055);
+  const collarCenter = -collarLen * 0.34;
+  const weldPosition = collarCenter - collarLen / 2;
+  const headerCenter = headerRadius * JUNCTION_SURFACE_TRIM;
   return (
     <group position={position.toArray()} rotation={rotation}>
-      {/* Branch-side weld bead (local Z = pipe axis toward junction). */}
-      <mesh castShadow receiveShadow>
-        <torusGeometry args={[radius * JUNCTION_WELD_RADIUS, radius * JUNCTION_WELD_THICKNESS, 6, 24]} />
-        <meshStandardMaterial color={color} roughness={0.6} metalness={0.2} />
+      {/* Slightly enlarged cast tee body centred on the header axis. This
+          overlaps both tubes and makes the joint read as one manufactured
+          fitting instead of a branch merely touching the header shell. */}
+      <mesh position={[0, 0, headerCenter]} castShadow receiveShadow>
+        <sphereGeometry args={[headerRadius * 1.12, 32, 20]} />
+        <meshStandardMaterial color={color} roughness={0.55} metalness={0.12} />
       </mesh>
-      {/* Short reinforcing collar on the branch side of the header shell.
-          Cylinder is Y-up; rotate so its axis aligns with local Z (pipe). */}
+      {/* A flared, pipe-coloured socket visibly seats the riser into the header
+          shell. Cylinder is Y-up; rotate so its axis follows local Z. */}
       <mesh
         castShadow
         receiveShadow
         rotation={[Math.PI / 2, 0, 0]}
-        position={[0, 0, -collarLen * 0.35]}
+        position={[0, 0, collarCenter]}
       >
-        <cylinderGeometry args={[collarR, radius * 1.05, collarLen, 20]} />
+        <cylinderGeometry args={[saddleRadius, branchSeatRadius, collarLen, 28]} />
         <meshStandardMaterial color={color} roughness={0.55} metalness={0.12} />
+      </mesh>
+      {/* One restrained gasket/weld ring at the branch-side socket face. */}
+      <mesh position={[0, 0, weldPosition]} castShadow receiveShadow>
+        <torusGeometry args={[branchSeatRadius, radius * JUNCTION_WELD_THICKNESS, 6, 28]} />
+        <meshStandardMaterial color="#7F8B94" roughness={0.48} metalness={0.52} />
       </mesh>
     </group>
   );
 };
 
-/* ── Calculate support positions along pipe path ── */
-function computeSupportPositions(
-  pipePath: THREE.CurvePath<THREE.Vector3>,
-  pathLength: number,
-  radius: number,
-): { position: THREE.Vector3; direction: THREE.Vector3 }[] {
-  if (pathLength < MIN_PIPE_LEN_FOR_SUPPORTS) return [];
-  const supports: { position: THREE.Vector3; direction: THREE.Vector3 }[] = [];
-  const spacing = Math.max(SUPPORT_SPACING, radius * 20);
-  const count = Math.floor(pathLength / spacing);
-  if (count < 1) return [];
-  for (let i = 1; i <= count; i++) {
-    const t = (i * spacing) / pathLength;
-    if (t >= 0.95) continue; // don't place at very end
-    const pt = pipePath.getPointAt(Math.min(t, 1));
-    // Skip supports for submerged/underground pipes (Y < 0.5)
-    if (pt.y < 0.5) continue;
-    const tangent = pipePath.getTangentAt(Math.min(t, 1));
-    supports.push({ position: pt, direction: tangent });
-  }
-  return supports;
-}
+/**
+ * Same-colour flush plug closing the open tube end at an `equipment` sealing
+ * face. The tube terminates inside a modelled fitting (pump nozzle gasket /
+ * wall-port hub); this plug keeps the cut end from reading as a hollow ring
+ * in end-on close-ups. Sits on the (possibly extended) endpoint, centred on
+ * the pipe axis.
+ */
+const PipeEquipmentEndPlug: React.FC<{
+  position: THREE.Vector3;
+  direction: THREE.Vector3;
+  radius: number;
+  color: string;
+}> = ({ position, direction, radius, color }) => {
+  const rotation = eulerFromZDirection(direction);
+  const thickness = Math.max(radius * 0.12, 0.012);
+  return (
+    <group position={position.toArray()} rotation={rotation}>
+      {/* Cylinder is Y-up; tip it onto local Z so the disc faces outward. */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[radius * 1.01, radius * 1.01, thickness, 28]} />
+        <meshStandardMaterial color={color} roughness={0.58} metalness={0.08} />
+      </mesh>
+    </group>
+  );
+};
 
 export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   points,
@@ -394,7 +356,6 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   sealedEnd = false,
   junctionTrim = 'none',
   junctionMateRadius,
-  showSupports = false,
   renderShell = true,
   startOverlap,
   endOverlap,
@@ -435,12 +396,6 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
     if (!pipePath || pathLength < 0.008) return null;
     return new THREE.TubeGeometry(pipePath, tubeSegments, radius, radialSegments, false);
   }, [pathLength, pipePath, radialSegments, radius, tubeSegments]);
-
-  // Compute support bracket positions
-  const supportPositions = useMemo(() => {
-    if (!showSupports || !pipePath || pathLength < MIN_PIPE_LEN_FOR_SUPPORTS) return [];
-    return computeSupportPositions(pipePath, pathLength, radius);
-  }, [showSupports, pipePath, pathLength, radius]);
 
   const outerColor = color ?? pipeShellColor(flowType);
   const usesDefaultMetal = !color && flowType === 'none';
@@ -552,6 +507,17 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
     : null;
   const weldColor = usesDefaultMetal ? FLANGE_METAL : outerColor;
 
+  // Equipment sealing faces get a flush plug so the open tube end never reads
+  // as a hollow cut ring (junctions get welds, sealed terminals get blinds).
+  const showStartEquipmentPlug = renderShell && startConnection === 'equipment' && !sealedStart;
+  const showEndEquipmentPlug = renderShell && endConnection === 'equipment' && !sealedEnd;
+  const startPlugDir = showStartEquipmentPlug
+    ? new THREE.Vector3().subVectors(pipePoints[0], pipePoints[1]).normalize()
+    : null;
+  const endPlugDir = showEndEquipmentPlug
+    ? new THREE.Vector3().subVectors(pipePoints[pipePoints.length - 1], pipePoints[pipePoints.length - 2]).normalize()
+    : null;
+
   return (
     <group>
       {renderShell && <mesh geometry={pipeGeometry} material={pipeMaterial} castShadow receiveShadow />}
@@ -560,10 +526,27 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
         <mesh geometry={pipeGeometry} material={flowMaterial} userData={{ bakeExclude: true }} />
       )}
 
+      {showStartEquipmentPlug && startPlugDir && (
+        <PipeEquipmentEndPlug
+          position={pipePoints[0]}
+          direction={startPlugDir}
+          radius={radius}
+          color={outerColor}
+        />
+      )}
+      {showEndEquipmentPlug && endPlugDir && (
+        <PipeEquipmentEndPlug
+          position={pipePoints[pipePoints.length - 1]}
+          direction={endPlugDir}
+          radius={radius}
+          color={outerColor}
+        />
+      )}
+
       {showStartJunctionWeld && startJunctionDir && (
         <PipeJunctionWeld
           position={pipePoints[0]}
-          direction={startJunctionDir}
+          direction={startJunctionDir.clone().negate()}
           radius={radius}
           color={weldColor}
           mateRadius={junctionMateRadius}
@@ -579,15 +562,6 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
         />
       )}
 
-      {/* ── Pipe supports along long runs ── */}
-      {supportPositions.map((sup, i) => (
-        <PipeSupport
-          key={`support-${i}`}
-          position={sup.position}
-          direction={sup.direction}
-          radius={radius}
-        />
-      ))}
     </group>
   );
 };

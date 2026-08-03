@@ -27,9 +27,29 @@ export const SLUDGE_SCREW_PRESS_Z = 15;
 export const SLUDGE_BAG_RECEIVING_X = 21.35;
 export const SLUDGE_BAG_RECEIVING_Z = 15.72;
 
+/**
+ * Enclosed light-steel room for the screw press, drive and receiving ton bag.
+ * The south roll-up opening aligns with the forklift load/retreat path; the
+ * west wall carries the shared sludge/PAM pipe penetration at y=2.55.
+ */
+export const SLUDGE_DEWATERING_HOUSE = {
+  position: [19.3, SLUDGE_PLATFORM_DECK_Y, 15.5] as [number, number, number],
+  size: [7.6, 3.35, 5.8] as [number, number, number],
+  southDoorCenterX: 1.0,
+  doorWidth: 3.8,
+  doorHeight: 2.8,
+  pipeEntryWorld: [15.5, 2.55, 15] as [number, number, number],
+} as const;
+
 /** Forklift load stop — south of the chute bag, forks reach north under the discharge. */
 export const SLUDGE_LOAD_X = 21.35;
 export const SLUDGE_LOAD_Z = 17.17;
+
+/** South roll-up door centreline and clear approach for the dewatering room. */
+export const SLUDGE_DEWATERING_DOOR_X =
+  SLUDGE_DEWATERING_HOUSE.position[0] + SLUDGE_DEWATERING_HOUSE.southDoorCenterX;
+export const SLUDGE_DEWATERING_DOOR_APPROACH_Z =
+  SLUDGE_DEWATERING_HOUSE.position[2] + SLUDGE_DEWATERING_HOUSE.size[2] / 2 + 1.6;
 
 /**
  * Merged hazardous-waste warehouse (former 危废库 + adjacent site office footprint).

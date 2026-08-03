@@ -21,6 +21,10 @@ export const HazardousWasteWarehouse3D: React.FC<{ isNight?: boolean }> = ({ isN
   const sideWallW = (w - doorWidth) / 2;
   const lintelH = Math.max(0.18, h - doorHeight);
   const northZ = -d / 2;
+  // Reserve three clear south-wall bays: centre for the hazard sign and the
+  // two adjacent bays for ventilation louvers.
+  const southColumnXs = [-w / 2, -3 * w / 8, -w / 8, w / 8, 3 * w / 8, w / 2];
+  const northWarningSignX = w / 2 - 1;
 
   return (
     <group position={position}>
@@ -77,7 +81,7 @@ export const HazardousWasteWarehouse3D: React.FC<{ isNight?: boolean }> = ({ isN
       </mesh>
 
       {/* South-wall columns. */}
-      {[-w / 2, -w / 4, 0, w / 4, w / 2].map((x, index) => (
+      {southColumnXs.map((x, index) => (
         <mesh
           key={`hazwaste-south-column-${index}`}
           position={[x, h / 2, d / 2 + WALL_THICK / 2 + 0.02]}
@@ -89,25 +93,32 @@ export const HazardousWasteWarehouse3D: React.FC<{ isNight?: boolean }> = ({ isN
         </mesh>
       ))}
 
-      {/* Hazardous-material diamond sign. */}
-      <group position={[0, h * 0.7, d / 2 + WALL_THICK / 2 + 0.03]}>
-        <mesh rotation={[0, 0, Math.PI / 4]}>
-          <planeGeometry args={[0.8, 0.8]} />
+      {/* Hazardous-material diamond sign — flush-mounted in the dedicated
+          centre bay, with the nearest columns 1.75 m to either side. */}
+      <group
+        position={[
+          0,
+          h * 0.7,
+          d / 2 + WALL_THICK / 2 + 0.035,
+        ]}
+      >
+        <mesh rotation={[0, 0, Math.PI / 4]} castShadow receiveShadow>
+          <boxGeometry args={[0.8, 0.8, 0.06]} />
           <meshStandardMaterial color="#F59E0B" roughness={0.5} />
         </mesh>
-        <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0.01]}>
+        <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0.035]}>
           <planeGeometry args={[0.75, 0.75]} />
           <meshStandardMaterial color="#111827" roughness={0.5} />
         </mesh>
-        <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0.02]}>
+        <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, 0.042]}>
           <planeGeometry args={[0.7, 0.7]} />
           <meshStandardMaterial color="#F59E0B" roughness={0.5} />
         </mesh>
-        <mesh position={[0, 0.05, 0.03]}>
+        <mesh position={[0, 0.05, 0.05]}>
           <circleGeometry args={[0.15, 16]} />
           <meshStandardMaterial color="#111827" />
         </mesh>
-        <mesh position={[0, -0.15, 0.03]}>
+        <mesh position={[0, -0.15, 0.05]}>
           <boxGeometry args={[0.1, 0.15, 0.01]} />
           <meshStandardMaterial color="#111827" />
         </mesh>
@@ -262,8 +273,15 @@ export const HazardousWasteWarehouse3D: React.FC<{ isNight?: boolean }> = ({ isN
         </group>
       ))}
 
-      {/* Warning placard */}
-      <mesh position={[w / 2 - 0.35, h * 0.72, northZ - 0.05]}>
+      {/* Warning placard — inset from the northeast corner column and mounted
+          beyond the wall face so its full outline remains visible. */}
+      <mesh
+        position={[
+          northWarningSignX,
+          h * 0.72,
+          northZ - WALL_THICK / 2 - 0.05,
+        ]}
+      >
         <boxGeometry args={[0.55, 0.55, 0.03]} />
         <meshStandardMaterial color="#F59E0B" roughness={0.48} />
       </mesh>

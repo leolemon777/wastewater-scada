@@ -169,7 +169,10 @@ export const DeepTreatmentSection: React.FC<DeepTreatmentSectionProps> = ({ isDr
 
   return (
     <group position={DEEP_ORIGIN}>
-      <Platform3D position={[0, 0, 0]} size={[46, 0.5, 12]} showRailings={false} />
+      {/* Deck must cover intermediate pumps (local z≈7 / world z=-8) as well as
+          the drain + DAF pump bays to the south. The old 12-deep slab ended at
+          local z=+6, so the intermediate pair floated 0.5 m above bare ground. */}
+      <Platform3D position={[0, 0, 1.2]} size={[46, 0.5, 14.4]} showRailings={false} />
       <Pump3D id={PROCESS_PUMP_LAYOUT.intermediateA.id} position={INTER_PUMP_1} rotation={[0, PROCESS_PUMP_LAYOUT.intermediateA.rotationY, 0]} />
       <Pump3D id={PROCESS_PUMP_LAYOUT.intermediateB.id} position={INTER_PUMP_2} rotation={[0, PROCESS_PUMP_LAYOUT.intermediateB.rotationY, 0]} />
 

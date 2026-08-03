@@ -26,14 +26,15 @@ if (!/Only remove genuinely duplicate and collinear vertices/.test(pipe3d) || !/
   issues.push('Pipe3D point cleanup must preserve authored short orthogonal legs');
 }
 
-if (!header.includes('points={[start, end]}') || (header.match(/renderShell=\{false\}/g) ?? []).length !== 2) {
-  issues.push('Converging headers must use one continuous shell plus two flow-only directional legs');
+if (!header.includes('points={[start, end]}') || !header.includes('animated={false}')) {
+  issues.push('Converging headers must keep one continuous structural shell (flow animation lives on branch pipes)');
 }
 const headerCount =
   (processNetwork.match(/<ConvergingHeader3D\b/g) ?? []).length +
   (intakeNetwork.match(/<ConvergingHeader3D\b/g) ?? []).length;
-if (headerCount !== 5) {
-  issues.push(`Expected five shared-shell pump headers, found ${headerCount}`);
+// 5 dual-pump discharge headers + 1 sludge gallery receiving header + 1 intake header.
+if (headerCount !== 7) {
+  issues.push(`Expected seven shared-shell pump headers, found ${headerCount}`);
 }
 
 const reducerCount = (processNetwork.match(/<PumpPipeReducer3D\b/g) ?? []).length;
@@ -58,14 +59,13 @@ if (/'gas'/.test(intakeLayout) || !intakeNetwork.includes('intakePoolInner(branc
 if (!intakeLayout.includes('localX: -2.4') || !intakeLayout.includes('localX: 8.4')) {
   issues.push('Intake pump rows must stay clear of collection-basin corners');
 }
-if (!processNetwork.includes('points={[...route.dischargePoints, SLUDGE_OUT_HEADER.takeoff]}') ||
-    processNetwork.includes('routes={SLUDGE_OUT_ROUTES}\n      color={PIPE_COLORS.sludge}\n      junctionMateRadius={SLUDGE_RADIUS}')) {
-  issues.push('Sludge-out pump discharges must be continuous face-to-takeoff tubes');
+if (!processNetwork.includes('SludgePumpDischargeRisers') || !processNetwork.includes('routes={SLUDGE_OUT_ROUTES}')) {
+  issues.push('Sludge-out pump discharges must rise vertically into the shared ConvergingHeader3D');
 }
-if (/const\s+PROCESS_CORRIDOR_Z\s*=\s*-5\.15/.test(processNetwork) ||
-    !processNetwork.includes("getTankWallPort('tk-clarifier', 'north')[2]")) {
-  issues.push('Process corridor must be derived from the clarifier wall and clear the fixed cabinet');
-}
+
+// NOTE: the old external PH1→intermediate process-water corridor rule was
+// removed on purpose — that section is overflow/civil-only now, enforced by
+// check-main-process-overflow-only.mjs.
 
 const routeTables = ['INTERMEDIATE_ROUTES', 'DRAIN_ROUTES', 'CLARIFIER_SLUDGE_ROUTES', 'DAF_SLUDGE_ROUTES', 'SLUDGE_OUT_ROUTES'];
 for (const table of routeTables) {
