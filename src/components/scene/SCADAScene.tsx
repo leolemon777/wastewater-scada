@@ -84,7 +84,6 @@ import {
   SLUDGE_SOUTH_ROAD_Z,
   SLUDGE_SOUTH_RUNOUT_X,
 } from './site/sludgePlatformLayout';
-import { PatrolOffice3D } from './site/PatrolOffice3D';
 import { InspectorPreview3D } from './shared/InspectorPreview3D';
 
 
@@ -537,16 +536,15 @@ const SiteContext3D: React.FC<{
           <SiteFenceZ3D position={[55.8, 0.0, -0.4]} length={58} postCount={9} color={fenceColor} />
 
           <HazardousWasteWarehouse3D isNight={isNight} />
-          <PatrolOffice3D isNight={isNight} />
           {/* Static Meshy inspector mesh — visual scale check only (no rig/walk yet). */}
           <InspectorPreview3D position={[-50, 0, -16]} rotationY={Math.PI * 0.35} />
           <HazardousWasteDeliveryBay3D />
           <HazwasteStagingBags3D />
 
           {/* 功能分区大标牌(Billboard,永远正向可读):一眼分清污水/危废/纯水。 */}
-          <AreaSign3D position={[0, 5, 6]} name="污水处理区" en="WASTEWATER TREATMENT" tone="wastewater" />
+          <AreaSign3D position={[0, 8, 6]} name="污水处理区" en="WASTEWATER TREATMENT" tone="wastewater" />
           <AreaSign3D position={[43.5, 5, 21]} name="危废处理区" en="HAZARDOUS WASTE" tone="hazwaste" />
-          <AreaSign3D position={[-76, 5, 0]} name="纯水产水区" en="PURE WATER (RO)" tone="purewater" />
+          <AreaSign3D position={[-73, 8, 0]} name="纯水产水区" en="PURE WATER (RO)" tone="purewater" />
           <PipeStorageRack3D position={[52.2, 0.02, 24.0]} rotationY={Math.PI / 2} />
           <PipeStorageRack3D position={[47.8, 0.02, -24.2]} rotationY={0} />
           <SiteSignBoard3D position={[53.5, 0.03, 10.8]} rotationY={-Math.PI / 2} />
@@ -907,8 +905,8 @@ export const SCADAScene: React.FC = () => {
       <ProcessAndSludgePipeNetwork3D />
 
       {/* ===== REALISTIC DISTRIBUTION CABINETS ===== */}
-      {/* 1. Intake Pumps Cabinet (stands on Intake platform) */}
-      <DistributionCabinet3D position={[-29.5, 0.5, 19.0]} rotation={[0, 0, 0]} cabinetName="1# 进水提升控制柜" />
+      {/* 1. Intake Pumps Cabinet (stands on Intake platform, south of lift-pump row) */}
+      <DistributionCabinet3D position={[-29.5, 0.5, 12.5]} rotation={[0, 0, 0]} cabinetName="1# 进水提升控制柜" />
       <DistributionCabinet3D position={[5.5, 0.5, 5.0]} rotation={[0, 0, 0]} cabinetName="2# 沉淀回流控制柜" />
       <DistributionCabinet3D position={[13.5, 0.5, 19.2]} rotation={[0, 0, 0]} cabinetName="4# 污泥脱水控制柜" />
 

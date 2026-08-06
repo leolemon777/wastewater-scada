@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 
+/** 默认泵机 scale(卧式 Pump3D)。立式 PureWaterPump3D 放大后传更大的 scale。 */
+export const DEFAULT_PUMP_SCALE = 0.5;
 const MACHINE_SCALE = 0.5;
-/** Exact Pump3D discharge-nozzle group centre (extended nozzle). */
-const DISCHARGE_LOCAL = new THREE.Vector3(0, 1.58, -0.78).multiplyScalar(MACHINE_SCALE);
-/** Exact Pump3D suction-nozzle group centre (extended nozzle). */
-const SUCTION_LOCAL = new THREE.Vector3(0, 0.78, -1.14).multiplyScalar(MACHINE_SCALE);
+/** Exact Pump3D discharge-nozzle group centre (extended nozzle, unscaled local). */
+const DISCHARGE_LOCAL_UNSCALED = new THREE.Vector3(0, 1.58, -0.78);
+/** Exact Pump3D suction-nozzle group centre (extended nozzle, unscaled local). */
+const SUCTION_LOCAL_UNSCALED = new THREE.Vector3(0, 0.78, -1.14);
+/** Scale=0.5 实例(检查器契约:必须保留此命名与 multiplyScalar(MACHINE_SCALE) 形式)。 */
+export const DISCHARGE_LOCAL = new THREE.Vector3(0, 1.58, -0.78).multiplyScalar(MACHINE_SCALE);
+export const SUCTION_LOCAL = new THREE.Vector3(0, 0.78, -1.14).multiplyScalar(MACHINE_SCALE);
 /**
  * Suction mouth face offset along the nozzle axis in *unscaled* Pump3D local space
  * (PumpProcessFlanges suction group: mouth disk at local Y ≈ -0.047 after the π/2 X tilt,
@@ -46,18 +51,19 @@ function worldAxis(rotationY: number, axis: THREE.Vector3, multiplier = 1): [num
   return [vector.x, vector.y, vector.z];
 }
 
-/** Outlet / inlet flange centres from Pump3D geometry (scale 0.5). */
+/** Outlet / inlet flange centres from Pump3D geometry (默认 scale 0.5,纯水立式泵传 0.65)。 */
 export function getPumpFlanges(
   position: [number, number, number],
   rotationY = 0,
+  scale = DEFAULT_PUMP_SCALE,
 ): {
   discharge: [number, number, number];
   suction: [number, number, number];
 } {
   const q = rotationQuat(rotationY);
   const base = new THREE.Vector3(...position);
-  const discharge = DISCHARGE_LOCAL.clone().applyQuaternion(q).add(base);
-  const suction = SUCTION_LOCAL.clone().applyQuaternion(q).add(base);
+  const discharge = DISCHARGE_LOCAL_UNSCALED.clone().multiplyScalar(scale).applyQuaternion(q).add(base);
+  const suction = SUCTION_LOCAL_UNSCALED.clone().multiplyScalar(scale).applyQuaternion(q).add(base);
   return {
     discharge: [discharge.x, discharge.y, discharge.z],
     suction: [suction.x, suction.y, suction.z],
@@ -101,18 +107,20 @@ export function getSuctionStub(
 export function getSuctionFacePoint(
   position: [number, number, number],
   rotationY: number,
+  scale = DEFAULT_PUMP_SCALE,
 ): [number, number, number] {
-  const { suction } = getPumpFlanges(position, rotationY);
-  const [ox, oy, oz] = axisOffset(rotationY, SUCTION_AXIS, SUCTION_FACE_UNSCALED * MACHINE_SCALE);
+  const { suction } = getPumpFlanges(position, rotationY, scale);
+  const [ox, oy, oz] = axisOffset(rotationY, SUCTION_AXIS, SUCTION_FACE_UNSCALED * scale);
   return [suction[0] + ox, suction[1] + oy, suction[2] + oz];
 }
 
 export function getDischargeFacePoint(
   position: [number, number, number],
   rotationY: number,
+  scale = DEFAULT_PUMP_SCALE,
 ): [number, number, number] {
-  const { discharge } = getPumpFlanges(position, rotationY);
-  return getFlangeFacePoint(discharge, rotationY);
+  const { discharge } = getPumpFlanges(position, rotationY, scale);
+  return getFlangeFacePoint(discharge, rotationY, DISCHARGE_FACE_UNSCALED * scale);
 }
 
 export function getDischargeDirection(rotationY: number): [number, number, number] {

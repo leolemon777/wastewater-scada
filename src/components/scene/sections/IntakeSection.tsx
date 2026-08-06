@@ -27,7 +27,7 @@ function intakeLocal(world: Point3): Point3 {
 export const IntakeSection: React.FC<IntakeSectionProps> = () => {
   return (
     <group position={INTAKE_GROUP}>
-      <Platform3D position={[0, 0, 0]} size={[24, 0.5, 12]} showRailings={false} />
+      <Platform3D position={[0, 0, 0]} size={[24, 0.5, 12]} showRailings={false} surfaceColor="#EDF1F5" />
       <Tank3D id="tk-collection-1" position={intakeLocal(TANK_LAYOUT['tk-collection-1'].center)} size={TANK_LAYOUT['tk-collection-1'].size} wallThickness={0.3} />
       <Tank3D id="tk-collection-2" position={intakeLocal(TANK_LAYOUT['tk-collection-2'].center)} size={TANK_LAYOUT['tk-collection-2'].size} wallThickness={0.3} />
       {LIFT_PUMPS.map(({ id, localX }) => (

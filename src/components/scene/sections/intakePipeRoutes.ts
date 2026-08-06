@@ -26,6 +26,7 @@ import {
   WALKWAY_OVERHEAD_PIPE_Y,
 } from '../piping/pipeRouting';
 import {
+  COLLECTION2_EAST_WALL_X,
   COLLECTION_SOUTH_WALL_Z,
   LIFT_PUMPS,
   LIFT_ROT,
@@ -54,6 +55,15 @@ export const INTAKE_HEADER_END_CLEARANCE = 0.14;
 export const INTAKE_SUCTION_JOINT_LEN = 0;
 /** Short normal penetration so the suction shell visibly enters the basin. */
 export const INTAKE_WALL_PENETRATION = 0.45;
+/**
+ * 东壁吸入汇管中心线 z(贴收集池二东北角内侧,避开转角 0.55 净距)。
+ * 东侧两台泵吸入口 x 已超出池二北壁覆盖范围,改由池二东壁穿壁取水:
+ * 池内 → 穿东壁 → 沿 z 向东汇管 → 每台泵向北支管轴向进吸入口。
+ */
+export const INTAKE_EAST_SUCTION_HEADER_Z = 16.6;
+
+/** 吸入接管方式:北壁直穿 / 东壁吸入汇管支管。 */
+export type SuctionStyle = 'northWall' | 'eastHeader';
 
 export type IntakePumpRoute = {
   id: string;
@@ -63,10 +73,23 @@ export type IntakePumpRoute = {
   suctionJoint: V3;
   dischargeFace: V3;
   wallPoint: V3;
+  suctionStyle: SuctionStyle;
   /** wall → joint → mouth (collinear axial) */
   suctionPoints: V3[];
   /** face → riser top (pure vertical) */
   dischargePoints: V3[];
+};
+
+/** 东壁吸入汇管(仅当存在东侧泵时构建)。 */
+export type EastSuctionHeader = {
+  /** 池内端(穿壁进入水中) */
+  poolInner: V3;
+  /** 东壁外面(穿墙套管位置) */
+  wallFace: V3;
+  /** 汇管东端盲端(最东支管外侧短余量) */
+  end: V3;
+  /** 最东支管三通点 */
+  takeoff: V3;
 };
 
 function suctionWallPoint(_source: LiftSuctionSource, mouth: V3): V3 {
@@ -95,6 +118,7 @@ export function buildAxialSuctionPoints(
 
 export function buildIntakeLiftPipeNetwork(): {
   pumps: IntakePumpRoute[];
+  eastSuctionHeader: EastSuctionHeader | null;
   headerY: number;
   headerZ: number;
   headerStart: V3;
@@ -108,13 +132,34 @@ export function buildIntakeLiftPipeNetwork(): {
     const position = liftPumpWorldPosition(branch.localX);
     const flanges = getPumpFlanges(position, LIFT_ROT);
     const dischargeFace = getFlangeFacePoint(flanges.discharge, LIFT_ROT);
-    const wallSeed = suctionWallPoint(branch.source, getSuctionFacePoint(position, LIFT_ROT));
-    const { mouth, joint, points: suctionPoints } = buildAxialSuctionPoints(
+    const dischargePoints = getDischargeRiser(position, LIFT_ROT, INTAKE_HEADER_Y);
+    const mouth = getSuctionFacePoint(position, LIFT_ROT);
+    const joint = getSuctionJointPoint(position, LIFT_ROT, INTAKE_SUCTION_JOINT_LEN);
+
+    if (mouth[0] > COLLECTION2_EAST_WALL_X) {
+      // 泵吸入口在收集池二东壁以东:北壁已无池可穿,改走东壁吸入汇管。
+      // 支管与吸入口同 x/同 y,沿吸入轴(-Z)直入法兰面,保持纯轴向。
+      const takeoff = pt(mouth[0], mouth[1], INTAKE_EAST_SUCTION_HEADER_Z);
+      return {
+        id: branch.id,
+        source: branch.source,
+        position,
+        suctionMouth: mouth,
+        suctionJoint: joint,
+        dischargeFace,
+        wallPoint: takeoff,
+        suctionStyle: 'eastHeader' as SuctionStyle,
+        suctionPoints: [takeoff, mouth],
+        dischargePoints,
+      };
+    }
+
+    const wallSeed = suctionWallPoint(branch.source, mouth);
+    const { points: suctionPoints } = buildAxialSuctionPoints(
       position,
       LIFT_ROT,
       wallSeed,
     );
-    const dischargePoints = getDischargeRiser(position, LIFT_ROT, INTAKE_HEADER_Y);
 
     return {
       id: branch.id,
@@ -124,19 +169,35 @@ export function buildIntakeLiftPipeNetwork(): {
       suctionJoint: joint,
       dischargeFace,
       wallPoint: suctionPoints[0],
+      suctionStyle: 'northWall' as SuctionStyle,
       suctionPoints,
       dischargePoints,
     };
   });
 
+  // 东壁吸入汇管:池内穿壁 → 沿 z 向东 → 最东支管外短余量盲端。
+  const eastRoutes = pumps.filter((p) => p.suctionStyle === 'eastHeader');
+  const eastSuctionHeader: EastSuctionHeader | null = eastRoutes.length
+    ? (() => {
+        const headerY = eastRoutes[0].suctionMouth[1];
+        const maxX = Math.max(...eastRoutes.map((p) => p.suctionMouth[0]));
+        return {
+          poolInner: pt(COLLECTION2_EAST_WALL_X - INTAKE_WALL_PENETRATION, headerY, INTAKE_EAST_SUCTION_HEADER_Z),
+          wallFace: pt(COLLECTION2_EAST_WALL_X, headerY, INTAKE_EAST_SUCTION_HEADER_Z),
+          end: pt(maxX + INTAKE_HEADER_END_CLEARANCE, headerY, INTAKE_EAST_SUCTION_HEADER_Z),
+          takeoff: pt(maxX, headerY, INTAKE_EAST_SUCTION_HEADER_Z),
+        };
+      })()
+    : null;
+
   // Header sits on discharge face Z so each riser is pure vertical into the tee.
   const headerZ = pumps[0].dischargeFace[2];
   const xs = pumps.map((p) => p.dischargeFace[0]);
-  const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
 
-  // Compact blind-end clearance only; long decorative overhangs read as orphan pipes.
-  const headerStart: V3 = [minX - INTAKE_HEADER_END_CLEARANCE, INTAKE_HEADER_Y, headerZ];
+  // 收集池已挪到厂区东侧(污泥池旁),header 西端一路横穿延伸到 PH1 进水口
+  // (x=PH1_INLET[0]) 上方,使 ph1Takeoff 落在 header 上;东端只留盲板余量。
+  const headerStart: V3 = [PH1_INLET[0], INTAKE_HEADER_Y, headerZ];
   const headerEnd: V3 = [maxX + INTAKE_HEADER_END_CLEARANCE, INTAKE_HEADER_Y, headerZ];
 
   // PH1 inlet and the header overlap in X. Drop beside the header, run the long
@@ -178,6 +239,7 @@ export function buildIntakeLiftPipeNetwork(): {
 
   return {
     pumps,
+    eastSuctionHeader,
     headerY: INTAKE_HEADER_Y,
     headerZ,
     headerStart,

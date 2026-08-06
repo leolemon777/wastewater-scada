@@ -12,8 +12,8 @@ export interface TankLayout {
  * move/resize from leaving its pipe wall ports behind.
  */
 export const TANK_LAYOUT = {
-  'tk-collection-1': { center: [-40, 0.5, 15], size: [6, 2, 6] },
-  'tk-collection-2': { center: [-34, 0.5, 15], size: [6, 2, 6] },
+  'tk-collection-1': { center: [-32, 0.5, 19], size: [6, 2, 6] },
+  'tk-collection-2': { center: [-26, 0.5, 19], size: [6, 2, 6] },
 
   'tk-ph1': { center: [-40, 0.5, 0], size: [6, 2, 6] },
   'tk-fenton': { center: [-34, 0.5, 0], size: [6, 2, 6] },

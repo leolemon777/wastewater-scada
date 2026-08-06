@@ -8,7 +8,6 @@ const WALL_COLOR = '#D8DEE3';
 const PLINTH_COLOR = '#9AA6AE';
 const ROOF_COLOR = '#526170';
 const SAFETY_YELLOW = '#EAB308';
-const GLASS_COLOR = '#7DD3FC';
 
 const WallPanel: React.FC<{
   position: [number, number, number];
@@ -104,24 +103,13 @@ export const ScrewPressHouse3D: React.FC = () => {
         </mesh>
       </group>
 
-      {/* East facade: durable lower plinth plus full-height inspection glazing. */}
+      {/* East facade: 敞开面 — 只有钢立柱 + 底座 plinth,无墙板/玻璃,让人从东面直接看到叠螺机 */}
       <mesh position={[eastX, 0.34, 0]} castShadow receiveShadow>
         <boxGeometry args={[WALL_THICKNESS, 0.68, depth]} />
         <meshStandardMaterial color={PLINTH_COLOR} roughness={0.78} metalness={0.05} />
       </mesh>
       <SteelMember position={[eastX, height - 0.14, 0]} size={[0.16, 0.28, depth]} />
-      <mesh position={[eastX + 0.002, 1.88, 0]}>
-        <boxGeometry args={[0.025, 2.38, depth - 0.28]} />
-        <meshPhysicalMaterial
-          color={GLASS_COLOR}
-          transparent
-          opacity={0.24}
-          roughness={0.12}
-          metalness={0.08}
-          transmission={0.28}
-          depthWrite={false}
-        />
-      </mesh>
+      {/* 东面立柱(保留结构,去掉玻璃幕墙让内部可见) */}
       {[-depth / 2, -depth / 4, 0, depth / 4, depth / 2].map((z) => (
         <SteelMember
           key={`dewatering-east-frame-${z}`}

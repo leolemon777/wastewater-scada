@@ -42,29 +42,70 @@ export const IndustrialPipeNetwork3D: React.FC = () => (
           dischargeRadius={INTAKE_DISCHARGE_R}
           color={PIPE_COLORS.rawWater}
         />
+        {branch.suctionStyle === 'northWall' ? (
+          <>
+            <PipeWallPort3D
+              position={branch.wallPoint}
+              // Local +Y → world −Z: face the pump row on the intake-facing wall.
+              rotation={[-Math.PI / 2, 0, 0]}
+              radius={INTAKE_SUCTION_R}
+              color={PIPE_COLORS.rawWater}
+            />
+            <Pipe3D
+              // Basin interior → wall sleeve → pump mouth, normal to the wall.
+              points={[intakePoolInner(branch.wallPoint), branch.wallPoint, ...branch.suctionPoints.slice(1)]}
+              radius={INTAKE_SUCTION_R}
+              color={PIPE_COLORS.rawWater}
+              flowType="water"
+              animated={true}
+              startConnection="equipment"
+              endConnection="equipment"
+              // Seat through the gasket by a controlled amount so no light gap
+              // opens between the pipe shell and the pump-side flange.
+              startOverlap={0}
+              endOverlap={PUMP_FACE_SEAT}
+            />
+          </>
+        ) : (
+          <Pipe3D
+            // 东壁吸入汇管支管:汇管三通 → 沿吸入轴(-Z)直入泵吸口法兰面。
+            points={branch.suctionPoints}
+            radius={INTAKE_SUCTION_R}
+            color={PIPE_COLORS.rawWater}
+            flowType="water"
+            animated={true}
+            startConnection="junction"
+            junctionTrim="start"
+            junctionMateRadius={INTAKE_SUCTION_R}
+            endConnection="equipment"
+            endOverlap={PUMP_FACE_SEAT}
+          />
+        )}
+      </React.Fragment>
+    ))}
+
+    {/* ── 东壁吸入汇管:池内穿东壁 → 沿 z 向东 → 盲端(东侧两台泵取水) ── */}
+    {network.eastSuctionHeader && (
+      <>
         <PipeWallPort3D
-          position={branch.wallPoint}
-          // Local +Y → world −Z: face the pump row on the intake-facing wall.
-          rotation={[-Math.PI / 2, 0, 0]}
+          position={network.eastSuctionHeader.wallFace}
+          // Local +Y → world +X: sleeve faces the pump row on the basin east wall.
+          rotation={[0, 0, -Math.PI / 2]}
           radius={INTAKE_SUCTION_R}
           color={PIPE_COLORS.rawWater}
         />
-        <Pipe3D
-          // Basin interior → wall sleeve → pump mouth, normal to the wall.
-          points={[intakePoolInner(branch.wallPoint), branch.wallPoint, ...branch.suctionPoints.slice(1)]}
+        <ConvergingHeader3D
+          start={network.eastSuctionHeader.poolInner}
+          takeoff={network.eastSuctionHeader.takeoff}
+          end={network.eastSuctionHeader.end}
           radius={INTAKE_SUCTION_R}
           color={PIPE_COLORS.rawWater}
           flowType="water"
-          animated={true}
-          startConnection="equipment"
-          endConnection="equipment"
-          // Seat through the gasket by a controlled amount so no light gap
-          // opens between the pipe shell and the pump-side flange.
-          startOverlap={0}
-          endOverlap={PUMP_FACE_SEAT}
+          capStart={false}
+          capEnd={true}
         />
-      </React.Fragment>
-    ))}
+      </>
+    )}
 
     {/* ── 1 discharge per pump: flange face → pure vertical into header shell ── */}
     {network.pumps.map((branch) => (

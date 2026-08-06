@@ -792,22 +792,32 @@ html[data-zone-density='sparse'] .zone-label-chip {
     0 0 0 3px rgba(255, 255, 255, 0.14);
 }
 
-/* ── Area sign (区域标牌) — large zone nameplate on twin posts ── */
+/* ── Area sign (区域标牌) — 玻璃拟态 + 平缓悬浮,区别于池体小标签的快浮 ── */
 .area-sign-shell {
   pointer-events: none;
+  /* 区域大标牌:幅度小、周期长,呈现稳重漂浮感而非交互抖动 */
+  animation: area-sign-float 6s ease-in-out infinite;
+}
+@keyframes area-sign-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 .area-sign {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   padding: 10px 22px 12px;
-  border-radius: 6px;
-  background: #F4F7FA;
-  border: 1px solid rgba(100, 116, 139, 0.4);
+  border-radius: 14px;
+  /* 玻璃拟态:半透明底 + 背景模糊 + 玻璃边 + 双层阴影(外投影 + 内高光) */
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
-    0 12px 30px rgba(15, 23, 42, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    0 14px 36px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
   white-space: nowrap;
 }
 .area-sign::before {
@@ -817,24 +827,26 @@ html[data-zone-density='sparse'] .zone-label-chip {
   left: 0;
   right: 0;
   height: 7px;
-  border-radius: 6px 6px 0 0;
+  border-radius: 14px 14px 0 0;
+  /* 色条用纯色 + 透明度,与玻璃底融合(不允许 CSS 渐变) */
   background: var(--area-tone, #64748B);
-}
-.area-sign {
-  position: relative;
+  opacity: 0.85;
 }
 .area-sign span {
   margin-top: 5px;
   font-size: 26px;
   font-weight: 800;
   letter-spacing: 0.1em;
-  color: #1F2937;
+  /* 文字改浅色 + 轻微阴影,在半透明玻璃上更清晰 */
+  color: #F8FAFC;
+  text-shadow: 0 1px 4px rgba(15, 23, 42, 0.45);
 }
 .area-sign small {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.22em;
-  color: #6B7280;
+  color: rgba(248, 250, 252, 0.82);
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.4);
 }
 .area-sign--wastewater { --area-tone: #0E7C7B; }
 .area-sign--hazwaste { --area-tone: #D97706; }

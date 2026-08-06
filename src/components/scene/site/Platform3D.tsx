@@ -6,6 +6,8 @@ interface PlatformProps {
   size: [number, number, number]; // width, height (thickness), depth
   label?: string;
   showRailings?: boolean;
+  /** 顶面铺装色(默认环氧灰 #A9ADA8;进水收集池等用白色)。 */
+  surfaceColor?: string;
 }
 
 const RailTube: React.FC<{
@@ -36,7 +38,7 @@ const RailPost: React.FC<{ position: [number, number, number]; height: number }>
   </group>
 );
 
-export const Platform3D: React.FC<PlatformProps> = ({ position, size, label, showRailings = true }) => {
+export const Platform3D: React.FC<PlatformProps> = ({ position, size, label, showRailings = true, surfaceColor = '#A9ADA8' }) => {
   const [w, h, d] = size;
   const railBaseY = h + 0.05;
   const railHeight = 0.86;
@@ -77,19 +79,24 @@ export const Platform3D: React.FC<PlatformProps> = ({ position, size, label, sho
       {/* Poured-concrete platform edge detail: coping lip, darker side wash, and slab joints. */}
       <mesh castShadow receiveShadow position={[0, h + 0.035, d / 2 - 0.08]}>
         <boxGeometry args={[w, 0.07, 0.16]} />
-        <meshStandardMaterial color="#A9ADA8" roughness={0.86} metalness={0.02} />
+        <meshStandardMaterial color={surfaceColor} roughness={0.86} metalness={0.02} />
       </mesh>
       <mesh castShadow receiveShadow position={[0, h + 0.035, -d / 2 + 0.08]}>
         <boxGeometry args={[w, 0.07, 0.16]} />
-        <meshStandardMaterial color="#A9ADA8" roughness={0.86} metalness={0.02} />
+        <meshStandardMaterial color={surfaceColor} roughness={0.86} metalness={0.02} />
       </mesh>
       <mesh castShadow receiveShadow position={[w / 2 - 0.08, h + 0.035, 0]}>
         <boxGeometry args={[0.16, 0.07, d]} />
-        <meshStandardMaterial color="#A9ADA8" roughness={0.86} metalness={0.02} />
+        <meshStandardMaterial color={surfaceColor} roughness={0.86} metalness={0.02} />
       </mesh>
       <mesh castShadow receiveShadow position={[-w / 2 + 0.08, h + 0.035, 0]}>
         <boxGeometry args={[0.16, 0.07, d]} />
-        <meshStandardMaterial color="#A9ADA8" roughness={0.86} metalness={0.02} />
+        <meshStandardMaterial color={surfaceColor} roughness={0.86} metalness={0.02} />
+      </mesh>
+      {/* 铺装顶面(与边缘同色,覆盖混凝土底座顶面) */}
+      <mesh receiveShadow position={[0, h + 0.001, 0]}>
+        <boxGeometry args={[w - 0.02, 0.014, d - 0.02]} />
+        <meshStandardMaterial color={surfaceColor} roughness={0.8} metalness={0.03} />
       </mesh>
 
       {Array.from({ length: jointCount }).map((_, i) => {

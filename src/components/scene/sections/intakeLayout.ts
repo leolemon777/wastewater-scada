@@ -13,7 +13,8 @@ export type V3 = [number, number, number];
 export const LIFT_ROT = Math.PI;
 
 export const LIFT_PUMP_LOCAL_Y = 0.5;
-export const LIFT_PUMP_LOCAL_Z = -4.85;
+/** 提升泵 localZ:让泵吸入面贴近收集池 north 壁(z=16),吸水管紧贴池壁不悬空。 */
+export const LIFT_PUMP_LOCAL_Z = -3.62;
 
 export type LiftSuctionSource = 'collection-1' | 'collection-2';
 
@@ -51,3 +52,8 @@ export const COLLECTION_1_WORLD: V3 = [...TANK_LAYOUT['tk-collection-1'].center]
 export const COLLECTION_2_WORLD: V3 = [...TANK_LAYOUT['tk-collection-2'].center];
 /** Intake-facing outside face of the collection-basin north wall. */
 export const COLLECTION_SOUTH_WALL_Z = getTankWallPort('tk-collection-1', 'north')[2];
+/**
+ * 收集池二东壁外面 x。东侧两台提升泵的吸入口已超出北壁覆盖范围,
+ * 其吸入汇管由此穿东壁取水(仍为真实池壁,非悬空源)。
+ */
+export const COLLECTION2_EAST_WALL_X = getTankWallPort('tk-collection-2', 'east')[0];

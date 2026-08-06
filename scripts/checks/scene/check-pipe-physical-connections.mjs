@@ -32,9 +32,15 @@ if (!header.includes('points={[start, end]}') || !header.includes('animated={fal
 const headerCount =
   (processNetwork.match(/<ConvergingHeader3D\b/g) ?? []).length +
   (intakeNetwork.match(/<ConvergingHeader3D\b/g) ?? []).length;
-// 5 dual-pump discharge headers + 1 sludge gallery receiving header + 1 intake header.
-if (headerCount !== 7) {
-  issues.push(`Expected seven shared-shell pump headers, found ${headerCount}`);
+// 5 dual-pump discharge headers + 1 sludge gallery receiving header + 1 intake header
+// + 1 collection-2 east-wall suction header (pumps east of the basin draw through it).
+if (headerCount !== 8) {
+  issues.push(`Expected eight shared-shell pump headers, found ${headerCount}`);
+}
+// East-of-basin pumps must draw from the collection-2 east wall via the shared
+// suction header — never from a floating north-wall point with no basin behind it.
+if (!intakeNetwork.includes('network.eastSuctionHeader') || !intakeNetwork.includes("branch.suctionStyle === 'northWall'")) {
+  issues.push('Intake network must split north-wall suctions from east-header suction branches');
 }
 
 const reducerCount = (processNetwork.match(/<PumpPipeReducer3D\b/g) ?? []).length;

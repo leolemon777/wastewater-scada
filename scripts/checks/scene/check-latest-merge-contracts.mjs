@@ -14,7 +14,7 @@ const warehouse = read('src/components/scene/site/HazardousWasteWarehouse3D.tsx'
 const sludgeLayout = read('src/components/scene/site/sludgePlatformLayout.ts');
 
 for (const cabinet of [
-  'position={[-29.5, 0.5, 19.0]} rotation={[0, 0, 0]} cabinetName="1# 进水提升控制柜"',
+  'position={[-29.5, 0.5, 12.5]} rotation={[0, 0, 0]} cabinetName="1# 进水提升控制柜"',
   'position={[5.5, 0.5, 5.0]} rotation={[0, 0, 0]} cabinetName="2# 沉淀回流控制柜"',
   'position={[13.5, 0.5, 19.2]} rotation={[0, 0, 0]} cabinetName="4# 污泥脱水控制柜"',
 ]) {

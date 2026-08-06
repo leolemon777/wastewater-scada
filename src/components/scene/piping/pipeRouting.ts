@@ -58,7 +58,7 @@ export const SUCTION_MANIFOLD_Z = -3.45;
 export const PH1_INLET_WORLD_X = -42.5;
 
 /** Intake section group origin — keep world pipe joins in sync with this. */
-export const INTAKE_GROUP: [number, number, number] = [-40, 0, 15];
+export const INTAKE_GROUP: [number, number, number] = [-29, 0, 19];
 /** Local export handoff at the lift-pump discharge header end. */
 export const INTAKE_EXPORT_LOCAL: [number, number, number] = [10, HEADER_Y, -6];
 

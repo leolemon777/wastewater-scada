@@ -255,8 +255,8 @@ function commonEquipment(tick: number): Record<string, EquipmentPatch> {
       totalFlow: accFlow('fm-outfall', 51 + wave(tick, 3, 2)),
     },
 
-    'tk-collection-1': tank(2.75 + levelWave, 4.75),
-    'tk-collection-2': tank(2.34 + wave(tick, 4, 0.08), 4.75),
+    'tk-collection-1': tank(1.15 + levelWave, 1.8),
+    'tk-collection-2': tank(0.98 + wave(tick, 4, 0.08), 1.8),
     'tk-ph1': tank(2.42 + wave(tick, 1, 0.07), 4.75, { agitatorRunning: true, controlMode: 'auto' }),
     'tk-fenton': tank(2.86 + wave(tick, 2, 0.08), 5.23, { agitatorRunning: true, controlMode: 'auto' }),
     'tk-ph2': tank(2.38 + wave(tick, 3, 0.06), 4.75, { agitatorRunning: true, controlMode: 'auto' }),
@@ -437,8 +437,8 @@ export function createDemoSnapshot(scenarioId: DemoScenarioId, tick: number): De
   // high-level: collection tanks climb toward alarm levels; the alarm state
   // is derived from the (smoothed) level so it crosses thresholds mid-ramp.
   if (scenarioId === 'high-level') {
-    equipments['tk-collection-1'] = tank(4.92, 4.75);
-    equipments['tk-collection-2'] = tank(4.38, 4.75);
+    equipments['tk-collection-1'] = tank(1.85, 1.8);
+    equipments['tk-collection-2'] = tank(1.78, 1.8);
     equipments['p-lift-1'] = pump('running', 66 + wave(tick, 2, 2));
     equipments['p-lift-2'] = pump('running', 63 + wave(tick, 4, 2));
   }
@@ -501,9 +501,9 @@ export function createDemoSnapshot(scenarioId: DemoScenarioId, tick: number): De
   //     mid-ramp rather than set hard at the start. ---
   if (scenarioId === 'high-level') {
     const t1 = smoothed['tk-collection-1'];
-    if (t1) smoothed['tk-collection-1'] = { ...t1, alarmState: tankAlarmFromLevel(t1, 4.75, 4.25, 0.75, 0.25) };
+    if (t1) smoothed['tk-collection-1'] = { ...t1, alarmState: tankAlarmFromLevel(t1, 1.8, 1.5, 0.4, 0.2) };
     const t2 = smoothed['tk-collection-2'];
-    if (t2) smoothed['tk-collection-2'] = { ...t2, alarmState: tankAlarmFromLevel(t2, 4.75, 4.25, 0.75, 0.25) };
+    if (t2) smoothed['tk-collection-2'] = { ...t2, alarmState: tankAlarmFromLevel(t2, 1.8, 1.5, 0.4, 0.2) };
   }
   if (scenarioId === 'pump-fault') {
     const td = smoothed['tk-drainage'];

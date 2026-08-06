@@ -19,6 +19,8 @@ interface ChemicalTank3DProps {
   hideLabel?: boolean;
   /** Render the nameplate larger and more prominent (dosing tanks). */
   emphasizeLabel?: boolean;
+  /** Hide the top-mounted agitator (pure-water storage tanks have none). */
+  hideAgitator?: boolean;
 }
 
 function seededUnit(seed: number): number {
@@ -87,6 +89,7 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
   compactLabel = false,
   hideLabel = false,
   emphasizeLabel = false,
+  hideAgitator = false,
 }) => {
   const [radius, height] = size;
   const tankData = useScadaStore((state) => state.equipments[id] as TankData);
@@ -278,6 +281,7 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
       </group>
 
       {/* Static geared agitator drive */}
+      {!hideAgitator && (
       <group position={[0, motorY, 0]}>
         <mesh position={[0, -0.18, 0]} castShadow receiveShadow>
           <cylinderGeometry args={[radius * 0.25, radius * 0.28, 0.16, 32]} />
@@ -319,8 +323,10 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
           <primitive object={METAL} attach="material" />
         </mesh>
       </group>
+      )}
 
       {/* Only the shaft and impellers rotate. */}
+      {!hideAgitator && (
       <group ref={shaftSpinRef} position={[0, height / 2 + 0.02, 0]} userData={{ bakeExclude: true }} renderOrder={3}>
         <mesh position={[0, -height / 2, 0]} castShadow renderOrder={3}>
           <cylinderGeometry args={[0.032, 0.034, height * 0.9, 16]} />
@@ -345,6 +351,7 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
           </group>
         ))}
       </group>
+      )}
 
       {!hideLabel && (
         <FloatingPoolLabel3D

@@ -313,8 +313,8 @@ const equipmentCatalog: Record<string, EquipmentData> = {
   'fm-outfall': { id: 'fm-outfall', name: '排放口流量计', type: 'flowMeter', alarmState: 'none', instantFlow: 0, totalFlow: 0, onlineStatus: 'offline' } as FlowMeterData,
 
   // Process Tanks
-  'tk-collection-1':  { id: 'tk-collection-1',  name: '收集池一',       type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 4.75, high: 4.25, low: 0.75, lowLow: 0.25 } as TankData,
-  'tk-collection-2':  { id: 'tk-collection-2',  name: '收集池二',       type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 4.75, high: 4.25, low: 0.75, lowLow: 0.25 } as TankData,
+  'tk-collection-1':  { id: 'tk-collection-1',  name: '收集池一',       type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 1.8, high: 1.5, low: 0.4, lowLow: 0.2 } as TankData,
+  'tk-collection-2':  { id: 'tk-collection-2',  name: '收集池二',       type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 1.8, high: 1.5, low: 0.4, lowLow: 0.2 } as TankData,
   'tk-ph1':           { id: 'tk-ph1',           name: 'PH1调节池',      type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 4.75, high: 4.25, low: 0.75, lowLow: 0.25 } as TankData,
   'tk-fenton':        { id: 'tk-fenton',        name: '芬顿池',         type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 5.23, high: 4.68, low: 0.83, lowLow: 0.28 } as TankData,
   'tk-ph2':           { id: 'tk-ph2',           name: 'PH2调节池',      type: 'tank',         alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 4.75, high: 4.25, low: 0.75, lowLow: 0.25 } as TankData,
