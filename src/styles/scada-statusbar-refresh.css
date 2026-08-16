@@ -5,7 +5,8 @@
  */
 
 .scada-overlay-root {
-  --topbar-height: 64px;
+  /* Dashboard: 64px primary row + 44px system selector row. */
+  --topbar-height: 108px;
 }
 
 .scada-overlay-root.overlay-scene-mode {
@@ -57,6 +58,20 @@
   padding: 0 28px 8px;
   border-top: 1px solid rgba(183, 197, 191, 0.62);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.76) inset;
+}
+
+/* Row 3 — control-system switch (污水站 / 纯水房), dashboard-only. */
+.scada-topbar-pro .topbar-row-system {
+  height: 44px;
+  padding: 0 28px;
+  border-top: 1px solid rgba(183, 197, 191, 0.62);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.76) inset;
+  display: flex;
+  align-items: center;
+}
+
+.scada-topbar-pro .topbar-seg-system {
+  margin: 0 auto;
 }
 
 .scada-topbar-pro .topbar-cluster-brand {
@@ -113,6 +128,39 @@
   height: 8px;
   background: #17B883;
   box-shadow: 0 0 0 3px rgba(23, 184, 131, 0.14), 0 0 10px rgba(23, 184, 131, 0.58);
+}
+
+.scada-topbar-pro .topbar-status.warning {
+  background: color-mix(in srgb, var(--tb-warn) 10%, white);
+  border-color: color-mix(in srgb, var(--tb-warn) 32%, transparent);
+}
+
+.scada-topbar-pro .topbar-status.warning .topbar-status-label { color: var(--tb-warn); }
+.scada-topbar-pro .topbar-status.warning .topbar-status-lamp {
+  background: var(--tb-warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tb-warn) 14%, transparent);
+}
+
+.scada-topbar-pro .topbar-status.critical {
+  background: color-mix(in srgb, var(--tb-alarm) 9%, white);
+  border-color: color-mix(in srgb, var(--tb-alarm) 30%, transparent);
+}
+
+.scada-topbar-pro .topbar-status.critical .topbar-status-label { color: var(--tb-alarm); }
+.scada-topbar-pro .topbar-status.critical .topbar-status-lamp {
+  background: var(--tb-alarm);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tb-alarm) 14%, transparent);
+}
+
+.scada-topbar-pro .topbar-status.unknown {
+  background: #F1F5F4;
+  border-color: #CBD5D1;
+}
+
+.scada-topbar-pro .topbar-status.unknown .topbar-status-label { color: #64746E; }
+.scada-topbar-pro .topbar-status.unknown .topbar-status-lamp {
+  background: #94A39D;
+  box-shadow: 0 0 0 3px rgba(100, 116, 110, 0.12);
 }
 
 .scada-topbar-pro .topbar-seg {

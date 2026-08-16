@@ -2,20 +2,19 @@ import React, { useMemo, useState } from 'react';
 import { useScadaStore, type TankData, type PumpData, type FlowMeterData } from '../../store/useScadaStore';
 import { getDemoScenario } from '../../store/demoScenarios';
 import { Activity, Power, Database, Droplets, FlaskConical, RefreshCw } from 'lucide-react';
-import { LEVEL_MONITORED_TANKS } from '../../store/equipmentUtils';
+import { LEVEL_MONITORED_TANKS, displayTankName } from '../../store/equipmentUtils';
+import { ControlRow, TankLevelRow } from './dashboard-parts';
 
-type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator' | 'pureWater';
+type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator';
 
 function groupPumps(pumps: PumpData[]) {
   return {
-    lift: pumps.filter((p) => (p.id.includes('lift') || p.id.includes('gas-lift')) && !p.id.startsWith('pw-')),
+    lift: pumps.filter((p) => p.id.includes('lift') || p.id.includes('gas-lift')),
     process: pumps.filter((p) =>
-      (p.id.includes('drain') || p.id.includes('daf') ||
-      p.id.includes('pac') || p.id.includes('pam') || p.id.includes('cacl')) && !p.id.startsWith('pw-'),
+      p.id.includes('drain') || p.id.includes('daf') ||
+      p.id.includes('pac') || p.id.includes('pam') || p.id.includes('cacl'),
     ),
-    sludge: pumps.filter((p) => (p.id.includes('sludge') || p.id.includes('screw')) && !p.id.startsWith('pw-')),
-    // 纯水房(二级 RO)— 完全独立的泵组分区,第一版纯监视(控制预留)。
-    pureWater: pumps.filter((p) => p.id.startsWith('pw-')),
+    sludge: pumps.filter((p) => p.id.includes('sludge') || p.id.includes('screw')),
   };
 }
 
@@ -54,7 +53,7 @@ export const DataDashboard: React.FC = () => {
   });
 
   const pumps = Object.values(equipments).filter(
-    (eq) => eq.type === 'pump' && !eq.name.includes('中间池泵'),
+    (eq) => eq.type === 'pump' && !eq.name.includes('中间池泵') && !eq.id.startsWith('pw-'),
   ) as PumpData[];
   const pumpGroups = groupPumps(pumps);
   const tanks = Object.values(equipments).filter(
@@ -69,24 +68,7 @@ export const DataDashboard: React.FC = () => {
   const activePumps =
     controlTab === 'lift' ? pumpGroups.lift :
     controlTab === 'process' ? pumpGroups.process :
-    controlTab === 'sludge' ? pumpGroups.sludge :
-    controlTab === 'pureWater' ? pumpGroups.pureWater : [];
-
-  const displayTankName = (tankId: string) => {
-    const map: Record<string, string> = {
-      'tk-collection-1': '收集池 1',
-      'tk-collection-2': '收集池 2',
-      'tk-intermediate': '中间池',
-      'tk-drainage': '排水池',
-      'tk-ph-cacl2': 'CaCl₂ 桶',
-      'tk-ph-pac': 'PAC 桶',
-      'tk-ph-pam': 'PAM 桶',
-      'tk-daf-pac': '气浮 PAC',
-      'tk-daf-pam': '气浮 PAM',
-      'tk-screw-pam': '污泥 PAM',
-    };
-    return map[tankId] ?? '未知池体';
-  };
+    controlTab === 'sludge' ? pumpGroups.sludge : [];
 
   const getAgitatorName = (tankName: string) => {
     const map: Record<string, string> = {
@@ -173,7 +155,6 @@ export const DataDashboard: React.FC = () => {
               ['lift', '提升泵组'],
               ['process', '工艺泵组'],
               ['sludge', '污泥泵组'],
-              ['pureWater', '纯水泵组'],
               ['agitator', '搅拌设备'],
             ] as const).map(([id, label]) => (
               <button
@@ -194,8 +175,7 @@ export const DataDashboard: React.FC = () => {
                 key={pump.id}
                 label={pump.name}
                 checked={pump.runStatus === 'running'}
-                onChange={controlTab === 'pureWater' ? () => {} : () => toggleEquipmentRunStatus(pump.id)}
-                readOnly={controlTab === 'pureWater'}
+                onChange={() => toggleEquipmentRunStatus(pump.id)}
               />
             ))}
             {controlTab === 'agitator' && agitators.map((tank) => (
@@ -207,11 +187,7 @@ export const DataDashboard: React.FC = () => {
               />
             ))}
           </div>
-          <p className="dash-control-hint">
-            {controlTab === 'pureWater'
-              ? '纯水房为独立系统 · 当前纯监视,手动控制预留'
-              : '操作即时同步至 3D 现场视图'}
-          </p>
+          <p className="dash-control-hint">操作即时同步至 3D 现场视图</p>
         </section>
       </div>
 
@@ -360,55 +336,6 @@ const PhTile = ({ label, value }: { label: string; value: number }) => {
     </div>
   );
 };
-
-const TankLevelRow = ({ tank, displayName }: { tank: TankData; displayName: string }) => {
-  const percent = Math.min(100, Math.max(0, tank.levelPercent));
-  let status = 'normal';
-  if (tank.alarmState === 'critical') status = 'critical';
-  else if (tank.alarmState === 'warning') status = 'warning';
-  
-  // Normalized limits as percentages of tank height for visual tick markers
-  const lowLimitPct = (tank.low / (tank.highHigh * 1.05)) * 100;
-  const highLimitPct = (tank.high / (tank.highHigh * 1.05)) * 100;
-
-  return (
-    <div className="dash-level-row">
-      <div className="dash-level-top">
-        <span className="dash-level-name">{displayName}</span>
-        <span className={`digit-font dash-level-val ${status}`}>
-          {tank.levelValue.toFixed(2)} m · {percent.toFixed(0)}%
-        </span>
-      </div>
-      <div className="dash-level-track">
-        <div className={`dash-level-fill ${status}`} style={{ width: `${percent}%` }}>
-          <div className="dash-level-fill-glow" />
-        </div>
-        {/* Safety limit markers */}
-        {lowLimitPct > 0 && <div className="dash-level-marker low" style={{ left: `${lowLimitPct}%` }} title="低液位限值" />}
-        {highLimitPct > 0 && <div className="dash-level-marker high" style={{ left: `${highLimitPct}%` }} title="高液位限值" />}
-      </div>
-    </div>
-  );
-};
-
-const ControlRow = ({ label, checked, onChange, readOnly = false }: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-  /** 纯监视行:状态可见,开关禁用(控制预留)。 */
-  readOnly?: boolean;
-}) => (
-  <label
-    className={`dash-control-row ${checked ? 'is-active' : ''} ${readOnly ? 'is-readonly' : ''}`}
-    title={readOnly ? '纯监视 · 控制预留' : undefined}
-  >
-    <span className="dash-control-label" title={label}>{label}</span>
-    <span className="scada-switch">
-      <input type="checkbox" checked={checked} onChange={onChange} disabled={readOnly} />
-      <span className="scada-switch-slider" />
-    </span>
-  </label>
-);
 
 const OutfallPanel: React.FC = () => {
   const { equipments, currentScenarioId, demoTick } = useScadaStore();

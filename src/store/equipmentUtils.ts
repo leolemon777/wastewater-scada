@@ -57,26 +57,56 @@ export const LEVEL_MONITORED_TANKS = [
   'tk-screw-pam'
 ];
 
-/**
- * Pure-water (二级 RO) level-monitored vessels — all three tanks have level
- * transmitters on site. Kept separate from the wastewater list so the
- * 集控中枢 level column stays wastewater-only; the equipment detail drawer
- * checks `isLevelMonitoredTank` which covers both systems.
- */
+/** Pure-water vessels with reviewed continuous PLC words (D51 / D52). */
 export const PW_LEVEL_MONITORED_TANKS = [
   'pw-tk-raw',
-  'pw-tk-ro1',
   'pw-tk-ro2',
 ];
+
+/** RO1 exposes discrete high/low contacts only (X002 / X003). */
+export const PW_DISCRETE_LEVEL_TANKS = ['pw-tk-ro1'];
 
 /** True when the tank's live level should be shown (either water system). */
 export function isLevelMonitoredTank(id: string): boolean {
   return LEVEL_MONITORED_TANKS.includes(id) || PW_LEVEL_MONITORED_TANKS.includes(id);
 }
 
+export function isDiscreteLevelTank(id: string): boolean {
+  return PW_DISCRETE_LEVEL_TANKS.includes(id);
+}
+
 /** Equipment ids belonging to the independent pure-water RO system. */
 export function isPureWaterEquipment(id: string): boolean {
   return id.startsWith('pw-');
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Tank display names — shared by wastewater + pure-water dashboards         */
+/* -------------------------------------------------------------------------- */
+const WW_TANK_NAMES: Record<string, string> = {
+  'tk-collection-1': '收集池 1',
+  'tk-collection-2': '收集池 2',
+  'tk-intermediate': '中间池',
+  'tk-drainage': '排水池',
+  'tk-ph-cacl2': 'CaCl₂ 桶',
+  'tk-ph-pac': 'PAC 桶',
+  'tk-ph-pam': 'PAM 桶',
+  'tk-daf-pac': '气浮 PAC',
+  'tk-daf-pam': '气浮 PAM',
+  'tk-screw-pam': '污泥 PAM',
+};
+
+const PW_TANK_NAMES: Record<string, string> = {
+  'pw-tk-raw': '原水箱',
+  'pw-tk-ro1': 'R01 一级产水箱',
+  'pw-tk-ro2': 'R02 二级产水箱',
+  'pw-tk-antiscalant': '阻垢剂药桶',
+  'pw-tk-naoh': 'NaOH 加药桶',
+};
+
+/** Resolve a tank id to its dashboard display name (covers both systems). */
+export function displayTankName(tankId: string): string {
+  return WW_TANK_NAMES[tankId] ?? PW_TANK_NAMES[tankId] ?? '未知池体';
 }
 
 /* -------------------------------------------------------------------------- */

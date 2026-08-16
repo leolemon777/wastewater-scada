@@ -96,8 +96,10 @@ const drainPumpIds = ['p-drain-1', 'p-drain-2'];
  * the whole RO train the same way it stops the wastewater pumps.
  */
 const pwPumpIds = [
-  'pw-p-raw',
-  'pw-p-ro1',
+  'pw-p-raw-1',
+  'pw-p-raw-2',
+  'pw-p-ro1-1',
+  'pw-p-ro1-2',
   'pw-p-ro2-1',
   'pw-p-ro2-2',
   'pw-p-supply-1',
@@ -105,6 +107,18 @@ const pwPumpIds = [
   'pw-p-dose-as',
   'pw-p-dose-naoh',
 ];
+
+/**
+ * Pure-water vessel level thresholds — mirror the equipment catalog
+ * (useScadaStore.ts) so tankAlarmFromLevel can fire on the RO-house tanks just
+ * as it does on the wastewater basins. Kept here (not imported) because the
+ * catalog is a large object; duplicating only the 4 threshold numbers per
+ * vessel is cheaper and the check-scene contract guards against drift.
+ */
+const PW_TANK_THRESHOLDS: Record<string, { highHigh: number; high: number; low: number; lowLow: number }> = {
+  'pw-tk-raw':        { highHigh: 3.00, high: 2.70, low: 0.60, lowLow: 0.25 },
+  'pw-tk-ro2':        { highHigh: 2.60, high: 2.35, low: 0.55, lowLow: 0.22 },
+};
 
 // ---------------------------------------------------------------------------
 // Smoothing state — persisted across ticks at module scope so that
@@ -289,12 +303,11 @@ function commonEquipment(tick: number): Record<string, EquipmentPatch> {
     // ── 纯水房(二级 RO)快照 — 独立系统,不进污水 KPI ──
     // HMI 运行态:一级/二级自动运行,供水手动;R02/供水为一用一备。
     'pw-tk-raw': tank(2.05 + wave(tick, 3, 0.06), 3.2),
-    'pw-tk-ro1': tank(1.72 + wave(tick, 6, 0.05), 2.8),
     'pw-tk-ro2': tank(1.64 + wave(tick, 9, 0.04), 2.8),
-    'pw-tk-antiscalant': tank(1.05 + wave(tick, 4, 0.03), 1.9),
-    'pw-tk-naoh': tank(0.92 + wave(tick, 7, 0.03), 1.9),
-    'pw-p-raw': pump('running', 12 + wave(tick, 2, 1)),
-    'pw-p-ro1': pump('running', 10.5 + wave(tick, 3, 0.8)),
+    'pw-p-raw-1': pump('running', 12 + wave(tick, 2, 1)),
+    'pw-p-raw-2': pump('stopped', 0),
+    'pw-p-ro1-1': pump('running', 10.5 + wave(tick, 3, 0.8)),
+    'pw-p-ro1-2': pump('stopped', 0),
     'pw-p-ro2-1': pump('running', 9.2 + wave(tick, 4, 0.6)),
     'pw-p-ro2-2': pump('stopped', 0),
     'pw-p-supply-1': pump('running', 8.4 + wave(tick, 5, 0.5)),
@@ -359,9 +372,10 @@ function sumFlow(ids: string[], patchMap: Record<string, EquipmentPatch>): numbe
   return total;
 }
 
-function sumPower(patchMap: Record<string, EquipmentPatch>): number {
+function sumPower(patchMap: Record<string, EquipmentPatch>, excludeIds?: Set<string>): number {
   let total = 0;
   for (const id of Object.keys(patchMap)) {
+    if (excludeIds?.has(id)) continue;
     const p = patchMap[id];
     if (p && p.runStatus === 'running' && typeof p.power === 'number') {
       total += p.power;
@@ -522,11 +536,23 @@ export function createDemoSnapshot(scenarioId: DemoScenarioId, tick: number): De
     if (to) smoothed['tk-outfall'] = { ...to, alarmState: tankAlarmFromPH(to, 'pH') };
   }
 
+  // --- Pure-water vessel alarms — applied on EVERY scenario (not just alarm
+  //     scenarios) because the RO house is an independent system whose levels
+  //     must be monitored regardless of which wastewater scenario is running.
+  //     Within thresholds => 'none'; the catalog default keeps them silent. ---
+  for (const [tankId, th] of Object.entries(PW_TANK_THRESHOLDS)) {
+    const patch = smoothed[tankId];
+    if (patch) smoothed[tankId] = { ...patch, alarmState: tankAlarmFromLevel(patch, th.highHigh, th.high, th.low, th.lowLow) };
+  }
+
   // --- KPIs derived from running equipment (smoothed) ---
   const inflow = sumFlow(liftPumpIds, smoothed);
   // Outflow = drain pumps + a small gravity trickle to the outfall.
   const outflow = sumFlow(drainPumpIds, smoothed) + 1.5;
-  const power = sumPower(smoothed);
+  // Wastewater power excludes pure-water pumps — the RO train is an independent
+  // system whose power is surfaced on the pure-water dashboard, not mixed here.
+  const pwIdSet = new Set(pwPumpIds);
+  const power = sumPower(smoothed, pwIdSet);
 
   return {
     kpi: { inflow, outflow, power },

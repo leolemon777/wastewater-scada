@@ -25,6 +25,7 @@ const HEAD_DARK = '#3E4752';
  */
 export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, rotation = [0, 0, 0], scale = 0.65 }) => {
   const pumpData = useScadaStore((state) => state.equipments[id] as PumpData);
+  const pureWaterConnectionState = useScadaStore((state) => state.pureWaterPlcConnection.state);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const [hovered, setHovered] = React.useState(false);
@@ -34,8 +35,10 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
 
   useCursor(hovered, 'pointer', 'auto');
 
+  const telemetryIsCurrent = pureWaterConnectionState === 'live' || pureWaterConnectionState === 'demo';
+
   useFrame(({ clock }, delta: number) => {
-    const running = pumpData?.runStatus === 'running';
+    const running = telemetryIsCurrent && pumpData?.runStatus === 'running';
     // 立式泵风扇轴竖直,绕 Y 旋转(区别于卧式 Pump3D 绕 Z)。
     if (fanRef.current && running) {
       fanRef.current.rotation.y += delta * 18;
@@ -58,7 +61,7 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
 
   const bodyColor = isSelected ? '#E2E8F0' : STAINLESS;
   const accentColor = isSelected ? '#38BDF8' : HEAD_DARK;
-  const running = pumpData.runStatus === 'running';
+  const running = telemetryIsCurrent && pumpData.runStatus === 'running';
   const indicatorStatus: 'running' | 'stopped' | 'fault' =
     pumpData.runStatus === 'fault' ? 'fault' : running ? 'running' : 'stopped';
 
@@ -223,7 +226,7 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
             </mesh>
           </group>
 
-          <PumpIndicator3D position={[-0.4, 1.5, 0.2]} status={indicatorStatus} />
+          {telemetryIsCurrent && <PumpIndicator3D position={[-0.4, 1.5, 0.2]} status={indicatorStatus} />}
 
           <mesh position={[0, 1.0, 0.355]}>
             <boxGeometry args={[0.42, 0.14, 0.006]} />

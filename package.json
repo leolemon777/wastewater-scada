@@ -8,6 +8,12 @@
     "build": "tsc -b && vite build",
     "check:scene": "node scripts/check-scene.mjs",
     "verify:scene": "npm run check:scene && npm run build",
+    "hub:restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/scada-hub.ps1 restore",
+    "hub:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/scada-hub.ps1 build",
+    "hub:test": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/scada-hub.ps1 test",
+    "hub:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-scada-hub-runtime.ps1",
+    "hub:run": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/scada-hub.ps1 run",
+    "verify:all": "npm run verify:scene && npm run lint && npm run hub:test && npm run hub:runtime",
     "lint": "eslint .",
     "preview": "vite preview"
   },

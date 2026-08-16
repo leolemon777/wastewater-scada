@@ -3,6 +3,7 @@ import { useCursor, Html } from '@react-three/drei';
 import { Materials } from '../shared/Materials';
 import { useScadaStore, type ValveData } from '../../../store/useScadaStore';
 import { StatusLight3D } from '../shared/IndustrialParts';
+import { isPureWaterEquipment } from '../../../store/equipmentUtils';
 
 interface Valve3DProps {
   id: string;
@@ -13,6 +14,7 @@ interface Valve3DProps {
 
 export const Valve3D: React.FC<Valve3DProps> = ({ id, position, rotation = [0, 0, 0], scale = 1 }) => {
   const valveData = useScadaStore((state) => state.equipments[id] as ValveData);
+  const pureWaterConnection = useScadaStore((state) => state.pureWaterPlcConnection);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const [hovered, setHovered] = React.useState(false);
@@ -21,9 +23,25 @@ export const Valve3D: React.FC<Valve3DProps> = ({ id, position, rotation = [0, 0
 
   if (!valveData) return null;
 
-  const wheelRotation = (valveData.openingPercent / 100) * Math.PI * 4;
+  const pureWaterValve = isPureWaterEquipment(id);
+  const telemetryIsCurrent = !pureWaterValve
+    || pureWaterConnection.state === 'live'
+    || pureWaterConnection.state === 'demo';
+  const holdsLastValue = pureWaterValve && pureWaterConnection.holdsLastValues;
+  const wheelRotation = (telemetryIsCurrent || holdsLastValue ? valveData.openingPercent / 100 : 0) * Math.PI * 4;
   const status = valveData.runStatus === 'fault' ? 'fault' : valveData.openingPercent > 0 ? 'running' : 'stopped';
   const bodyColor = isSelected ? '#60758a' : '#465a6c';
+  const stateColor = telemetryIsCurrent
+    ? valveData.mode === 'auto' ? '#10b981' : '#f59e0b'
+    : holdsLastValue ? '#f3c969' : '#94a3b8';
+  const openingText = telemetryIsCurrent
+    ? `${valveData.openingPercent.toFixed(1)}%`
+    : holdsLastValue
+      ? `${valveData.openingPercent.toFixed(0)}%*`
+      : '--';
+  const modeText = telemetryIsCurrent
+    ? valveData.mode.toUpperCase()
+    : holdsLastValue ? 'HOLD' : 'UNKNOWN';
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
@@ -73,12 +91,12 @@ export const Valve3D: React.FC<Valve3DProps> = ({ id, position, rotation = [0, 0
            <cylinderGeometry args={[0.018, 0.018, 0.56, 8]} />
         </mesh>
       </group>
-      <StatusLight3D position={[0.33, 1.13, 0]} status={status} />
+      {telemetryIsCurrent && <StatusLight3D position={[0.33, 1.13, 0]} status={status} />}
 
       <Html position={[0, 1.58, 0]} center zIndexRange={[42, 0]} distanceFactor={18}>
         <div style={{
           background: 'rgba(22, 25, 32, 0.68)', padding: '4px 6px', borderRadius: '4px',
-          borderLeft: `2px solid ${valveData.mode === 'auto' ? '#10b981' : '#f59e0b'}`,
+          borderLeft: `2px solid ${stateColor}`,
           color: 'var(--text-primary)', userSelect: 'none', pointerEvents: 'none',
           display: 'flex', flexDirection: 'column', gap: '2px',
           opacity: 0.72,
@@ -88,9 +106,9 @@ export const Valve3D: React.FC<Valve3DProps> = ({ id, position, rotation = [0, 0
         }}>
           <div style={{ fontSize: '8px', color: 'var(--text-secondary)', maxWidth: '72px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{valveData.name}</div>
           <div style={{ display: 'flex', justifyContent: 'space-between', width: '68px', gap: '6px' }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold' }} className="digit-font">{valveData.openingPercent.toFixed(1)}%</span>
-            <span style={{ fontSize: '8px', color: valveData.mode === 'auto' ? '#10b981' : '#f59e0b' }}>
-              {valveData.mode.toUpperCase()}
+            <span style={{ fontSize: '10px', fontWeight: 'bold' }} className="digit-font">{openingText}</span>
+            <span style={{ fontSize: '8px', color: stateColor }}>
+              {modeText}
             </span>
           </div>
         </div>

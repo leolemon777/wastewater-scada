@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useScadaStore, type TankData, type PumpData, type FlowMeterData, type ValveData, type ScrewPressData, type RoUnitData, type BaseEquipment, type AlarmRecord } from '../../store/useScadaStore';
-import { isLevelMonitoredTank } from '../../store/equipmentUtils';
+import { isDiscreteLevelTank, isLevelMonitoredTank, isPureWaterEquipment } from '../../store/equipmentUtils';
+import type { PureWaterPlcConnectionInfo } from '../../store/pureWaterPlc';
 import {
   X,
   AlertCircle,
@@ -15,6 +16,7 @@ import {
   Clock3,
 } from 'lucide-react';
 import { DataDashboard } from './DataDashboard';
+import { PureWaterDashboard } from './PureWaterDashboard';
 import { SystemMenu } from './SystemMenu';
 import { SceneHudDock } from './SceneHudDock';
 
@@ -77,12 +79,26 @@ const VIEW_PRESETS: ViewPreset[] = [
   { name: '纯水工段', target: [-76, 1, -1], pos: [-58, 16, 20] },
 ];
 
+function pureWaterConnectionLabel(connection: PureWaterPlcConnectionInfo): string {
+  switch (connection.state) {
+    case 'live': return '现场实时';
+    case 'demo': return '本地演示（非现场）';
+    case 'stale': return '数据延迟（保持值）';
+    case 'disconnected': return connection.holdsLastValues ? '通信中断（保持值）' : '通信中断';
+    default: return '尚未接入';
+  }
+}
+
 export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
-  const overallStatus = useScadaStore((state) => state.overallStatus);
+  const systemStatuses = useScadaStore((state) => state.systemStatuses);
   const selectedEquipmentId = useScadaStore((state) => state.selectedEquipmentId);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const currentView = useScadaStore((state) => state.currentView);
   const setCurrentView = useScadaStore((state) => state.setCurrentView);
+  const currentSystem = useScadaStore((state) => state.currentSystem);
+  const setCurrentSystem = useScadaStore((state) => state.setCurrentSystem);
+  const pureWaterPlc = useScadaStore((state) => state.pureWaterPlc);
+  const pureWaterPlcConnection = useScadaStore((state) => state.pureWaterPlcConnection);
   const selectedEq = useScadaStore((state) => state.selectedEquipmentId ? state.equipments[state.selectedEquipmentId] : null);
 
   const [timeStr, setTimeStr] = useState('');
@@ -96,7 +112,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
   const equipmentDrawerOpen = !!selectedEquipmentId && drawerCollapsedFor !== selectedEquipmentId;
   const [pendingAction, setPendingAction] = useState<{message: string, onConfirm: () => void} | null>(null);
 
-  const alarms = useScadaStore((s) => s.alarms);
+  const alarms = useScadaStore((s) => s.alarms).filter((alarm) => alarm.system === currentSystem);
   const unacknowledgedAlarms = alarms.filter(a => !a.acknowledged);
   const latestUnacknowledgedAlarmId = unacknowledgedAlarms[0]?.id ?? null;
 
@@ -146,6 +162,50 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       case 'tank':
       case 'chemicalTank': {
         const tk = eq as TankData;
+        if (isPureWaterEquipment(tk.id)) {
+          const dataState = pureWaterConnectionLabel(pureWaterPlcConnection);
+          const dataUncertain = !pureWaterPlcConnection.valuesAreCurrent;
+
+          if (tk.id === 'pw-tk-raw' || tk.id === 'pw-tk-ro2') {
+            const address = tk.id === 'pw-tk-raw' ? 'D51' : 'D52';
+            const value = pureWaterPlc.words[address];
+            return (
+              <>
+                <DetailItem
+                  label={`连续液位 ${address}`}
+                  value={value === null ? '--' : Math.round(value)}
+                  unit={value === null ? undefined : '%'}
+                  highlight={dataUncertain}
+                />
+                <DetailItem label="数据状态" value={dataState} highlight={dataUncertain} />
+                {dataUncertain && (
+                  <div className="equipment-detail-muted">当前值不可作为现场运行确认。</div>
+                )}
+              </>
+            );
+          }
+
+          if (isDiscreteLevelTank(tk.id)) {
+            const high = pureWaterPlc.bits.X002;
+            const low = pureWaterPlc.bits.X003;
+            const pointText = (value: boolean | null) => value === null ? '--' : value ? 'ON' : 'OFF';
+            return (
+              <>
+                <DetailItem label="高液位 X002" value={pointText(high)} highlight={high === true || dataUncertain} />
+                <DetailItem label="低液位 X003" value={pointText(low)} highlight={low === true || dataUncertain} />
+                <DetailItem label="数据状态" value={dataState} highlight={dataUncertain} />
+                <div className="equipment-detail-muted">PLC 未提供 RO1 连续液位寄存器，不显示虚拟百分比。</div>
+              </>
+            );
+          }
+
+          return (
+            <div className="equipment-detail-muted">
+              已审核 PLC 点位表未提供该药桶的连续液位测点，当前不显示虚拟液位。
+            </div>
+          );
+        }
+
         const monitored = isLevelMonitoredTank(tk.id);
         return (
           <>
@@ -204,6 +264,28 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       }
       case 'pump': {
         const pd = eq as PumpData;
+        if (isPureWaterEquipment(pd.id)) {
+          const dataUncertain = !pureWaterPlcConnection.valuesAreCurrent;
+          const runState = dataUncertain
+            ? pureWaterPlcConnection.holdsLastValues
+              ? `${pd.runStatus === 'running' ? '运行' : pd.runStatus === 'fault' ? '故障' : '停止'}（保持值）`
+              : '--'
+            : pd.runStatus === 'running'
+              ? '运行中'
+              : pd.runStatus === 'fault'
+                ? '故障'
+                : '已停止';
+          return (
+            <>
+              <DetailItem label="运行状态" value={runState} highlight={pd.runStatus === 'fault' || dataUncertain} />
+              <DetailItem label="数据状态" value={pureWaterConnectionLabel(pureWaterPlcConnection)} highlight={dataUncertain} />
+              <div className="equipment-detail-muted">
+                纯水 PLC 仅开放只读监视；当前程序未提供电流、频率、流量和功率寄存器，也未开放启停控制。
+              </div>
+            </>
+          );
+        }
+
         return (
           <>
             <DetailItem label="运行状态" value={pd.runStatus === 'running' ? '运行中' : '已停止'} highlight={pd.runStatus === 'fault'} />
@@ -237,6 +319,21 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       }
       case 'valve': {
         const vd = eq as ValveData;
+        if (isPureWaterEquipment(vd.id)) {
+          const dataUncertain = !pureWaterPlcConnection.valuesAreCurrent;
+          return (
+            <>
+              <DetailItem
+                label="开启度"
+                value={dataUncertain ? pureWaterPlcConnection.holdsLastValues ? `${vd.openingPercent.toFixed(0)}%（保持值）` : '--' : vd.openingPercent.toFixed(1)}
+                unit={dataUncertain ? undefined : '%'}
+                highlight={dataUncertain}
+              />
+              <DetailItem label="数据状态" value={pureWaterConnectionLabel(pureWaterPlcConnection)} highlight={dataUncertain} />
+              <div className="equipment-detail-muted">纯水阀门仅显示 PLC Y 输出状态，未开放控制写入。</div>
+            </>
+          );
+        }
         return (
           <>
              <DetailItem label="开启度" value={vd.openingPercent.toFixed(1)} unit="%" />
@@ -255,10 +352,23 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       }
       case 'roUnit': {
         const ro = eq as RoUnitData;
+        const pureWaterUnit = isPureWaterEquipment(ro.id);
+        const dataUncertain = pureWaterUnit && !pureWaterPlcConnection.valuesAreCurrent;
         return (
           <>
             {ro.runStatus !== undefined && (
-              <DetailItem label="运行状态" value={ro.runStatus === 'running' ? '制水运行中' : '待机'} highlight={ro.runStatus === 'fault'} />
+              <DetailItem
+                label="运行状态"
+                value={dataUncertain
+                  ? pureWaterPlcConnection.holdsLastValues
+                    ? `${ro.runStatus === 'running' ? '制水运行' : ro.runStatus === 'fault' ? '故障' : '待机'}（保持值）`
+                    : '--'
+                  : ro.runStatus === 'running' ? '制水运行中' : ro.runStatus === 'fault' ? '故障' : '待机'}
+                highlight={ro.runStatus === 'fault' || dataUncertain}
+              />
+            )}
+            {pureWaterUnit && (
+              <DetailItem label="数据状态" value={pureWaterConnectionLabel(pureWaterPlcConnection)} highlight={dataUncertain} />
             )}
             <div className="equipment-detail-muted">该单元暂无在线仪表 · 压力 / 流量 / 电导率测点预留</div>
           </>
@@ -269,8 +379,17 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
     }
   };
 
-  const statusClass = overallStatus === 'normal' ? 'normal' : overallStatus === 'warning' ? 'warning' : 'critical';
-  const statusLabel = overallStatus === 'normal' ? '运行正常' : overallStatus === 'warning' ? '注意' : '异常';
+  const currentSystemStatus = systemStatuses[currentSystem];
+  const statusClass = currentSystemStatus;
+  const statusLabel = currentSystemStatus === 'normal'
+    ? currentSystem === 'purewater' && pureWaterPlcConnection.state === 'demo'
+      ? '演示正常'
+      : '运行正常'
+    : currentSystemStatus === 'warning'
+      ? '注意'
+      : currentSystemStatus === 'critical'
+        ? '异常'
+        : '状态未知';
 
   return (
     <div className={`scada-overlay-root${currentView === '3d' ? ' overlay-scene-mode' : ''}`}>
@@ -284,7 +403,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
           <div className="topbar-cluster topbar-cluster-brand">
             <div className="topbar-brand-mark" aria-hidden="true" />
             <div className="topbar-brand-copy">
-              <h1>污水站现场监控</h1>
+              <h1>{currentSystem === 'purewater' ? '纯水房控制系统' : '污水站现场监控'}</h1>
               <span className={`topbar-status ${statusClass}`}>
                 <span className={`topbar-status-lamp ${statusClass}`} aria-hidden="true" />
                 <span className="topbar-status-label">{statusLabel}</span>
@@ -322,8 +441,8 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
               type="button"
               onClick={() => setAlarmPanelOpen(v => !v)}
               className={`topbar-icon-btn ${unacknowledgedAlarms.length > 0 ? 'alert' : ''}`}
-              title="报警记录"
-              aria-label="报警记录"
+              title={`${currentSystem === 'purewater' ? '纯水房' : '污水站'}报警记录`}
+              aria-label={`${currentSystem === 'purewater' ? '纯水房' : '污水站'}报警记录`}
               aria-expanded={alarmPanelOpen}
               aria-controls="alarm-history-panel"
             >
@@ -351,6 +470,30 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
               }}
               onZoom={(action) => runOrbitZoom(orbitControlsRef, action)}
             />
+          </div>
+        )}
+
+        {/* ── Row 3 (40px) — control-system switch (污水站 / 纯水房), dashboard only ── */}
+        {currentView === 'dashboard' && (
+          <div className="topbar-row topbar-row-system">
+            <nav className="topbar-seg topbar-seg-system" aria-label="控制系统">
+              <button
+                className={`topbar-seg-btn ${currentSystem === 'wastewater' ? 'active' : ''}`}
+                onClick={() => setCurrentSystem('wastewater')}
+                type="button"
+                aria-pressed={currentSystem === 'wastewater'}
+              >
+                <span>污水站</span>
+              </button>
+              <button
+                className={`topbar-seg-btn ${currentSystem === 'purewater' ? 'active' : ''}`}
+                onClick={() => setCurrentSystem('purewater')}
+                type="button"
+                aria-pressed={currentSystem === 'purewater'}
+              >
+                <span>纯水房</span>
+              </button>
+            </nav>
           </div>
         )}
       </header>
@@ -384,11 +527,12 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
             className="panel-solid overlay-panel alarm-history-panel"
             role="dialog"
             id="alarm-history-panel"
-            aria-label="报警记录"
+            aria-label={`${currentSystem === 'purewater' ? '纯水房' : '污水站'}报警记录`}
           >
             <div className="overlay-panel-header">
               <h2 className="overlay-panel-title">
-                <Bell size={16} color={unacknowledgedAlarms.length > 0 ? 'var(--status-error)' : 'var(--accent-blue)'} /> 报警记录
+                <Bell size={16} color={unacknowledgedAlarms.length > 0 ? 'var(--status-error)' : 'var(--accent-blue)'} />
+                {currentSystem === 'purewater' ? '纯水房' : '污水站'}报警记录
                 {unacknowledgedAlarms.length > 0 && (
                   <span className="alarm-count-badge">
                     {unacknowledgedAlarms.length}
@@ -398,7 +542,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
               <div className="alarm-panel-actions">
                 <button
                   type="button"
-                  onClick={() => useScadaStore.getState().clearAcknowledgedAlarms()}
+                  onClick={() => useScadaStore.getState().clearAcknowledgedAlarms(currentSystem)}
                   className="alarm-clear-btn"
                   title="清除已确认报警"
                 >
@@ -427,7 +571,9 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       )}
 
       {/* Render DataDashboard if active */}
-      {currentView === 'dashboard' && <DataDashboard />}
+      {currentView === 'dashboard' && (
+        currentSystem === 'purewater' ? <PureWaterDashboard /> : <DataDashboard />
+      )}
 
       {currentView === '3d' && selectedEq && !equipmentDrawerOpen && (
         <button
@@ -552,7 +698,11 @@ const AlarmRow = ({ alarm }: { alarm: AlarmRecord }) => {
         <div className="alarm-row-message">
           {alarm.message}
         </div>
-        <div className="alarm-row-time">{time}</div>
+        <div className="alarm-row-time">
+          {alarm.system === 'purewater' ? '纯水房' : '污水站'}
+          {alarm.source === 'plc' && alarm.tagAddress ? ` · PLC ${alarm.tagAddress}` : ' · 设备状态'}
+          {` · ${time}`}
+        </div>
       </div>
       {!alarm.acknowledged && (
         <button

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="services/ScadaHub/ScadaHub.csproj" />
+  <Project Path="tests/ScadaHub.Tests/ScadaHub.Tests.csproj" />
+</Solution>

@@ -1,8 +1,26 @@
 import { create } from 'zustand';
 import { createDemoSnapshot, demoScenarios, type DemoScenarioId } from './demoScenarios';
+import {
+  createEmptyPureWaterPlcSnapshot,
+  createPureWaterDemoPlcSnapshot,
+  getPureWaterPlcAlarmTransitions,
+  getPureWaterPlcConnectionInfo,
+  markPureWaterPlcOffline,
+  normalizePureWaterPlcTelemetry,
+  PURE_WATER_PLC_ALARM_TAGS,
+  pureWaterEquipmentPatchesFromPlc,
+  type PureWaterPlcBitAddress,
+  type PureWaterPlcConnectionInfo,
+  type PureWaterPlcSnapshot,
+  type PureWaterPlcTelemetry,
+} from './pureWaterPlc';
 
 export type AlarmState = 'none' | 'warning' | 'critical';
 export type EquipmentType = 'pump' | 'tank' | 'mixingTank' | 'chemicalTank' | 'flowMeter' | 'valve' | 'screwPress' | 'outfall' | 'roUnit';
+
+/** Control-system identifier — the 集控中枢 manages two independent systems. */
+export type SystemId = 'wastewater' | 'purewater';
+export type SystemStatus = 'normal' | 'warning' | 'critical' | 'unknown';
 
 export interface BaseEquipment {
   id: string;
@@ -64,9 +82,9 @@ export interface ScrewPressData extends BaseEquipment {
 
 /**
  * Pure-water RO-train passive unit (cartridge filter / carbon column / RO
- * membrane rack). v1 is monitor-only — the numeric fields are RESERVED for
- * the pressure / flow / conductivity transmitters planned on the pure-water
- * M100 (192.168.0.13); do not surface them in UI until real tags land.
+ * membrane rack). v1 is monitor-only. The supplied Mitsubishi program exposes
+ * no pressure / flow / conductivity words, so these numeric fields remain
+ * reserved and must not be surfaced until a real instrument tag is confirmed.
  */
 export interface RoUnitData extends BaseEquipment {
   type: 'roUnit';
@@ -89,12 +107,15 @@ export type EquipmentPatch = Partial<
 
 export interface AlarmRecord {
   id: string;
+  system: SystemId;
   equipmentId: string;
   equipmentName: string;
   severity: 'warning' | 'critical';
   message: string;
   timestamp: number;
   acknowledged: boolean;
+  source: 'equipment' | 'plc';
+  tagAddress?: PureWaterPlcBitAddress;
   /**
    * Set when the alarm returned-to-normal (RTN) automatically — i.e. the
    * equipment transitioned FROM warning/critical BACK TO none. RTN-cleared
@@ -110,6 +131,7 @@ interface ScadaState {
   totalOutflow: number;
   totalPower: number;
   overallStatus: 'normal' | 'warning' | 'critical';
+  systemStatuses: Record<SystemId, SystemStatus>;
 
   equipments: Record<string, EquipmentData>;
 
@@ -119,24 +141,41 @@ interface ScadaState {
   currentView: '3d' | 'dashboard';
   setCurrentView: (view: '3d' | 'dashboard') => void;
 
+  /** Which control system the 集控中枢 dashboard is showing (wastewater vs pure-water). */
+  currentSystem: SystemId;
+  setCurrentSystem: (system: SystemId) => void;
+
   toggleEquipmentRunStatus: (id: string) => void;
   toggleAgitator: (id: string) => void;
   toggleAeration: (id: string) => void;
   toggleScraper: (id: string) => void;
+  /** Toggle a valve's openingPercent between 0 ↔ 100 and sync mode/runStatus. */
+  toggleValve: (id: string) => void;
 
   alarms: AlarmRecord[];
   acknowledgeAlarm: (alarmId: string) => void;
-  clearAcknowledgedAlarms: () => void;
+  clearAcknowledgedAlarms: (system?: SystemId) => void;
 
   // Data ingestion API — call these from your real data source
   updateEquipment: (id: string, patch: EquipmentPatch) => void;
   setEquipments: (equipments: Record<string, EquipmentData>) => void;
   setKPI: (inflow: number, outflow: number, power: number) => void;
 
+  /** Reviewed, read-only Mitsubishi PLC telemetry for the pure-water dashboard. */
+  pureWaterPlc: PureWaterPlcSnapshot;
+  pureWaterPlcConnection: PureWaterPlcConnectionInfo;
+  ingestPureWaterPlcTelemetry: (telemetry: PureWaterPlcTelemetry) => void;
+  refreshPureWaterPlcConnection: (now?: number) => void;
+
+  /** Wastewater demo source. Kept as `demoMode` for the existing dashboard API. */
   demoMode: boolean;
+  /** Pure-water demo source is independent so a live PLC cannot stop wastewater demo data. */
+  pureWaterDemoMode: boolean;
   currentScenarioId: DemoScenarioId;
   demoTick: number;
+  pureWaterDemoTick: number;
   setDemoMode: (enabled: boolean) => void;
+  setPureWaterDemoMode: (enabled: boolean) => void;
   setDemoScenario: (scenarioId: DemoScenarioId) => void;
   applyDemoTick: () => void;
   performanceMode: boolean;
@@ -160,6 +199,10 @@ interface ScadaState {
 
 function generateAlarmId(): string {
   return `alarm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function getEquipmentSystem(equipmentId: string): SystemId {
+  return equipmentId.startsWith('pw-') ? 'purewater' : 'wastewater';
 }
 
 /**
@@ -211,10 +254,16 @@ function detectAlarms(
     const next = nextEquipments[key];
     if (!prev || !next) continue;
 
+    // Pure-water alarms are generated from the exact reviewed M400-M415 PLC
+    // bits below. Skipping generic equipment transitions prevents duplicate
+    // "equipment abnormal" records that lose the originating PLC address.
+    if (getEquipmentSystem(next.id) === 'purewater') continue;
+
     // Rising edge: none -> warning/critical creates a new alarm.
     if (prev.alarmState === 'none' && next.alarmState !== 'none') {
       newAlarms.push({
         id: generateAlarmId(),
+        system: 'wastewater',
         equipmentId: next.id,
         equipmentName: next.name,
         severity: next.alarmState as 'warning' | 'critical',
@@ -223,6 +272,7 @@ function detectAlarms(
           : `${next.name} 触发高/低报警`,
         timestamp: Date.now(),
         acknowledged: false,
+        source: 'equipment',
       });
     }
 
@@ -244,7 +294,7 @@ function applyReturnToNormal(alarms: AlarmRecord[], clearedAlarmIds: Set<string>
   const now = Date.now();
   let changed = false;
   const next = alarms.map((a) => {
-    if (clearedAlarmIds.has(a.equipmentId) && !a.cleared) {
+    if (a.source === 'equipment' && clearedAlarmIds.has(a.equipmentId) && !a.cleared) {
       changed = true;
       return { ...a, cleared: true, acknowledged: true, clearedAt: now };
     }
@@ -263,12 +313,130 @@ function computeOverallStatus(equipments: Record<string, BaseEquipment>): 'norma
   return hasCritical ? 'critical' : hasWarning ? 'warning' : 'normal';
 }
 
-function applyDemoSnapshot(state: ScadaState, scenarioId: DemoScenarioId, tick: number): Partial<ScadaState> {
+function computeEquipmentStatus(
+  equipments: Record<string, BaseEquipment>,
+  system: SystemId,
+): Exclude<SystemStatus, 'unknown'> {
+  let hasWarning = false;
+  for (const equipment of Object.values(equipments)) {
+    if (getEquipmentSystem(equipment.id) !== system) continue;
+    if (equipment.alarmState === 'critical') return 'critical';
+    if (equipment.alarmState === 'warning') hasWarning = true;
+  }
+  return hasWarning ? 'warning' : 'normal';
+}
+
+function computeSystemStatuses(
+  equipments: Record<string, BaseEquipment>,
+  pureWaterPlc: PureWaterPlcSnapshot,
+  pureWaterConnection: PureWaterPlcConnectionInfo,
+): Record<SystemId, SystemStatus> {
+  let pureWaterStatus: SystemStatus = 'unknown';
+  if (pureWaterConnection.valuesAreCurrent) {
+    const activeTags = PURE_WATER_PLC_ALARM_TAGS.filter((tag) => pureWaterPlc.bits[tag.address] === true);
+    const activeSeverities: Array<'warning' | 'critical'> = activeTags.map((tag) => tag.severity);
+    pureWaterStatus = activeSeverities.includes('critical')
+      ? 'critical'
+      : activeSeverities.includes('warning')
+        ? 'warning'
+        : 'normal';
+  }
+
+  return {
+    wastewater: computeEquipmentStatus(equipments, 'wastewater'),
+    purewater: pureWaterStatus,
+  };
+}
+
+/**
+ * Reconciles the exact PLC alarm bits with the audit trail. A non-current
+ * frame cannot raise or clear alarms. Once a current frame returns, a known
+ * false value closes any previously active record even if the link was
+ * unknown in between.
+ */
+function reconcilePureWaterPlcAlarms(
+  alarms: AlarmRecord[],
+  previous: PureWaterPlcSnapshot,
+  next: PureWaterPlcSnapshot,
+  connection: PureWaterPlcConnectionInfo,
+): AlarmRecord[] {
+  if (!connection.valuesAreCurrent) return alarms;
+
+  const transitions = getPureWaterPlcAlarmTransitions(previous, next);
+  const raisedByEdge = new Set(
+    transitions.filter((transition) => transition.kind === 'raised').map((transition) => transition.tag.address),
+  );
+  const now = next.receivedAt ?? Date.now();
+  let changed = false;
+
+  let reconciled = alarms.map((alarm) => {
+    if (
+      alarm.system !== 'purewater'
+      || alarm.source !== 'plc'
+      || !alarm.tagAddress
+      || alarm.cleared
+      || next.bits[alarm.tagAddress] !== false
+    ) {
+      return alarm;
+    }
+    changed = true;
+    return { ...alarm, cleared: true, acknowledged: true, clearedAt: now };
+  });
+
+  const raised: AlarmRecord[] = [];
+  for (const tag of PURE_WATER_PLC_ALARM_TAGS) {
+    if (next.bits[tag.address] !== true) continue;
+    const alreadyActive = reconciled.some((alarm) => (
+      alarm.system === 'purewater'
+      && alarm.source === 'plc'
+      && alarm.tagAddress === tag.address
+      && !alarm.cleared
+    ));
+    if (alreadyActive) continue;
+
+    // Normally this is a rising edge. The second condition repairs an audit
+    // trail that was empty/reloaded while the physical alarm stayed active.
+    if (!raisedByEdge.has(tag.address) && previous.bits[tag.address] !== true) continue;
+    raised.push({
+      id: generateAlarmId(),
+      system: 'purewater',
+      equipmentId: tag.equipmentId,
+      equipmentName: tag.equipmentName,
+      severity: tag.severity,
+      message: `${tag.address} · ${tag.label}`,
+      timestamp: now,
+      acknowledged: false,
+      source: 'plc',
+      tagAddress: tag.address,
+    });
+  }
+
+  if (raised.length > 0) {
+    changed = true;
+    reconciled = [...raised, ...reconciled];
+  }
+  return changed ? reconciled.slice(0, 50) : alarms;
+}
+
+interface DemoApplyTargets {
+  wastewater: boolean;
+  purewater: boolean;
+}
+
+function applyDemoSnapshot(
+  state: ScadaState,
+  scenarioId: DemoScenarioId,
+  tick: number,
+  targets: DemoApplyTargets,
+): Partial<ScadaState> {
   const snapshot = createDemoSnapshot(scenarioId, tick);
   let equipmentsChanged = false;
   const nextEquipments: Record<string, EquipmentData> = { ...state.equipments };
 
   for (const [id, patch] of Object.entries(snapshot.equipments)) {
+    const belongsToPureWater = id.startsWith('pw-');
+    if (belongsToPureWater ? !targets.purewater : !targets.wastewater) continue;
+
     const prev = nextEquipments[id];
     if (!prev) continue;
 
@@ -287,20 +455,43 @@ function applyDemoSnapshot(state: ScadaState, scenarioId: DemoScenarioId, tick: 
   }
 
   const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, nextEquipments);
-  const alarms = applyReturnToNormal(
+  let alarms = applyReturnToNormal(
     [...newAlarms, ...state.alarms].slice(0, 50),
     clearedAlarmIds
   );
 
+  const pureWaterPlc = targets.purewater
+    ? createPureWaterDemoPlcSnapshot(nextEquipments, tick)
+    : state.pureWaterPlc;
+  const pureWaterPlcConnection = targets.purewater
+    ? getPureWaterPlcConnectionInfo(pureWaterPlc)
+    : state.pureWaterPlcConnection;
+  if (targets.purewater) {
+    alarms = reconcilePureWaterPlcAlarms(
+      alarms,
+      state.pureWaterPlc,
+      pureWaterPlc,
+      pureWaterPlcConnection,
+    );
+  }
+
   return {
-    totalInflow: snapshot.kpi.inflow,
-    totalOutflow: snapshot.kpi.outflow,
-    totalPower: snapshot.kpi.power,
+    ...(targets.wastewater ? {
+      totalInflow: snapshot.kpi.inflow,
+      totalOutflow: snapshot.kpi.outflow,
+      totalPower: snapshot.kpi.power,
+      demoTick: tick,
+    } : {}),
+    ...(targets.purewater ? {
+      pureWaterDemoTick: tick,
+      pureWaterPlc,
+      pureWaterPlcConnection,
+    } : {}),
     equipments: equipmentsChanged ? nextEquipments : state.equipments,
     alarms,
     overallStatus: computeOverallStatus(nextEquipments),
+    systemStatuses: computeSystemStatuses(nextEquipments, pureWaterPlc, pureWaterPlcConnection),
     currentScenarioId: scenarioId,
-    demoTick: tick,
   };
 }
 
@@ -373,11 +564,11 @@ const equipmentCatalog: Record<string, EquipmentData> = {
 
   // ─────────────────────────────────────────────────────────────────────────
   // 纯水房(二级 RO 系统)— 完全独立于污水系统的设备命名空间。
-  // 现场链路:纯水房网桥 192.168.2.74 / M100 192.168.0.13(待确认)。
-  // 第一版纯监视:泵/阀不开放手动控制,roUnit 数值字段为压力/电导率预留。
+  // 数据源已按三菱 PLC 的 X/Y/M/D 地址建模；协议/IP/串口参数仍待现场确认。
+  // 第一版纯监视：浏览器无 PLC 写接口，M390-M542 与 Y 输出只读显示。
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Pure-water Tanks (all three vessels have level transmitters on site)
+  // Pure-water tanks: D51=原水箱连续液位，D52=RO2 连续液位；RO1 仅有 X002/X003 高低开关。
   'pw-tk-raw':  { id: 'pw-tk-raw',  name: '原水箱 (纯水)',   type: 'tank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 3.00, high: 2.70, low: 0.60, lowLow: 0.25 } as TankData,
   'pw-tk-ro1':  { id: 'pw-tk-ro1',  name: 'R01水箱 (一级产水)', type: 'tank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 2.60, high: 2.35, low: 0.55, lowLow: 0.22 } as TankData,
   'pw-tk-ro2':  { id: 'pw-tk-ro2',  name: 'R02水箱 (二级产水)', type: 'tank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 2.60, high: 2.35, low: 0.55, lowLow: 0.22 } as TankData,
@@ -386,9 +577,11 @@ const equipmentCatalog: Record<string, EquipmentData> = {
   'pw-tk-antiscalant': { id: 'pw-tk-antiscalant', name: '阻垢剂药桶 (纯水)', type: 'chemicalTank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 1.90, high: 1.70, low: 0.30, lowLow: 0.10 } as TankData,
   'pw-tk-naoh':        { id: 'pw-tk-naoh',        name: 'NaOH加药桶 (纯水)', type: 'chemicalTank', alarmState: 'none', levelValue: 0, levelPercent: 0, highHigh: 1.90, high: 1.70, low: 0.30, lowLow: 0.10 } as TankData,
 
-  // Pure-water Pumps (R02 / supply are duty+standby pairs)
-  'pw-p-raw':      { id: 'pw-p-raw',      name: '原水泵 (纯水)',   type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
-  'pw-p-ro1':      { id: 'pw-p-ro1',      name: 'R01高压泵',       type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  // Pure-water Pumps (all four process stages are duty+standby A/B pairs)
+  'pw-p-raw-1':    { id: 'pw-p-raw-1',    name: '原水泵A (纯水)',  type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-raw-2':    { id: 'pw-p-raw-2',    name: '原水泵B (备用)',  type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-ro1-1':    { id: 'pw-p-ro1-1',    name: 'R01高压泵A',      type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
+  'pw-p-ro1-2':    { id: 'pw-p-ro1-2',    name: 'R01高压泵B (备用)', type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
   'pw-p-ro2-1':    { id: 'pw-p-ro2-1',    name: 'R02泵A',          type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
   'pw-p-ro2-2':    { id: 'pw-p-ro2-2',    name: 'R02泵B (备用)',   type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
   'pw-p-supply-1': { id: 'pw-p-supply-1', name: '供水泵A (纯水)',  type: 'pump', alarmState: 'none', runStatus: 'stopped', animationState: false, connectedLines: [], current: 0, frequency: 0, flowRate: 0, power: 0 } as PumpData,
@@ -418,12 +611,16 @@ export const useScadaStore = create<ScadaState>((set) => ({
   totalOutflow: 0,
   totalPower: 0,
   overallStatus: 'normal',
+  systemStatuses: { wastewater: 'normal', purewater: 'unknown' },
   equipments: equipmentCatalog,
   selectedEquipmentId: null,
   setSelectedEquipment: (id) => set({ selectedEquipmentId: id }),
 
   currentView: '3d',
   setCurrentView: (view) => set({ currentView: view }),
+
+  currentSystem: 'wastewater',
+  setCurrentSystem: (system) => set({ currentSystem: system }),
 
   forkliftHasBag: false,
   setForkliftHasBag: (has) => set({ forkliftHasBag: has }),
@@ -436,8 +633,12 @@ export const useScadaStore = create<ScadaState>((set) => ({
     })),
 
   demoMode: true,
+  pureWaterDemoMode: true,
   currentScenarioId: 'normal',
   demoTick: 0,
+  pureWaterDemoTick: 0,
+  pureWaterPlc: createEmptyPureWaterPlcSnapshot(),
+  pureWaterPlcConnection: getPureWaterPlcConnectionInfo(createEmptyPureWaterPlcSnapshot()),
   performanceMode: false,
   scenePaletteMode: 'bright',
   setPerformanceMode: (enabled) => set({ performanceMode: enabled }),
@@ -448,9 +649,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
     set((state) => ({
       alarms: state.alarms.map((a) => (a.id === alarmId ? { ...a, acknowledged: true } : a)),
     })),
-  clearAcknowledgedAlarms: () =>
+  clearAcknowledgedAlarms: (system) =>
     set((state) => ({
-      alarms: state.alarms.filter((a) => !a.acknowledged),
+      alarms: state.alarms.filter((alarm) => (
+        !alarm.acknowledged || (system !== undefined && alarm.system !== system)
+      )),
     })),
 
   toggleEquipmentRunStatus: (id) => set((state) => {
@@ -493,6 +696,7 @@ export const useScadaStore = create<ScadaState>((set) => ({
     return {
       equipments: nextEquipments,
       overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
     };
   }),
 
@@ -501,7 +705,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
     if (!eq || (eq.type !== 'tank' && eq.type !== 'mixingTank' && eq.type !== 'chemicalTank')) return state;
     const tank = eq as TankData;
     const nextEquipments = { ...state.equipments, [id]: { ...tank, agitatorRunning: !tank.agitatorRunning } };
-    return { equipments: nextEquipments, overallStatus: computeOverallStatus(nextEquipments) };
+    return {
+      equipments: nextEquipments,
+      overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+    };
   }),
 
   toggleAeration: (id) => set((state) => {
@@ -509,7 +717,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
     if (!eq || (eq.type !== 'tank' && eq.type !== 'mixingTank' && eq.type !== 'chemicalTank')) return state;
     const tank = eq as TankData;
     const nextEquipments = { ...state.equipments, [id]: { ...tank, aerationRunning: !tank.aerationRunning } };
-    return { equipments: nextEquipments, overallStatus: computeOverallStatus(nextEquipments) };
+    return {
+      equipments: nextEquipments,
+      overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+    };
   }),
 
   toggleScraper: (id) => set((state) => {
@@ -517,7 +729,33 @@ export const useScadaStore = create<ScadaState>((set) => ({
     if (!eq || (eq.type !== 'tank' && eq.type !== 'mixingTank' && eq.type !== 'chemicalTank')) return state;
     const tank = eq as TankData;
     const nextEquipments = { ...state.equipments, [id]: { ...tank, scraperRunning: !tank.scraperRunning } };
-    return { equipments: nextEquipments, overallStatus: computeOverallStatus(nextEquipments) };
+    return {
+      equipments: nextEquipments,
+      overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+    };
+  }),
+
+  toggleValve: (id) => set((state) => {
+    const eq = state.equipments[id];
+    if (!eq || eq.type !== 'valve') return state;
+    const valve = eq as ValveData;
+    // Valve3D renders the hand-wheel angle and status lamp from openingPercent,
+    // so we flip THAT (not just runStatus) for visible feedback. Manual toggle
+    // also marks the valve as 'manual' so operators see it left the auto regime.
+    const nowOpen = valve.openingPercent <= 0;
+    const nextEq: ValveData = {
+      ...valve,
+      openingPercent: nowOpen ? 100 : 0,
+      mode: 'manual',
+      runStatus: nowOpen ? 'running' : 'stopped',
+    };
+    const nextEquipments = { ...state.equipments, [id]: nextEq };
+    return {
+      equipments: nextEquipments,
+      overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+    };
   }),
 
   // Data ingestion API
@@ -547,6 +785,7 @@ export const useScadaStore = create<ScadaState>((set) => ({
       equipments: nextEquipments,
       alarms,
       overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
     };
   }),
 
@@ -566,6 +805,7 @@ export const useScadaStore = create<ScadaState>((set) => ({
       equipments: interlocked,
       alarms,
       overallStatus: computeOverallStatus(interlocked),
+      systemStatuses: computeSystemStatuses(interlocked, state.pureWaterPlc, state.pureWaterPlcConnection),
     };
   }),
 
@@ -575,22 +815,117 @@ export const useScadaStore = create<ScadaState>((set) => ({
     totalPower: power,
   }),
 
-  setDemoMode: (enabled) => set((state) => {
-    if (!enabled) return { demoMode: false };
+  ingestPureWaterPlcTelemetry: (telemetry) => set((state) => {
+    const pureWaterPlc = normalizePureWaterPlcTelemetry(telemetry, state.pureWaterPlc);
+    const pureWaterPlcConnection = getPureWaterPlcConnectionInfo(pureWaterPlc);
+    const patches = pureWaterEquipmentPatchesFromPlc(pureWaterPlc, state.equipments);
+    const nextEquipments = { ...state.equipments };
+
+    for (const [id, patch] of Object.entries(patches)) {
+      const previous = nextEquipments[id];
+      if (!previous) continue;
+      nextEquipments[id] = {
+        ...previous,
+        ...patch,
+        id: previous.id,
+        type: previous.type,
+      } as EquipmentData;
+    }
+
+    const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, nextEquipments);
+    let alarms = applyReturnToNormal(
+      [...newAlarms, ...state.alarms].slice(0, 50),
+      clearedAlarmIds,
+    );
+    alarms = reconcilePureWaterPlcAlarms(
+      alarms,
+      state.pureWaterPlc,
+      pureWaterPlc,
+      pureWaterPlcConnection,
+    );
+
     return {
-      demoMode: true,
-      ...applyDemoSnapshot(state, state.currentScenarioId, state.demoTick + 1),
+      // A real pure-water PLC frame must never be overwritten by the pure-water
+      // demo tick, but it must not stop the independent wastewater demo source.
+      pureWaterDemoMode: false,
+      pureWaterPlc,
+      pureWaterPlcConnection,
+      equipments: nextEquipments,
+      alarms,
+      overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, pureWaterPlc, pureWaterPlcConnection),
     };
   }),
 
-  setDemoScenario: (scenarioId) => set((state) => ({
-    demoMode: true,
-    ...applyDemoSnapshot(state, scenarioId, state.demoTick + 1),
-  })),
+  refreshPureWaterPlcConnection: (now = Date.now()) => set((state) => {
+    const next = getPureWaterPlcConnectionInfo(state.pureWaterPlc, now);
+    const previous = state.pureWaterPlcConnection;
+    const previousAgeSecond = previous.ageMs === null ? null : Math.floor(previous.ageMs / 1000);
+    const nextAgeSecond = next.ageMs === null ? null : Math.floor(next.ageMs / 1000);
+    if (
+      previous.state === next.state
+      && previousAgeSecond === nextAgeSecond
+      && previous.lastReceivedAt === next.lastReceivedAt
+    ) {
+      return state;
+    }
+    return {
+      pureWaterPlcConnection: next,
+      systemStatuses: computeSystemStatuses(state.equipments, state.pureWaterPlc, next),
+    };
+  }),
+
+  setDemoMode: (enabled) => set((state) => {
+    if (!enabled) {
+      return { demoMode: false };
+    }
+    const targets = { wastewater: true, purewater: state.pureWaterDemoMode };
+    const tick = Math.max(state.demoTick, targets.purewater ? state.pureWaterDemoTick : 0) + 1;
+    return {
+      demoMode: true,
+      ...applyDemoSnapshot(state, state.currentScenarioId, tick, targets),
+    };
+  }),
+
+  setPureWaterDemoMode: (enabled) => set((state) => {
+    if (!enabled) {
+      const pureWaterPlc = state.pureWaterPlc.source === 'demo'
+        ? markPureWaterPlcOffline(state.pureWaterPlc)
+        : state.pureWaterPlc;
+      const pureWaterPlcConnection = getPureWaterPlcConnectionInfo(pureWaterPlc);
+      return {
+        pureWaterDemoMode: false,
+        pureWaterPlc,
+        pureWaterPlcConnection,
+        systemStatuses: computeSystemStatuses(state.equipments, pureWaterPlc, pureWaterPlcConnection),
+      };
+    }
+
+    const targets = { wastewater: state.demoMode, purewater: true };
+    const tick = Math.max(targets.wastewater ? state.demoTick : 0, state.pureWaterDemoTick) + 1;
+    return {
+      pureWaterDemoMode: true,
+      ...applyDemoSnapshot(state, state.currentScenarioId, tick, targets),
+    };
+  }),
+
+  setDemoScenario: (scenarioId) => set((state) => {
+    const targets = { wastewater: true, purewater: state.pureWaterDemoMode };
+    const tick = Math.max(state.demoTick, targets.purewater ? state.pureWaterDemoTick : 0) + 1;
+    return {
+      demoMode: true,
+      ...applyDemoSnapshot(state, scenarioId, tick, targets),
+    };
+  }),
 
   applyDemoTick: () => set((state) => {
-    if (!state.demoMode) return state;
-    return applyDemoSnapshot(state, state.currentScenarioId, state.demoTick + 1);
+    if (!state.demoMode && !state.pureWaterDemoMode) return state;
+    const targets = { wastewater: state.demoMode, purewater: state.pureWaterDemoMode };
+    const tick = Math.max(
+      targets.wastewater ? state.demoTick : 0,
+      targets.purewater ? state.pureWaterDemoTick : 0,
+    ) + 1;
+    return applyDemoSnapshot(state, state.currentScenarioId, tick, targets);
   }),
 
   activeInspectionEquipmentId: null,

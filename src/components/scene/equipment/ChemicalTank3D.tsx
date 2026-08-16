@@ -6,6 +6,7 @@ import { FloatingPoolLabel3D } from '../shared/FloatingPoolLabel3D';
 import { Materials } from '../shared/Materials';
 import { WaterShader, updateWaterLighting } from '../shared/WaterShader';
 import { useScadaStore, type TankData } from '../../../store/useScadaStore';
+import { isLevelMonitoredTank, isPureWaterEquipment } from '../../../store/equipmentUtils';
 
 interface ChemicalTank3DProps {
   id: string;
@@ -93,6 +94,7 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
 }) => {
   const [radius, height] = size;
   const tankData = useScadaStore((state) => state.equipments[id] as TankData);
+  const pureWaterConnectionState = useScadaStore((state) => state.pureWaterPlcConnection.state);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const [hovered, setHovered] = React.useState(false);
@@ -131,13 +133,20 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
     fragmentShader: WaterShader.fragmentShader,
   }), [liquidColor, liquidEmissive, tankData?.agitatorRunning]);
 
+  const hasContinuousLevelPoint = isLevelMonitoredTank(id);
+  const pureWaterLevelIsCurrent = pureWaterConnectionState === 'live' || pureWaterConnectionState === 'demo';
+  const showMeasuredLevel = hasContinuousLevelPoint
+    && (!isPureWaterEquipment(id) || pureWaterLevelIsCurrent);
+
   useFrame((state, delta) => {
     if (!tankData) return;
 
-    const fillPct = Math.min(1, Math.max(0, tankData.levelValue / tankData.highHigh));
-    const targetHeight = Math.max(0.1, height * fillPct * 0.86);
+    if (liquidRef.current) liquidRef.current.visible = showMeasuredLevel;
+    if (vortexGroupRef.current) vortexGroupRef.current.visible = showMeasuredLevel;
 
-    if (liquidRef.current) {
+    if (showMeasuredLevel && liquidRef.current) {
+      const fillPct = Math.min(1, Math.max(0, tankData.levelValue / tankData.highHigh));
+      const targetHeight = Math.max(0.1, height * fillPct * 0.86);
       const current = liquidRef.current.scale.y * height;
       const next = THREE.MathUtils.lerp(current, targetHeight, 0.12);
       liquidRef.current.scale.y = next / height;
@@ -207,13 +216,13 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
       {/* Smooth one-piece PE tank wall. No external circular bands. */}
 
       {/* Liquid volume */}
-      <mesh ref={liquidRef} position={[0, -height / 2, 0]} renderOrder={1}>
+      <mesh ref={liquidRef} visible={showMeasuredLevel} position={[0, -height / 2, 0]} renderOrder={1}>
         <cylinderGeometry args={[innerR, innerR, height, 36, 8, true]} />
         <shaderMaterial ref={waterMaterialRef} args={[shaderArgs]} transparent depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Liquid surface / vortex */}
-      <group ref={vortexGroupRef} position={[0, -height / 2 + 0.5, 0]} userData={{ bakeExclude: true }}>
+      <group ref={vortexGroupRef} visible={showMeasuredLevel} position={[0, -height / 2 + 0.5, 0]} userData={{ bakeExclude: true }}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
           <circleGeometry args={[innerR * 0.98, 48]} />
           <meshStandardMaterial color={liquidColor} transparent opacity={0.5} roughness={0.2} metalness={0.02} depthWrite={false} />
@@ -233,6 +242,7 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
       </group>
 
       {/* External level tube + scale, instead of cage-like tank ribs */}
+      {hasContinuousLevelPoint && (
       <group position={[-radius - 0.045, 0, radius * 0.18]}>
         <mesh castShadow>
           <cylinderGeometry args={[0.012, 0.012, gaugeHeight, 10]} />
@@ -251,6 +261,7 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
           </mesh>
         ))}
       </group>
+      )}
 
       {/* Front identification plate */}
       <group position={[0, labelY, radius + 0.027]}>

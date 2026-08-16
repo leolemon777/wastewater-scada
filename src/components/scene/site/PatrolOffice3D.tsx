@@ -23,15 +23,16 @@ const OfficeStatusPanel: React.FC<{ side: 'rear' | 'east' | 'west' }> = ({ side 
   const equipments = useScadaStore((s) => s.equipments);
   const patrolLogs = useScadaStore((s) => s.patrolLogs);
 
-  const unacked = alarms.filter((a) => !a.acknowledged).length;
+  const wastewaterAlarms = alarms.filter((alarm) => alarm.system === 'wastewater');
+  const unacked = wastewaterAlarms.filter((alarm) => !alarm.acknowledged).length;
   const onlineCount = useMemo(
     () =>
       Object.values(equipments).filter(
-        (equipment) => 'runStatus' in equipment && equipment.runStatus === 'running',
+        (equipment) => !equipment.id.startsWith('pw-') && 'runStatus' in equipment && equipment.runStatus === 'running',
       ).length,
     [equipments],
   );
-  const totalCount = Object.keys(equipments).length;
+  const totalCount = Object.values(equipments).filter((equipment) => !equipment.id.startsWith('pw-')).length;
   const ph1 = getTank(equipments, 'tk-ph1')?.pH;
   const clarifierLevel = getTank(equipments, 'tk-clarifier')?.levelValue;
 

@@ -2,12 +2,12 @@
  * 纯水(二级 RO)工艺布局 — 室外三组团布置,世界坐标。
  *
  * 按功能分成三个紧凑组团,首尾相接、水流短捷,不再散兵线:
- *   北排(一级线 z=-9,东→西):原水箱 → 原水泵 → 保安① → 碳柱
- *     → 一级进水阀 → 保安② → [阻垢剂] → R01泵+一级膜(集成撬) → R01水箱
+ *   北排(一级线 z=-9,东→西):原水箱 → 原水泵A/B → 保安① → 碳柱
+ *     → 一级进水阀 → 保安② → [阻垢剂] → R01泵A/B+一级膜(集成撬) → R01水箱
  *   南排(二级线 z=+9,西→东):R01水箱 → 二级进水阀 → R02泵A/B
  *     → [NaOH] → 二级膜 → R02水箱 → 供水泵A/B → 用水点(东)
  *
- * 集成撬:R01泵紧贴一级膜、R02泵A/B 并贴、供水泵A/B 并贴,各自共用底座。
+ * 集成撬:原水/R01/R02/供水泵均按 A/B 双泵并贴,各自共用底座。
  * 第一版不做浓水管;压力/流量/电导率测点预留。
  *
  * 区域占地约 50(x) × 36(z),设备间距与检修通道较首版加宽。
@@ -36,8 +36,10 @@ export const PW_TANKS = {
 
 /* ── 泵(R01/供水朝东吸入,R02朝北吸入) ────────────────────────────── */
 export const PW_PUMPS = {
-  raw: { id: 'pw-p-raw', position: [-64.2, PW_FLOOR_Y, PW_STAGE1_Z] as Point, rotationY: -Math.PI / 2 },
-  ro1: { id: 'pw-p-ro1', position: [-78.9, PW_FLOOR_Y, PW_STAGE1_Z] as Point, rotationY: -Math.PI / 2 },
+  rawA: { id: 'pw-p-raw-1', position: [-64.2, PW_FLOOR_Y, PW_STAGE1_Z - 1.1] as Point, rotationY: -Math.PI / 2 },
+  rawB: { id: 'pw-p-raw-2', position: [-64.2, PW_FLOOR_Y, PW_STAGE1_Z + 1.1] as Point, rotationY: -Math.PI / 2 },
+  ro1A: { id: 'pw-p-ro1-1', position: [-78.9, PW_FLOOR_Y, PW_STAGE1_Z - 1.1] as Point, rotationY: -Math.PI / 2 },
+  ro1B: { id: 'pw-p-ro1-2', position: [-78.9, PW_FLOOR_Y, PW_STAGE1_Z + 1.1] as Point, rotationY: -Math.PI / 2 },
   ro2A: { id: 'pw-p-ro2-1', position: [-89.2, PW_FLOOR_Y, PW_STAGE2_Z] as Point, rotationY: 0 },
   ro2B: { id: 'pw-p-ro2-2', position: [-87.0, PW_FLOOR_Y, PW_STAGE2_Z] as Point, rotationY: 0 },
   supplyA: { id: 'pw-p-supply-1', position: [-71.5, PW_FLOOR_Y, PW_STAGE2_Z] as Point, rotationY: 0 },
@@ -62,6 +64,17 @@ export const PW_VALVES = {
   ro2Flush: { id: 'pw-v-ro2-flush', position: [-85.5, 1.5, PW_STAGE2_Z - 3.7] as Point, rotation: [0, Math.PI / 2, 0] as Point, scale: 0.35 },
 } as const;
 
+/* ── 配电/控制柜(落地,贴西墙内侧,正面朝东) ──────────────────────── */
+// 柜体深 0.42,背面到中心 DISTRIBUTION_CABINET_BACK_OFFSET=0.21;
+// 西墙 x=-93.5 + 半墙厚 0.09 + 背面间隙 0.21 → 中心 x≈-93.0
+// 正面朝东(+X): rotationY = +π/2(柜门朝室内)
+// y=0:柜体自带底座从 y≈0 起算,与 PW_FLOOR_Y 视觉地面齐平
+// 编号顺延主厂区(1#/2#/4#)与加药车间(3#):5# 服务一级线,6# 服务二级线
+export const PW_CABINETS = {
+  ro1: { position: [-93.0, 0, PW_STAGE1_Z + 4.0] as Point, rotationY: Math.PI / 2, name: '5# 一级 RO 控制柜' },
+  ro2: { position: [-93.0, 0, PW_STAGE2_Z - 4.0] as Point, rotationY: Math.PI / 2, name: '6# 二级 RO 控制柜' },
+} as const;
+
 /* ── 加药计量泵 ──────────────────────────────────────────────────── */
 export const PW_DOSE_PUMPS = {
   antiscalant: { id: 'pw-p-dose-as', position: [-76.7, PW_FLOOR_Y, PW_STAGE1_Z + 2.8] as Point },
@@ -71,6 +84,8 @@ export const PW_DOSE_PUMPS = {
 /* ── 管路标高(水箱加高到 3.6 后顶部 Y 同步) ─────────────────────── */
 export const PW_SUCTION_HEADER_Y = 0.46;
 export const PW_DISCHARGE_HEADER_Y = 1.5;
+/** 一级线(原水/R01)双泵排放汇管标高，区别于二级线较高的 PW_DISCHARGE_HEADER_Y。 */
+export const PW_STAGE1_DISCHARGE_Y = 1.35;
 export const PW_PERMEATE_HIGH_Y = 3.85;
 /** 汇管死端外延余量（对齐污水区 PUMP_HEADER_END_CLEARANCE 契约 0.10–0.20）。 */
 export const PW_HEADER_END_CLEARANCE = 0.13;

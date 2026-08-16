@@ -6,7 +6,7 @@
  *   2. 每台 PureWaterPump3D 必须配套 PumpPipeFlanges3D + 2 个 PumpPipeReducer3D
  *      （吸入/排出大小头过渡，消除"管子戳喷嘴"虚空感）
  *   3. 双泵汇管立管必须纯竖直（face 与 header 共 X/Z，只变 Y）
- *   4. ConvergingHeader3D 在 PureWaterSection 必须 ≥ 4（R02/供水的吸入+排放）
+ *   4. ConvergingHeader3D 在 PureWaterSection 必须 ≥ 8（四组 A/B 泵的吸入+排放）
  *
  * 这是纯水区专属契约，与污水区 check-pipe-physical-connections.mjs 并列。
  */
@@ -22,9 +22,9 @@ const section = read('src/components/scene/sections/PureWaterSection.tsx');
 
 // 1. 撬装底座：必须有 SkidFrame3D，且不再用通长 EquipmentPad3D 假装撬块
 const skidCount = (section.match(/<SkidFrame3D\b/g) ?? []).length;
-if (skidCount < 6) {
+if (skidCount < 7) {
   issues.push(
-    `Expected ≥6 SkidFrame3D mounts (raw/ro1/ro2 tank + ro1 pump + ro2 dual + supply dual), found ${skidCount}`,
+    `Expected ≥7 SkidFrame3D mounts (raw/RO1 A-B pairs, RO2/supply pairs, and three tanks), found ${skidCount}`,
   );
 }
 // 通长 pad（size 第一维 ≥ 20）是"假装撬块"的反模式
@@ -54,11 +54,11 @@ if (reducerCount < pumpCount * 2) {
   );
 }
 
-// 3. ConvergingHeader3D 数量（R02 吸入/排放 + 供水吸入/排放 = 4）
+// 3. ConvergingHeader3D 数量（原水/RO1/R02/供水四组 A/B 泵，各有吸入+排放 = 8）
 const headerCount = (section.match(/<ConvergingHeader3D\b/g) ?? []).length;
-if (headerCount < 4) {
+if (headerCount < 8) {
   issues.push(
-    `Expected ≥4 ConvergingHeader3D in PureWaterSection (ro2 suction/discharge + supply suction/discharge), found ${headerCount}`,
+    `Expected ≥8 ConvergingHeader3D in PureWaterSection (four A/B pump groups × suction/discharge), found ${headerCount}`,
   );
 }
 

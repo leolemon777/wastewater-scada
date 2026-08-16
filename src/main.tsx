@@ -6,6 +6,7 @@ import './styles/index.css';
 import './styles/scada-hmi-theme.css';
 import './styles/scada-shell.css';
 import './styles/scada-statusbar-refresh.css';
+import './styles/pure-water-cabinet.css';
 
 // Expose the store for perf diagnostics (draw-call measurement scripts).
 if (typeof window !== 'undefined') {

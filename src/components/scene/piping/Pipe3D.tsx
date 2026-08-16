@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useContext, useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { PIPE_COLORS } from './pipeRouting';
+import { PipeAnimationContext } from './PipeAnimationContext';
 
 interface PipeLogisticsProps {
   points: [number, number, number][];
@@ -360,6 +361,8 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   startOverlap,
   endOverlap,
 }) => {
+  const animationGateOpen = useContext(PipeAnimationContext);
+  const shouldAnimate = animated && animationGateOpen;
   const jointPoints = useMemo(
     () => normalizePipePolyline(points),
     [points],
@@ -433,7 +436,7 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
                   : routeColor;
 
   const flowTexture = useMemo(() => {
-    if (flowType === 'none' || !animated) return null;
+    if (flowType === 'none' || !shouldAnimate) return null;
 
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -458,7 +461,7 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(Math.max(pathLength * 2.5, 2), 1);
     return tex;
-  }, [animated, flowType, pathLength]);
+  }, [flowType, pathLength, shouldAnimate]);
 
   const flowMaterial = useMemo(() => {
     if (!flowTexture) return null;
@@ -485,7 +488,7 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   }, [flowTexture]);
 
   useFrame((_, delta) => {
-    if (animated && texRef.current) {
+    if (shouldAnimate && texRef.current) {
       const speed = flowType === 'sludge' ? 0.35 : flowType === 'chemical' ? 0.75 : 0.95;
       texRef.current.offset.x -= delta * speed * (speedMultiplier ?? 1.0);
     }

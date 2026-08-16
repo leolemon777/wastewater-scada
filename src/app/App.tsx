@@ -11,6 +11,7 @@ const SCADAScene = lazy(() =>
 );
 import { OrbitControlsFixed } from '../components/canvas/OrbitControlsFixed';
 import { OverlayUI } from '../components/ui/Overlay';
+import { createScadaRealtimeClient } from '../services/scadaRealtimeClient';
 import { useScadaStore } from '../store/useScadaStore';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -97,7 +98,9 @@ function App() {
   const canvasShellRef = useRef<HTMLDivElement>(null!);
   const currentView = useScadaStore((state) => state.currentView);
   const demoMode = useScadaStore((state) => state.demoMode);
+  const pureWaterDemoMode = useScadaStore((state) => state.pureWaterDemoMode);
   const applyDemoTick = useScadaStore((state) => state.applyDemoTick);
+  const refreshPureWaterPlcConnection = useScadaStore((state) => state.refreshPureWaterPlcConnection);
   const [sceneReady, setSceneReady] = useState(false);
   const performanceMode = useScadaStore((state) => state.performanceMode);
   const canvasDpr = getCanvasDpr(performanceMode);
@@ -110,6 +113,16 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const client = createScadaRealtimeClient({
+      onPureWaterTelemetry: (telemetry) => {
+        useScadaStore.getState().ingestPureWaterPlcTelemetry(telemetry);
+      },
+    });
+    client.start();
+    return () => client.stop();
+  }, []);
+
   // Never block overlay UI indefinitely if WebGL init stalls (perf mode / GPU issues).
   useEffect(() => {
     const fallback = window.setTimeout(() => setSceneReady(true), 12000);
@@ -117,11 +130,20 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!demoMode) return;
+    if (!demoMode && !pureWaterDemoMode) return;
     applyDemoTick();
     const timer = window.setInterval(applyDemoTick, 3000);
     return () => window.clearInterval(timer);
-  }, [applyDemoTick, demoMode]);
+  }, [applyDemoTick, demoMode, pureWaterDemoMode]);
+
+  // Independent PLC watchdog: link state can become stale even when no new
+  // frame arrives, so freshness must advance on wall-clock time rather than on
+  // telemetry callbacks alone.
+  useEffect(() => {
+    refreshPureWaterPlcConnection();
+    const timer = window.setInterval(refreshPureWaterPlcConnection, 1000);
+    return () => window.clearInterval(timer);
+  }, [refreshPureWaterPlcConnection]);
 
   useEffect(() => {
     const updateDensity = () => {

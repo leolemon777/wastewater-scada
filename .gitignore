@@ -10,9 +10,12 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+**/bin/
+**/obj/
 *.local
 *.local.md
 *.local.txt
+**/appsettings.local.json
 
 # 构建产物
 release
