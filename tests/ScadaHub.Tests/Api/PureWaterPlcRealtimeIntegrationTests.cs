@@ -47,8 +47,10 @@ public sealed class PureWaterPlcRealtimeIntegrationTests
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddSingleton<IOptions<PureWaterPlcOptions>>(options);
+        builder.Services.AddSingleton<IOptions<M100Options>>(Options.Create(new M100Options()));
         builder.Services.AddSingleton<IScadaClock>(clock);
         builder.Services.AddSingleton<PureWaterPlcStateCache>();
+        builder.Services.AddSingleton<M100StateCache>();
         builder.Services.AddSingleton<IMitsubishiPlcTransportFactory>(
             new QueueMitsubishiPlcTransportFactory(first, second));
         builder.Services.AddSingleton<PureWaterPlcReader>();
@@ -107,7 +109,15 @@ public sealed class PureWaterPlcRealtimeIntegrationTests
             timeout.Token);
         Assert.Equal(HttpStatusCode.MethodNotAllowed, commandResponse.StatusCode);
 
-        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "test complete", timeout.Token);
+        try
+        {
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "test complete", timeout.Token);
+        }
+        catch (WebSocketException)
+        {
+            // 并行测试下服务端可能先完成关闭，忽略关闭握手竞态。
+        }
+
         await collector.DisposeAsync();
         await app.StopAsync(timeout.Token);
     }

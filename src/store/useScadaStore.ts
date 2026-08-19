@@ -14,6 +14,15 @@ import {
   type PureWaterPlcSnapshot,
   type PureWaterPlcTelemetry,
 } from './pureWaterPlc';
+import {
+  getM100ConnectionInfo,
+  m100EquipmentPatches,
+  M100_DAF_SOURCE_ID,
+  M100_UNDERGROUND_SOURCE_ID,
+  type M100ConnectionInfo,
+  type M100SourceId,
+  type M100TelemetryFrame,
+} from './m100Realtime';
 
 export type AlarmState = 'none' | 'warning' | 'critical';
 export type EquipmentType = 'pump' | 'tank' | 'mixingTank' | 'chemicalTank' | 'flowMeter' | 'valve' | 'screwPress' | 'outfall' | 'roUnit';
@@ -166,6 +175,14 @@ interface ScadaState {
   pureWaterPlcConnection: PureWaterPlcConnectionInfo;
   ingestPureWaterPlcTelemetry: (telemetry: PureWaterPlcTelemetry) => void;
   refreshPureWaterPlcConnection: (now?: number) => void;
+
+  /** Read-only M100 gateway telemetry (气浮 / 地下池), driven by ScadaHub WebSocket. */
+  m100Realtime: Partial<Record<M100SourceId, M100TelemetryFrame>>;
+  m100Connections: Record<M100SourceId, M100ConnectionInfo>;
+  /** Equipment ids taken over by live M100 frames; the wastewater demo tick must not overwrite them. */
+  m100LiveEquipmentIds: string[];
+  ingestM100Telemetry: (sourceId: M100SourceId, telemetry: M100TelemetryFrame) => void;
+  refreshM100Connections: (now?: number) => void;
 
   /** Wastewater demo source. Kept as `demoMode` for the existing dashboard API. */
   demoMode: boolean;
@@ -436,6 +453,8 @@ function applyDemoSnapshot(
   for (const [id, patch] of Object.entries(snapshot.equipments)) {
     const belongsToPureWater = id.startsWith('pw-');
     if (belongsToPureWater ? !targets.purewater : !targets.wastewater) continue;
+    // Live M100 frames own these ids until reload; demo must not overwrite them.
+    if (state.m100LiveEquipmentIds.includes(id)) continue;
 
     const prev = nextEquipments[id];
     if (!prev) continue;
@@ -639,6 +658,12 @@ export const useScadaStore = create<ScadaState>((set) => ({
   pureWaterDemoTick: 0,
   pureWaterPlc: createEmptyPureWaterPlcSnapshot(),
   pureWaterPlcConnection: getPureWaterPlcConnectionInfo(createEmptyPureWaterPlcSnapshot()),
+  m100Realtime: {},
+  m100Connections: {
+    [M100_DAF_SOURCE_ID]: getM100ConnectionInfo(undefined),
+    [M100_UNDERGROUND_SOURCE_ID]: getM100ConnectionInfo(undefined),
+  },
+  m100LiveEquipmentIds: [],
   performanceMode: false,
   scenePaletteMode: 'bright',
   setPerformanceMode: (enabled) => set({ performanceMode: enabled }),
@@ -873,6 +898,70 @@ export const useScadaStore = create<ScadaState>((set) => ({
       pureWaterPlcConnection: next,
       systemStatuses: computeSystemStatuses(state.equipments, state.pureWaterPlc, next),
     };
+  }),
+
+  ingestM100Telemetry: (sourceId, telemetry) => set((state) => {
+    if (telemetry.enabled === false) return state;
+
+    // 断连时保持最后一帧（hold），不回退 demo 假数据。
+    const frame: M100TelemetryFrame = telemetry.connected
+      ? telemetry
+      : { enabled: true, ...state.m100Realtime[sourceId], connected: false };
+    const m100Realtime = { ...state.m100Realtime, [sourceId]: frame };
+    const connection = getM100ConnectionInfo(frame);
+    const m100Connections = { ...state.m100Connections, [sourceId]: connection };
+    const nextEquipments = { ...state.equipments };
+    const m100LiveEquipmentIds = new Set(state.m100LiveEquipmentIds);
+
+    if (telemetry.connected) {
+      const patches = m100EquipmentPatches(sourceId, frame);
+      for (const [id, patch] of Object.entries(patches)) {
+        const previous = nextEquipments[id];
+        if (!previous || Object.keys(patch).length === 0) continue;
+        m100LiveEquipmentIds.add(id);
+        nextEquipments[id] = {
+          ...previous,
+          ...patch,
+          id: previous.id,
+          type: previous.type,
+        } as EquipmentData;
+      }
+    }
+
+    const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, nextEquipments);
+    const alarms = applyReturnToNormal(
+      [...newAlarms, ...state.alarms].slice(0, 50),
+      clearedAlarmIds,
+    );
+
+    return {
+      m100Realtime,
+      m100Connections,
+      m100LiveEquipmentIds: [...m100LiveEquipmentIds],
+      equipments: nextEquipments,
+      alarms,
+      overallStatus: computeOverallStatus(nextEquipments),
+      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+    };
+  }),
+
+  refreshM100Connections: (now = Date.now()) => set((state) => {
+    let changed = false;
+    const m100Connections = { ...state.m100Connections };
+    for (const sourceId of [M100_DAF_SOURCE_ID, M100_UNDERGROUND_SOURCE_ID] as const) {
+      const next = getM100ConnectionInfo(state.m100Realtime[sourceId], now);
+      const previous = m100Connections[sourceId];
+      const previousAgeSecond = previous.ageMs === null ? null : Math.floor(previous.ageMs / 1000);
+      const nextAgeSecond = next.ageMs === null ? null : Math.floor(next.ageMs / 1000);
+      if (previous.state === next.state
+        && previousAgeSecond === nextAgeSecond
+        && previous.lastReceivedAt === next.lastReceivedAt) {
+        continue;
+      }
+      m100Connections[sourceId] = next;
+      changed = true;
+    }
+    return changed ? { m100Connections } : state;
   }),
 
   setDemoMode: (enabled) => set((state) => {

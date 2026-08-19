@@ -1,4 +1,11 @@
 import type { PureWaterPlcTelemetry } from '../store/pureWaterPlc';
+import {
+  M100_SNAPSHOT_MESSAGE_TYPE,
+  M100_SOURCE_IDS,
+  type M100SourceId,
+  type M100TelemetryFrame,
+  normalizeM100Telemetry,
+} from '../store/m100Realtime';
 
 const PURE_WATER_SOURCE_ID = 'purewater-plc-01';
 const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10_000, 15_000] as const;
@@ -12,9 +19,15 @@ interface ScadaEnvelope {
   payload: unknown;
 }
 
+export interface M100DecodedMessage {
+  sourceId: M100SourceId;
+  telemetry: M100TelemetryFrame;
+}
+
 export interface ScadaRealtimeClientOptions {
   url?: string;
   onPureWaterTelemetry: (telemetry: PureWaterPlcTelemetry) => void;
+  onM100Telemetry?: (message: M100DecodedMessage) => void;
 }
 
 export interface ScadaRealtimeClient {
@@ -74,7 +87,7 @@ const parseEnvelope = (raw: string): ScadaEnvelope | null => {
   if (!isObject(parsed)
     || parsed.schema !== 'scada.v1'
     || typeof parsed.messageType !== 'string'
-    || parsed.sourceId !== PURE_WATER_SOURCE_ID) {
+    || typeof parsed.sourceId !== 'string') {
     return null;
   }
 
@@ -84,7 +97,7 @@ const parseEnvelope = (raw: string): ScadaEnvelope | null => {
 /** Convert a reviewed Hub event into the existing Zustand ingestion payload. */
 export function decodeScadaRealtimeMessage(raw: string): PureWaterPlcTelemetry | null {
   const envelope = parseEnvelope(raw);
-  if (!envelope || !isObject(envelope.payload)) return null;
+  if (!envelope || envelope.sourceId !== PURE_WATER_SOURCE_ID || !isObject(envelope.payload)) return null;
 
   const payload = envelope.payload;
   const enabled = typeof payload.enabled === 'boolean' ? payload.enabled : true;
@@ -123,6 +136,30 @@ export function decodeScadaRealtimeMessage(raw: string): PureWaterPlcTelemetry |
   };
 }
 
+/** 解码 M100 网关（气浮/地下池）信封；不匹配返回 null。 */
+export function decodeM100RealtimeMessage(raw: string): M100DecodedMessage | null {
+  const envelope = parseEnvelope(raw);
+  if (!envelope || !M100_SOURCE_IDS.includes(envelope.sourceId) || !isObject(envelope.payload)) return null;
+
+  const payload = envelope.payload;
+  const enabled = typeof payload.enabled === 'boolean' ? payload.enabled : true;
+
+  if (envelope.messageType === 'source.status') {
+    if (payload.connected !== false) return null;
+    return {
+      sourceId: envelope.sourceId as M100SourceId,
+      telemetry: { enabled, connected: false },
+    };
+  }
+
+  if (envelope.messageType !== M100_SNAPSHOT_MESSAGE_TYPE) return null;
+
+  const telemetry = normalizeM100Telemetry(payload);
+  if (!telemetry || typeof payload.connected !== 'boolean') return null;
+
+  return { sourceId: envelope.sourceId as M100SourceId, telemetry };
+}
+
 export function getDefaultScadaHubWebSocketUrl(): string {
   const configured = import.meta.env.VITE_SCADA_HUB_WS_URL?.trim();
   return configured || 'ws://127.0.0.1:18080/ws/scada';
@@ -135,6 +172,8 @@ export function createScadaRealtimeClient(options: ScadaRealtimeClientOptions): 
   let stopped = true;
   let configuredSourceSeen = false;
   let disconnectReported = false;
+  const seenM100Sources = new Set<string>();
+  const m100DisconnectReported = new Set<string>();
 
   const clearReconnectTimer = () => {
     if (reconnectTimer !== null) {
@@ -148,6 +187,17 @@ export function createScadaRealtimeClient(options: ScadaRealtimeClientOptions): 
     configuredSourceSeen = true;
     disconnectReported = telemetry.connected === false;
     options.onPureWaterTelemetry(telemetry);
+  };
+
+  const reportM100Telemetry = (message: M100DecodedMessage) => {
+    if (message.telemetry.enabled === false) return;
+    seenM100Sources.add(message.sourceId);
+    if (message.telemetry.connected === false) {
+      m100DisconnectReported.add(message.sourceId);
+    } else {
+      m100DisconnectReported.delete(message.sourceId);
+    }
+    options.onM100Telemetry?.(message);
   };
 
   const scheduleReconnect = () => {
@@ -174,7 +224,12 @@ export function createScadaRealtimeClient(options: ScadaRealtimeClientOptions): 
       nextSocket.onmessage = (event) => {
         if (typeof event.data !== 'string') return;
         const telemetry = decodeScadaRealtimeMessage(event.data);
-        if (telemetry) reportTelemetry(telemetry);
+        if (telemetry) {
+          reportTelemetry(telemetry);
+          return;
+        }
+        const m100Message = decodeM100RealtimeMessage(event.data);
+        if (m100Message) reportM100Telemetry(m100Message);
       };
 
       nextSocket.onerror = () => {
@@ -186,6 +241,12 @@ export function createScadaRealtimeClient(options: ScadaRealtimeClientOptions): 
         if (!stopped && configuredSourceSeen && !disconnectReported) {
           disconnectReported = true;
           options.onPureWaterTelemetry({ connected: false });
+        }
+        for (const sourceId of seenM100Sources) {
+          if (!stopped && !m100DisconnectReported.has(sourceId)) {
+            m100DisconnectReported.add(sourceId);
+            options.onM100Telemetry?.({ sourceId: sourceId as M100SourceId, telemetry: { enabled: true, connected: false } });
+          }
         }
         scheduleReconnect();
       };

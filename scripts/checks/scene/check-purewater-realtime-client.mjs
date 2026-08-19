@@ -14,7 +14,19 @@ const { outputText } = ts.transpileModule(source, {
   fileName: sourcePath,
 });
 
-const moduleUrl = `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`;
+const m100StorePath = path.join(process.cwd(), 'src/store/m100Realtime.ts');
+const m100StoreSource = fs.readFileSync(m100StorePath, 'utf8');
+const m100Transpiled = ts.transpileModule(m100StoreSource, {
+  compilerOptions: {
+    module: ts.ModuleKind.ESNext,
+    target: ts.ScriptTarget.ES2022,
+    importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
+  },
+  fileName: m100StorePath,
+}).outputText;
+
+const m100Url = `data:text/javascript;base64,${Buffer.from(m100Transpiled).toString('base64')}`;
+const moduleUrl = `data:text/javascript;base64,${Buffer.from(outputText.replace("from '../store/m100Realtime'", `from '${m100Url}'`)).toString('base64')}`;
 const realtime = await import(moduleUrl);
 
 const live = realtime.decodeScadaRealtimeMessage(JSON.stringify({

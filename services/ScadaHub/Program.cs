@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using ScadaHub.Adapters.M100;
 using ScadaHub.Adapters.Mitsubishi;
 using ScadaHub.Api;
 using ScadaHub.Configuration;
@@ -15,6 +16,12 @@ builder.Services
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<PureWaterPlcOptions>, PureWaterPlcOptionsValidator>();
 
+builder.Services
+    .AddOptions<M100Options>()
+    .Bind(builder.Configuration.GetSection(M100Options.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<M100Options>, M100OptionsValidator>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("local-scada-ui", policy =>
@@ -30,9 +37,13 @@ builder.Services.AddSingleton<IScadaClock, SystemScadaClock>();
 builder.Services.AddSingleton<PureWaterPlcStateCache>();
 builder.Services.AddSingleton<IMitsubishiPlcTransportFactory, HslMitsubishiPlcTransportFactory>();
 builder.Services.AddSingleton<PureWaterPlcReader>();
+builder.Services.AddSingleton<M100StateCache>();
+builder.Services.AddSingleton<IM100HttpTransportFactory, HttpM100IOTransportFactory>();
 builder.Services.AddSingleton<IScadaRealtimePublisher, ScadaWebSocketPublisher>();
 builder.Services.AddSingleton<PureWaterPlcCollector>();
+builder.Services.AddSingleton<M100Collector>();
 builder.Services.AddHostedService<PureWaterPlcPollingService>();
+builder.Services.AddHostedService<M100PollingService>();
 
 var app = builder.Build();
 
@@ -42,6 +53,7 @@ app.UseWebSockets(new WebSocketOptions
     KeepAliveInterval = TimeSpan.FromSeconds(20),
 });
 app.MapPureWaterPlcEndpoints();
+app.MapM100Endpoints();
 
 app.Run();
 

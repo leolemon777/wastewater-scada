@@ -116,3 +116,31 @@
 - `npm warn Unknown env config "electron-mirror"`：来自全局 `.npmrc` 的错误配置（npm 不认 `electron-mirror` 这个 key，electron 要的是环境变量 `ELECTRON_MIRROR`）。现已无害，但每次 npm 命令仍弹出。如需消除，删除该 .npmrc 中的 `electron-mirror=` 行。
 - 6 个 npm audit 漏洞（剩余依赖，与本次清理无关），未处理。
 - `AGENTS.md` 第 93 行 "not a git repository" 已过时（现为 git 仓库），与本次无关，未改。
+
+---
+
+# 2026-08-19 M100 气浮/地下池只读接入 ScadaHub
+
+## 决策
+- 多设备架构：`M100:Devices[]` 数组而非单设备配置——首批接 `.31` 气浮 + `.8` 地下池两台，后续 `.30/.32/.33` 只加配置。
+- `Role`（daf/underground）驱动工程换算，映射集中 `M100PointMap`；AI 电流出 [4,20] 置 null + warning（故障电流不产错误工程值）。
+- messageType 统一 `m100.snapshot`，sourceId 区分设备（比 per-role messageType 更可扩展）；`sourceType=m100-http` 显式覆盖信封默认。
+- 失败复用 `PureWaterSourceStatusEvent`（字段完全通用），不新建 M100 专用 status 契约。
+- 前端 demo 互斥：`m100LiveEquipmentIds` 集合让 wastewater demo tick 跳过被真实帧接管的 `tk-daf`/`tk-intermediate`（纯水的 `pureWaterDemoMode` 管不到这两台）；断连 hold 最后一帧、不回退 demo（与纯水语义一致）。
+- 凭据走 `appsettings.local.json`（gitignore），git 内只有空占位。
+
+## 与规格的偏差
+- 无。接入路线图第 4 步"最小接口"按只读边界实现，写入路径完全未建立。
+
+## 验证
+- `dotnet test`：60/60（新增 22 项：Options 验证 11、Collector 8、ReadOnly 反射 3 组、真 Hub WebSocket 集成 1）。
+- `npm run check:scene`：38/38（新增 check-m100-realtime-client / check-m100-backend-readonly）。
+- `npm run build`、`npm run lint`：通过。
+- 真机冒烟：本机 local 配置启用后 `/api/m100/statuses` 两台 good；快照 `daf: do01/02=true, ph=4.987`、`underground: level=3.367m`，与手动 ioread 一致（液位 3.78→3.37m 实时变化）。
+- 顺带修复：纯水集成测试 WebSocket 关闭握手竞态（并行跑时服务端先关，catch WebSocketException）；两个纯水检查脚本的 data:URL import 重写扩展到 m100Realtime.ts。
+
+## 风险
+- ScadaWebSocketPublisher 构造签名变更（+M100StateCache）是破坏性改动，已同步集成测试；第三方若有手动 DI 需跟进。
+- 地下池液位在 AI1（07-02 为 AI2，现场接过线）；现场再动端子要同步 Role 换算映射与 `m100EquipmentPatches`。
+- 浮点换算断言用 3 位精度（4.826 而非四舍五入的 4.827），源于 (9.516-4)/16*14 的浮点表示，改公式时注意测试期望值。
+- M100 polling 的 FakeScadaClock 测试需手动 Advance 推进 due 调度（backoff 基于 NextDue 时间戳），新测试勿忘。

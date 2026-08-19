@@ -17,12 +17,13 @@ public static class PureWaterPlcEndpoints
 
         endpoints.MapGet(
             "/api/health",
-            (PureWaterPlcStateCache cache) => Results.Ok(new
+            (PureWaterPlcStateCache cache, M100StateCache m100Cache) => Results.Ok(new
             {
                 status = "ok",
                 service = "scada-hub",
                 readOnly = true,
                 pureWaterPlc = cache.GetStatus(),
+                m100 = m100Cache.GetStatuses(),
             }));
 
         endpoints.Map(

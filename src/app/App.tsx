@@ -118,6 +118,9 @@ function App() {
       onPureWaterTelemetry: (telemetry) => {
         useScadaStore.getState().ingestPureWaterPlcTelemetry(telemetry);
       },
+      onM100Telemetry: ({ sourceId, telemetry }) => {
+        useScadaStore.getState().ingestM100Telemetry(sourceId, telemetry);
+      },
     });
     client.start();
     return () => client.stop();
@@ -144,6 +147,16 @@ function App() {
     const timer = window.setInterval(refreshPureWaterPlcConnection, 1000);
     return () => window.clearInterval(timer);
   }, [refreshPureWaterPlcConnection]);
+
+  // M100 gateway watchdog (same wall-clock freshness rule as the PLC link).
+  useEffect(() => {
+    const refreshM100Connections = useScadaStore.getState().refreshM100Connections;
+    refreshM100Connections();
+    const timer = window.setInterval(() => {
+      useScadaStore.getState().refreshM100Connections();
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const updateDensity = () => {

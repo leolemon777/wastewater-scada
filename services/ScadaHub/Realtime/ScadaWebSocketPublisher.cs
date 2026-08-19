@@ -9,14 +9,17 @@ public sealed class ScadaWebSocketPublisher : IScadaRealtimePublisher, IAsyncDis
 {
     private readonly ConcurrentDictionary<Guid, ClientConnection> _clients = new();
     private readonly PureWaterPlcStateCache _stateCache;
+    private readonly M100StateCache _m100StateCache;
     private readonly ILogger<ScadaWebSocketPublisher> _logger;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
     public ScadaWebSocketPublisher(
         PureWaterPlcStateCache stateCache,
+        M100StateCache m100StateCache,
         ILogger<ScadaWebSocketPublisher> logger)
     {
         _stateCache = stateCache;
+        _m100StateCache = m100StateCache;
         _logger = logger;
     }
 
@@ -60,6 +63,13 @@ public sealed class ScadaWebSocketPublisher : IScadaRealtimePublisher, IAsyncDis
             var initial = _stateCache.GetSnapshotEnvelope();
             var initialPayload = JsonSerializer.SerializeToUtf8Bytes(initial, _jsonOptions);
             await connection.SendAsync(initialPayload, cancellationToken).ConfigureAwait(false);
+
+            foreach (var m100Envelope in _m100StateCache.GetAllSnapshotEnvelopes())
+            {
+                var m100Payload = JsonSerializer.SerializeToUtf8Bytes(m100Envelope, m100Envelope.GetType(), _jsonOptions);
+                await connection.SendAsync(m100Payload, cancellationToken).ConfigureAwait(false);
+            }
+
             await ReceiveUntilClosedAsync(socket, cancellationToken).ConfigureAwait(false);
         }
         finally
