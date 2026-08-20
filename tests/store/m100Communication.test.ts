@@ -71,18 +71,18 @@ describe('SPEC 10.2 M100 source-offline / stale', () => {
 
 describe('SPEC 10.2 tag-invalid（连续 2 帧）', () => {
   it('连续 2 帧 invalid -> warning；连续 2 个 good -> RTN', () => {
-    const seq = (n: number, ph: number | null) => ({ sourceEpoch: 'e1', eventSeq: n }) as const;
+    const seq = (n: number) => ({ sourceEpoch: 'e1', eventSeq: n }) as const;
     // 2 帧无效（4-20mA 故障电流场景，后端置 ph=null）
-    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame({ points: { ph: null as unknown as number } }), seq(1, null));
+    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame({ points: { ph: null as unknown as number } }), seq(1));
     expect(active(AlarmKeys.tagInvalid(DAF, 'tk-daf.pH'))).toBeUndefined(); // 第 1 帧不报警
-    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame({ points: { ph: null as unknown as number } }), seq(2, null));
+    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame({ points: { ph: null as unknown as number } }), seq(2));
     expect(active(AlarmKeys.tagInvalid(DAF, 'tk-daf.pH'))?.currentSeverity).toBe('warning');
 
     // 第 1 个 good：不 RTN
-    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame(), seq(3, 4.9));
+    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame(), seq(3));
     expect(active(AlarmKeys.tagInvalid(DAF, 'tk-daf.pH'))).toBeTruthy();
     // 第 2 个连续 good：RTN
-    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame(), seq(4, 4.9));
+    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame(), seq(4));
     expect(active(AlarmKeys.tagInvalid(DAF, 'tk-daf.pH'))).toBeUndefined();
   });
 });

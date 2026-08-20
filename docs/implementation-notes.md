@@ -272,3 +272,30 @@
 - Publisher 每客户端独立 drain task：8 客户端上限下线程占用可控；drain 异常路径已收敛（异常即 Dispose）。
 - HttpClient 每 dispose handler：设备数固定 2，无泄漏压力。
 - heartbeat 5s + 前端 15/30s 阈值：时钟依赖本机单调性可接受（SPEC 7.2 要求本地单调钟用于数据龄——Date.now 跨系统时钟回拨有小风险，首版接受）。
+
+---
+
+# 2026-08-20 WP5：单机发布机制、服务化和回滚
+
+## 决策
+- wwwroot 服务用 ContentRootPath/wwwroot 显式 FileProvider（publish 输出即 app/wwwroot）；目录不存在时跳过（dev/Vite 不受影响）。
+- Switch 的 manifest 校验在无 -WhatIf 时对目标版本全量 SHA-256（占位/真实包一致逻辑）；篡改冒烟证明拒绝路径。
+- junction 切换用 current.next 先建后验证再改名（同卷 NTFS rename 原子），失败分支恢复旧 junction——冒烟覆盖正常路径与篡改路径，失败注入路径未做（需停服务场景，现场演练补）。
+- Build 流水线把 check:secrets 纳入（SPEC 20 第 14 步的前置子集）；扫描器自引用问题以"模式拼接构造 + 自身豁免"修复，并保留命中能力自测。
+- x64 dotnet PATH 优先写入脚本（本机 x86 dotnet 无 SDK 抢先）。
+- packages.lock.json 入库（RestorePackagesWithLockFile），满足 SPEC 18 locked restore。
+
+## 与规格的偏差
+- 最终签核包、QA 便携工具包、全 Git history 凭据扫描、干净 Windows 演练、服务恢复策略真实演练：SPEC 明确归 WP7/Gate B——本包按"只实现发布机制和脚本，不产生最终签核包"完成。
+- 发布包 commit=unknown：SDK SourceRevisionId 未嵌入（git 信息在 publish 环境的传递待查）；WP7 生成最终包时必须与 version.json 对齐（已列入遗留）。
+- readonly-trial manifest（SPEC 4.3 profile JSON）与 mappingVersion 哈希未随包生成：随 WP7 定版时固化（当前 allowlist 已在代码/验证器层 fail-closed）。
+
+## 验证
+- Build-ReadonlyTrial.ps1 全绿：npm ci→check:scene 40/40→test:store 35/35→build→lint→check:secrets（232 文件 0 违规）→dotnet 69/69→publish self-contained→wwwroot→泄漏检查（无 appsettings.local.json）→version.json→manifest.sha256 349 文件。流水线 fail-fast 真实生效两次（lint 未用参数、扫描器自引用）。
+- 发布包进程冒烟：health/live+ready 200、sources/status 两台 ioSuppressed=true/configuredEnabled=false、GET / 返回 dist index.html、POST 405。
+- Switch 冒烟：WhatIf→切换 v0.1.0→回滚 v0.0.9→篡改 manifest 拒绝（哈希不匹配）。
+- hub:runtime 回归通过。
+
+## 风险
+- sc.exe 服务参数（delayed-auto/obj 虚拟账户/failure actions）未经真实安装验证——需管理员现场演练（WP7/Gate B）。
+- 回滚 60s 目标未计时验证（依赖服务启停时长，现场演练确认）。

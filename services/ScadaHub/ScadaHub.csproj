@@ -6,10 +6,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ScadaHub</RootNamespace>
     <AssemblyName>ScadaHub</AssemblyName>
+    <!-- SPEC-PLAN 18：NuGet locked restore（packages.lock.json 入库）。 -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="HslCommunication" Version="12.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
   </ItemGroup>
 
   <!-- 凭据隔离：现场 local 配置绝不进入构建/发布/测试产物（SPEC-PLAN 11.4）。 -->

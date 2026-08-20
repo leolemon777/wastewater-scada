@@ -36,13 +36,7 @@ public sealed class HubHeartbeatService : BackgroundService
         var assembly = typeof(Program).Assembly;
         var informational = assembly.GetName().Version?.ToString() ?? "0.0.0";
         _version = $"readonly-trial-{informational}";
-        // SourceRevisionId 由 .NET SDK 自动嵌入（SourceRevisionUrl 无效时为 commit 或空）。
-        var revision = typeof(Program).Assembly.GetCustomAttributesData()
-            .FirstOrDefault(data => string.Equals(data.AttributeType.Name, "AssemblyMetadataAttribute", StringComparison.Ordinal)
-                && data.ConstructorArguments.Count == 2
-                && string.Equals(data.ConstructorArguments[0].Value as string, "SourceRevisionId", StringComparison.Ordinal))
-            ?.ConstructorArguments[1].Value as string;
-        _commit = string.IsNullOrWhiteSpace(revision) ? "unknown" : revision!;
+        _commit = ScadaHub.SourceRevision.Commit;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

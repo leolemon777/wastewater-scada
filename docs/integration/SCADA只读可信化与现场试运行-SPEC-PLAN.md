@@ -1048,7 +1048,9 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 
 ### WP5：单机发布机制、服务化和回滚
 
-主要内容：
+> **状态（2026-08-20）：机制完成并冒烟通过（未产最终签核包，符合本包定义）。** Hub 同源提供 `app/wwwroot` 静态前端（SPA fallback）并补齐 SPEC 13 分层端点（`/api/health/live|ready`、`/api/sources/status`，含 WP4 遗留）；`UseWindowsService()` 服务化（服务名 WastewaterScadaReadonly，虚拟服务账户 + 恢复策略 5s/15s/停止）；NuGet locked restore（packages.lock.json 入库）。脚本齐备：Install/Uninstall（-WhatIf、ACL、示例配置无凭据）、Start/Stop、Switch（junction current.next 先建后切、-Version/-Rollback/-WhatIf、切换前 manifest SHA-256 全量校验、失败恢复旧 junction）；`Build-ReadonlyTrial.ps1` 流水线全绿跑通（工具核对→npm ci→check:scene→test:store→build→lint→check:secrets→dotnet test→publish self-contained win-x64→dist→wwwroot→local 泄漏检查→version.json→manifest.sha256 349 文件，任一步失败即中止——过程中真实拦截了 lint 违规与扫描器自引用）。冒烟：发布包进程起停（health/live|ready、sources/status `ioSuppressed:true`、同源 index.html、POST 405）；junction 切换/回滚/篡改拒绝全过。**遗留（WP7/现场）**：发布包 commit 显示 `unknown`（SourceRevisionId 未嵌入，WP7 对齐 version.json）；服务真实安装/恢复策略演练需管理员现场执行；QA 便携包与全 history 凭据扫描归 WP7/Gate。
+
+主要文件：
 
 - Hub 同源提供 `wwwroot`。
 - 增加 `Microsoft.Extensions.Hosting.WindowsServices` 并启用 `UseWindowsService()`。

@@ -32,3 +32,4 @@ public sealed class HubEpoch
         public long Next() => Interlocked.Increment(ref _value);
     }
 }
+

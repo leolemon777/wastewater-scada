@@ -12,11 +12,16 @@ const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer
 const trackedFiles = git('ls-files').split('\n').filter(Boolean);
 
 // --- 规则 1：已知真实凭据字面量 ---
+// 模式用拼接构造，避免本文件自身出现完整凭据字面量（自引用误报）。
+const literal = (...parts) => parts.join('');
+const ssid = literal('wushui', 'zhan');
+const wifiPass = literal('12345', '6789');
+const bridgePass = literal('admin', '01');
 const knownCredentialPatterns = [
-  { name: '无线 SSID', pattern: /wushuizhan/i },
-  { name: '无线密码(引号形态)', pattern: /["'`]123456789["'`]/ },
-  { name: '无线密码(键值形态)', pattern: /密码[：:]\s*`?123456789/ },
-  { name: '网桥管理密码', pattern: /admin01/i },
+  { name: '无线 SSID', pattern: new RegExp(ssid, 'i') },
+  { name: '无线密码(引号形态)', pattern: new RegExp(`["'\`]${wifiPass}["'\`]`) },
+  { name: '无线密码(键值形态)', pattern: new RegExp(`密码[：:]\s*\`?${wifiPass}`) },
+  { name: '网桥管理密码', pattern: new RegExp(bridgePass, 'i') },
   { name: 'M100 默认口令组合', pattern: /["']admin["']\s*,?\s*["']?Password["']?\s*[:=]\s*["']admin["']|Password["']?\s*[:=]\s*["']admin["']/i },
 ];
 
@@ -25,6 +30,8 @@ const violations = [];
 
 for (const file of trackedFiles) {
   if (!textExtensions.test(file) || !fs.existsSync(file)) continue;
+  // 扫描器自身豁免（规则定义文件，模式已拼接构造防止字面量扩散）。
+  if (file.replaceAll('\\', '/') === 'scripts/checks/security/check-secrets.mjs') continue;
   const content = fs.readFileSync(file, 'utf8');
   const lines = content.split('\n');
 
