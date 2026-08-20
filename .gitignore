@@ -41,6 +41,17 @@ tmp-*.png
 # 本地 MCP 环境配置（不入库）
 mcps/
 
+# 现场凭据与本地记录（SPEC-PLAN 11：凭据不入 git）
+docs/integration/本地凭据.local.md
+
+# Agent 会话产物（不入库）
+.zcode/
+
+# 发布暂存与发布包（SPEC-PLAN 18/20：staging 不入库）
+releases/
+release-staging/
+WastewaterScada-*/
+
 # 一次性验证脚本（不入库）
 scripts/tmp-cdp-shot.mjs
 

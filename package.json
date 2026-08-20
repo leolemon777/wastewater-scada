@@ -15,7 +15,8 @@
     "hub:run": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/scada-hub.ps1 run",
     "verify:all": "npm run verify:scene && npm run lint && npm run hub:test && npm run hub:runtime",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:secrets": "node scripts/checks/security/check-secrets.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

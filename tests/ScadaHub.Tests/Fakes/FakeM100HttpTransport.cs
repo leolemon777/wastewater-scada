@@ -52,8 +52,14 @@ internal sealed class FakeM100HttpTransportFactory : IM100HttpTransportFactory
         _create = create;
     }
 
+    public int CreateCount { get; private set; }
+
     public static FakeM100HttpTransportFactory Single(FakeM100HttpTransport transport)
         => new(_ => transport);
 
-    public IM100HttpTransport Create(M100DeviceOptions device) => _create(device);
+    public IM100HttpTransport Create(M100DeviceOptions device)
+    {
+        CreateCount++;
+        return _create(device);
+    }
 }

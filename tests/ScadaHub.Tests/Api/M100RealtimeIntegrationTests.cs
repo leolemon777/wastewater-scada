@@ -34,22 +34,20 @@ public sealed class M100RealtimeIntegrationTests
             {
                 new()
                 {
+                    Enabled = true,
                     SourceId = "m100-daf-01",
                     Role = "daf",
                     IpAddress = "192.168.0.31",
-                    Username = "admin",
-                    Password = "admin",
                     PollIntervalMs = 1000,
                     RequestTimeoutMs = 3000,
                     FailuresBeforeDisconnect = 2,
                 },
                 new()
                 {
+                    Enabled = true,
                     SourceId = "m100-underground-01",
                     Role = "underground",
                     IpAddress = "192.168.0.8",
-                    Username = "admin",
-                    Password = "admin",
                     PollIntervalMs = 1000,
                     RequestTimeoutMs = 3000,
                     FailuresBeforeDisconnect = 2,

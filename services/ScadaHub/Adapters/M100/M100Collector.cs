@@ -23,6 +23,7 @@ public sealed class M100Collector : IAsyncDisposable
     private readonly IScadaRealtimePublisher _publisher;
     private readonly IScadaClock _clock;
     private readonly ILogger<M100Collector> _logger;
+    private readonly DeviceIoGate _ioGate;
     private readonly List<DeviceRuntime> _runtimes = new();
     private readonly SemaphoreSlim _cycleGate = new(1, 1);
     private bool _initialized;
@@ -33,7 +34,8 @@ public sealed class M100Collector : IAsyncDisposable
         M100StateCache stateCache,
         IScadaRealtimePublisher publisher,
         IScadaClock clock,
-        ILogger<M100Collector> logger)
+        ILogger<M100Collector> logger,
+        DeviceIoGate? ioGate = null)
     {
         _options = options.Value;
         _transportFactory = transportFactory;
@@ -41,6 +43,7 @@ public sealed class M100Collector : IAsyncDisposable
         _publisher = publisher;
         _clock = clock;
         _logger = logger;
+        _ioGate = ioGate ?? new DeviceIoGate(ioSuppressed: false);
     }
 
     public async Task CollectOnceAsync(CancellationToken cancellationToken)
@@ -53,6 +56,19 @@ public sealed class M100Collector : IAsyncDisposable
         await _cycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (_ioGate.IoSuppressed)
+            {
+                if (!_initialized)
+                {
+                    _initialized = true;
+                    _logger.LogWarning(
+                        "M100 设备 IO 已被硬门禁抑制（Testing 或 {Variable}=1）：不创建任何传输、不发起网络请求。",
+                        DeviceIoGate.DisableEnvironmentVariable);
+                }
+
+                return;
+            }
+
             EnsureInitialized();
             var now = _clock.UtcNow;
             var due = _runtimes.Where(runtime => now >= runtime.NextDue).ToArray();
@@ -72,14 +88,22 @@ public sealed class M100Collector : IAsyncDisposable
     /// <summary>返回距最近一台设备到期的时间（钳制到 >=500ms），供轮询循环睡眠。</summary>
     public TimeSpan GetNextDelay()
     {
-        if (!_options.Enabled || _options.Devices.Count == 0)
+        if (!_options.Enabled || _options.Devices.Count == 0
+            || !_options.Devices.Any(device => device.Enabled))
         {
             return Timeout.InfiniteTimeSpan;
         }
 
         if (!_initialized)
         {
-            return TimeSpan.FromMilliseconds(Math.Max(_options.Devices.Min(d => d.PollIntervalMs), 500));
+            return TimeSpan.FromMilliseconds(Math.Max(
+                _options.Devices.Where(device => device.Enabled).Min(d => d.PollIntervalMs), 500));
+        }
+
+        if (_runtimes.Count == 0)
+        {
+            // 已初始化但无运行时：硬门禁抑制或全部设备级禁用。
+            return Timeout.InfiniteTimeSpan;
         }
 
         var now = _clock.UtcNow;
@@ -212,6 +236,14 @@ public sealed class M100Collector : IAsyncDisposable
 
         foreach (var device in _options.Devices)
         {
+            if (!device.Enabled)
+            {
+                _logger.LogInformation(
+                    "M100 设备 {SourceId} 处于设备级禁用（Enabled=false）：不创建传输，Tag 保持 unknown。",
+                    device.SourceId);
+                continue;
+            }
+
             _runtimes.Add(new DeviceRuntime(device, _transportFactory.Create(device)));
             _logger.LogInformation(
                 "M100 只读适配器注册设备 {SourceId}：role={Role} ip={IpAddress} 周期={PollIntervalMs}ms。",

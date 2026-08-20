@@ -11,9 +11,10 @@ public sealed class M100Options
     public List<M100DeviceOptions> Devices { get; set; } = new();
 }
 
-/// <summary>单台 M100 网关配置。Role 决定点位工程换算（daf / underground）。</summary>
+/// <summary>单台 M100 网关配置。Role 决定点位工程换算（daf / underground）；设备级 Enabled 默认 false（fail-closed，SPEC-PLAN 11.2）。</summary>
 public sealed class M100DeviceOptions
 {
+    public bool Enabled { get; set; }
     public string SourceId { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string IpAddress { get; set; } = string.Empty;

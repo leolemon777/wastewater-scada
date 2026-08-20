@@ -12,4 +12,11 @@
     <PackageReference Include="HslCommunication" Version="12.3.0" />
   </ItemGroup>
 
+  <!-- 凭据隔离：现场 local 配置绝不进入构建/发布/测试产物（SPEC-PLAN 11.4）。 -->
+  <ItemGroup>
+    <Content Remove="appsettings.local.json" />
+    <None Remove="appsettings.local.json" />
+    <AdditionalFiles Remove="appsettings.local.json" />
+  </ItemGroup>
+
 </Project>

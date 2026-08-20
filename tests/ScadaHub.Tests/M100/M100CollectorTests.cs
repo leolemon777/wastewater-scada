@@ -17,35 +17,38 @@ public sealed class M100CollectorTests
         M100StateCache Cache,
         CapturingRealtimePublisher Publisher,
         M100Collector Collector,
-        FakeM100HttpTransport Transport);
+        FakeM100HttpTransport Transport,
+        FakeM100HttpTransportFactory Factory);
 
     private static Fixture CreateFixture(
         M100DeviceOptions device,
         FakeM100HttpTransport transport,
-        bool enabled = true)
+        bool enabled = true,
+        DeviceIoGate? ioGate = null)
     {
         var options = new M100Options { Enabled = enabled, Devices = new List<M100DeviceOptions> { device } };
         var clock = new FakeScadaClock(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
         var cache = new M100StateCache(Options.Create(options), clock);
         var publisher = new CapturingRealtimePublisher();
         var logger = new CapturingLogger<M100Collector>();
+        var factory = FakeM100HttpTransportFactory.Single(transport);
         var collector = new M100Collector(
             Options.Create(options),
-            FakeM100HttpTransportFactory.Single(transport),
+            factory,
             cache,
             publisher,
             clock,
-            logger);
-        return new Fixture(options, clock, cache, publisher, collector, transport);
+            logger,
+            ioGate);
+        return new Fixture(options, clock, cache, publisher, collector, transport, factory);
     }
 
     private static M100DeviceOptions DafDevice() => new()
     {
+        Enabled = true,
         SourceId = "m100-daf-01",
         Role = "daf",
         IpAddress = "192.168.0.31",
-        Username = "admin",
-        Password = "admin",
         PollIntervalMs = 1000,
         RequestTimeoutMs = 3000,
         FailuresBeforeDisconnect = 2,
@@ -91,7 +94,8 @@ public sealed class M100CollectorTests
     {
         var device = new M100DeviceOptions
         {
-            SourceId = "m100-underground-01",
+            Enabled = true,
+                    SourceId = "m100-underground-01",
             Role = "underground",
             IpAddress = "192.168.0.8",
             PollIntervalMs = 1000,

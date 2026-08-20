@@ -58,6 +58,16 @@ $hubProcess = $null
 $httpClient = $null
 
 try {
+    # SPEC-PLAN 14.1：runtime smoke 必须强制 Testing 环境与设备 IO 硬门禁，
+    # 即使源码目录存在启用的现场 local 配置，也绝不发起真实设备请求。
+    $savedEnvironment = @{}
+    foreach ($name in @('ASPNETCORE_ENVIRONMENT', 'DOTNET_ENVIRONMENT', 'SCADA_DISABLE_ALL_DEVICE_IO')) {
+        $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
+    }
+    $env:ASPNETCORE_ENVIRONMENT = 'Testing'
+    $env:DOTNET_ENVIRONMENT = 'Testing'
+    $env:SCADA_DISABLE_ALL_DEVICE_IO = '1'
+
     $arguments = "`"$hubAssembly`" --urls $baseUrl"
     $hubProcess = Start-Process `
         -FilePath $x64Dotnet `
@@ -92,6 +102,14 @@ try {
     Assert-Condition ($health.pureWaterPlc.enabled -eq $false) 'default PLC adapter must remain disabled'
     Assert-Condition ($health.pureWaterPlc.connected -eq $false) 'disabled adapter must not claim a connection'
 
+    # M100 硬门禁：Testing + SCADA_DISABLE_ALL_DEVICE_IO 下，即使现场 local
+    # 配置启用了设备，也不得建立连接（SPEC-PLAN 11.2 / 14.1）。
+    foreach ($m100Status in @($health.m100)) {
+        Assert-Condition ($m100Status.connected -eq $false) "M100 $($m100Status.sourceId) must stay disconnected under the device-IO gate"
+    }
+    $hubStdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '' }
+    Assert-Condition ($hubStdout -notmatch '注册设备') 'device-IO gate must not register any M100 transport'
+
     $snapshotJson = $httpClient.GetStringAsync("$baseUrl/api/pure-water/plc/snapshot").GetAwaiter().GetResult()
     $snapshot = $snapshotJson | ConvertFrom-Json
     Assert-Condition ($snapshot.schema -eq 'scada.v1') 'snapshot schema must be scada.v1'
@@ -116,10 +134,31 @@ try {
     $socket = New-Object Net.WebSockets.ClientWebSocket
     try {
         [void]$socket.ConnectAsync([Uri]$webSocketUrl, [Threading.CancellationToken]::None).GetAwaiter().GetResult()
-        $initialText = Receive-WebSocketText -Socket $socket
-        $initial = $initialText | ConvertFrom-Json
-        Assert-Condition ($initial.messageType -eq 'purewater.plc.snapshot') 'WebSocket must send the current snapshot first'
-        Assert-Condition ($initial.payload.enabled -eq $false) 'WebSocket initial snapshot must preserve disabled state'
+
+        # SPEC-PLAN 14.1：先完整处理初始回放（纯水 + 每台 M100 各一帧）再发命令帧。
+        $pureWaterReplay = $null
+        $replayedSources = @()
+        for ($i = 0; $i -lt 8; $i++) {
+            $replayText = Receive-WebSocketText -Socket $socket
+            $replay = $replayText | ConvertFrom-Json
+            if ($replay.messageType -eq 'purewater.plc.snapshot') {
+                $pureWaterReplay = $replay
+            }
+
+            if ($replay.sourceId) {
+                $replayedSources += $replay.sourceId
+            }
+
+            $m100SnapshotCount = @($replayedSources | Where-Object { $_ -like 'm100-*' }).Count
+            if ($null -ne $pureWaterReplay -and $m100SnapshotCount -ge 2) {
+                break
+            }
+        }
+
+        Assert-Condition ($null -ne $pureWaterReplay) 'WebSocket must replay the pure-water snapshot first'
+        Assert-Condition ($pureWaterReplay.payload.enabled -eq $false) 'WebSocket initial snapshot must preserve disabled state'
+        $m100Replayed = @($replayedSources | Where-Object { $_ -like 'm100-*' })
+        Assert-Condition ($m100Replayed.Count -ge 2) 'WebSocket must replay an initial snapshot per M100 device'
 
         $commandBytes = [Text.Encoding]::UTF8.GetBytes('{}')
         $commandSegment = New-Object 'System.ArraySegment[byte]' -ArgumentList (, $commandBytes)
@@ -171,6 +210,10 @@ catch {
     throw
 }
 finally {
+    foreach ($entry in $savedEnvironment.GetEnumerator()) {
+        [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value)
+    }
+
     if ($null -ne $httpClient) {
         $httpClient.Dispose()
     }

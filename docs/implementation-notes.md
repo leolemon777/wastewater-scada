@@ -144,3 +144,29 @@
 - 地下池液位在 AI1（07-02 为 AI2，现场接过线）；现场再动端子要同步 Role 换算映射与 `m100EquipmentPatches`。
 - 浮点换算断言用 3 位精度（4.826 而非四舍五入的 4.827），源于 (9.516-4)/16*14 的浮点表示，改公式时注意测试期望值。
 - M100 polling 的 FakeScadaClock 测试需手动 Advance 推进 due 调度（backoff 基于 NextDue 时间戳），新测试勿忘。
+
+---
+
+# 2026-08-20 WP0：安全冻结与凭据治理（SPEC-PLAN 首个工作包）
+
+## 决策
+- 凭据处理分两层：当前树脱敏（已完成）+ Git 历史清理（现场/用户执行，需轮换先行）；真实凭据归口本地被忽略的 `docs/integration/本地凭据.local.md`。
+- `DeviceIoGate` 直接读进程环境变量与 IHostEnvironment，不进 IConfiguration——结构上不可被 local JSON/环境配置节覆盖（SPEC 11.2）；Testing 恒抑制。
+- `M100DeviceOptions.Enabled` 默认 false（fail-closed）：不显式启用的设备连 transport 都不创建；外部配置示例按 SPEC 11.2 两台设备初始全禁用，现场只切设备级开关。
+- Collector 的 gate 作为可选构造参数（默认开放）：测试 Host 集成测试直接实例化非抑制 collector 驱动业务流，而 DI 图里的 hosted collector 在 Testing 下被硬抑制——两个边界分开（SPEC 14.1）。
+- runtime smoke 改为强制 `ASPNETCORE/DOTNET_ENVIRONMENT=Testing` + `SCADA_DISABLE_ALL_DEVICE_IO=1`，并断言 stdout 无"注册设备"（0 出网）。
+
+## 与规格的偏差
+- 无实质偏差。范围裁剪（均已在 SPEC-PLAN WP4/WP5 列出，不在 WP0 做）：ProgramData 外部配置加载与 ACL、allowlist manifest、sourceEpoch/eventSeq、纯水 collector 的 gate 化。
+- 敏感扫描首版覆盖"已知字面量 + 非空凭据赋值 + local 文件跟踪"；高熵检测与全 Git history 扫描留给发布流水线（WP5 第 14 步）与待办文档。
+
+## 验证
+- `dotnet test`：65/65（新增 5 项 DeviceIoGate/设备级禁用测试，含"配置启用但抑制 → factory create/read = 0"）。
+- `npm run hub:runtime`：通过（REST/WS/只读拒绝/origin guard + 新增硬门禁 0 出网断言）。
+- `npm run check:scene` 38/38、`npm run build`、`npm run lint`、`npm run check:secrets`（215 文件 0 违规）全部通过。
+- 修复过程中发现的缺陷：硬门禁抑制后 `_runtimes` 为空导致 `GetNextDelay()` 的 `Min()` 抛异常（smoke 直接暴露）；WS 多帧初始回放导致旧 smoke 在回放帧上误判命令关闭——两者均已修复并有断言覆盖。
+
+## 风险
+- 设备级 `Enabled` 默认 false 是行为变更：现有任何未带 `Enabled:true` 的设备配置（含工控机上的旧 local.json）会静默禁用——部署指南已同步，切换时需注意。
+- Git 历史中的凭据仍在（真实风险），轮换+历史清理完成前不得发布正式包；待办见 `凭据治理与历史清理待办.md`。
+- `git grep` 当前树干净 ≠ 历史干净；`check:secrets` 只扫当前树。
