@@ -217,3 +217,30 @@
 ## 风险
 - demo 默认关闭改变开箱体验：首次打开全 --（现场语义正确）；演示需经 SystemMenu 手动开启——现场培训时需说明。
 - equipment 派生字段在 invalid/offline 时保留旧值（不写即保持），显示侧靠徽标区分——3D/详情读字段处已有 WP1 的"未验证"标注兜底。
+
+---
+
+# 2026-08-20 WP3：报警状态机
+
+## 决策
+- 状态机独立成 `alarmMachine.ts` 纯函数：transitionAlarm 幂等（无变化返回原引用，调用侧以引用比较判定 changed）；同一 alarmKey 单活动记录，RTN 后记录保留（cleared+ack+returnedToNormalAt）。
+- 两帧恢复去重用显式 streak 计数（m100GoodStreaks/tagInvalidStreaks/tagGoodStreaks/hubGoodStreak），只在 streak>=2 时向状态机发 severity:'none'——"第 1 帧恢复 live、第 2 帧关闭报警"由引擎而非状态机表达。
+- 抑制规则实现为"offline raise 时先把 stale RTN 掉"：恢复期 stale 已 closed，transition(none) 幂等无副作用，天然满足"恢复时不产生重复 RTN"。
+- hub-offline 首版以 WS onclose 即 raise（critical）：heartbeat 5s 周期是 WP4 信封升级内容；恢复证据=重连 onopen(streak=1)+连续 2 个成功采集帧。未配置任何现场源（无 ownership）时 hub 断开不报警——纯 demo/离线开发是合法常态。
+- 未收到过信封的 source（未配置）不评估通信报警：区分"unknown/未接入"与"offline/断线"。
+- equipment 升级语义全站覆盖 6 个 detectAlarms 调用点（含 updateEquipment 单设备与 setEquipments 批量）；AlarmRecord 增加 peakSeverity/lastChangedAt 可选字段保持向后兼容。
+- 全局横幅/铃铛/面板计数改为跨系统并合并通信报警；历史列表保留系统筛选（查看便利），但顶部新增全局"通信/数据质量"chips 段（含「曾严重」降级标注与逐条确认）。
+- systemStatuses 通过 mergeCommunicationStatus 合并通信报警严重度——"系统失联不得显示运行正常"由测试锁定。
+
+## 与规格的偏差
+- hub-stale（15s warning）独立档未实现（无 heartbeat 前无法区分"连着但慢"与"断开"）；WP4 heartbeat 落地后补。
+- io-suppressed 报警规则未接前端（ioSuppressed 字段在 WP4 信封 contractVersion=2 才出现）。
+
+## 验证
+- Vitest 34/34：alarmMachine.test.ts 转换表全行（创建/升级/降级/RTN/幂等/确认）+ m100Communication.test.ts（断线报警+抑制+系统 critical、stale 数据龄、两帧 RTN、tag-invalid 两帧、hub 断开/恢复/未配置不报、equipment 升级路径）。
+- `check:scene` 40/40、build、lint 全绿；修复 alarm-store-runtime 检查脚本的 data:URL import 链（补 alarmMachine 重写）。
+- 过程缺陷两处均由测试驱动修复：refresh 报警转移未置 changed 被末尾短路吞掉；未配置 source 被误判 offline 报警。
+
+## 风险
+- communicationAlarms 无上限增长（每 alarmKey 至多一条活动+历史保留）——长期运行记录量随键数线性，WP5 持久化/归档时再加窗口限制。
+- hub 断开在弱网抖动下会短暂 raise/RTN 往复（无 15s 缓冲）；heartbeat 后改善。

@@ -2369,3 +2369,58 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
 .dash-outfall-badge.demo { color: #fbbf24; border-color: rgba(251, 191, 36, 0.5); }
 .dash-outfall-lamp.unknown { background: #64748b; }
 .dash-outfall-missing { color: var(--text-secondary, #94a3b8); font-size: 13px; }
+
+/* ── SPEC-PLAN WP3: communication alarm strip ── */
+.comm-alarm-strip {
+  position: absolute;
+  top: 96px;
+  right: 16px;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  max-width: 420px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.comm-alarm-strip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary, #94a3b8);
+  letter-spacing: 0.05em;
+}
+
+.comm-alarm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  border: 1px solid transparent;
+}
+
+.comm-alarm-chip.critical {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.comm-alarm-chip.warning {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.comm-alarm-chip-ack {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}

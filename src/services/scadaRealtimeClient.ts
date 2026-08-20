@@ -34,6 +34,8 @@ export interface ScadaRealtimeClientOptions {
   url?: string;
   onPureWaterTelemetry: (telemetry: PureWaterPlcTelemetry) => void;
   onM100Telemetry?: (message: M100DecodedMessage) => void;
+  /** Hub WebSocket 通道状态（open/close），驱动 hub-offline 通信报警（SPEC 10.2）。 */
+  onHubConnectionChange?: (connected: boolean) => void;
 }
 
 export interface ScadaRealtimeClient {
@@ -232,6 +234,7 @@ export function createScadaRealtimeClient(options: ScadaRealtimeClientOptions): 
 
       nextSocket.onopen = () => {
         reconnectAttempt = 0;
+        options.onHubConnectionChange?.(true);
       };
 
       nextSocket.onmessage = (event) => {
@@ -251,6 +254,7 @@ export function createScadaRealtimeClient(options: ScadaRealtimeClientOptions): 
 
       nextSocket.onclose = () => {
         if (socket === nextSocket) socket = null;
+        options.onHubConnectionChange?.(false);
         if (!stopped && configuredSourceSeen && !disconnectReported) {
           disconnectReported = true;
           options.onPureWaterTelemetry({ connected: false });

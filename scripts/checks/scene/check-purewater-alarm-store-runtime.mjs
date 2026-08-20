@@ -27,6 +27,7 @@ const scenariosUrl = dataUrl(transpile('src/store/demoScenarios.ts'));
 const plcUrl = dataUrl(transpile('src/store/pureWaterPlc.ts'));
 const m100Url = dataUrl(transpile('src/store/m100Realtime.ts'));
 const tagQualityUrl = dataUrl(transpile('src/store/tagQuality.ts'));
+const alarmMachineUrl = dataUrl(transpile('src/store/alarmMachine.ts'));
 const zustandUrl = pathToFileURL(path.join(ROOT, 'node_modules/zustand/esm/index.mjs')).href;
 
 let storeSource = transpile('src/store/useScadaStore.ts');
@@ -35,7 +36,8 @@ storeSource = storeSource
   .replace("from './demoScenarios'", `from '${scenariosUrl}'`)
   .replace("from './pureWaterPlc'", `from '${plcUrl}'`)
   .replace("from './m100Realtime'", `from '${m100Url}'`)
-  .replace("from './tagQuality'", `from '${tagQualityUrl}'`);
+  .replace("from './tagQuality'", `from '${tagQualityUrl}'`)
+  .replace("from './alarmMachine'", `from '${alarmMachineUrl}'`);
 
 const { useScadaStore } = await import(dataUrl(storeSource));
 const clearAlarmBits = Object.fromEntries(

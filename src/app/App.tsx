@@ -121,6 +121,9 @@ function App() {
       onM100Telemetry: ({ sourceId, telemetry, sourceEpoch, eventSeq }) => {
         useScadaStore.getState().ingestM100Telemetry(sourceId, telemetry, { sourceEpoch, eventSeq });
       },
+      onHubConnectionChange: (connected) => {
+        useScadaStore.getState().ingestHubConnection(connected);
+      },
     });
     client.start();
     return () => client.stop();

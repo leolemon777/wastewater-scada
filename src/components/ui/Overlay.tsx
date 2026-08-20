@@ -112,8 +112,20 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
   const equipmentDrawerOpen = !!selectedEquipmentId && drawerCollapsedFor !== selectedEquipmentId;
 
   const alarms = useScadaStore((s) => s.alarms).filter((alarm) => alarm.system === currentSystem);
-  const unacknowledgedAlarms = alarms.filter(a => !a.acknowledged);
-  const latestUnacknowledgedAlarmId = unacknowledgedAlarms[0]?.id ?? null;
+  const communicationAlarms = useScadaStore((s) => s.communicationAlarms);
+  // SPEC 10.2：全局 critical 横幅与未确认计数不得按当前系统页面过滤，
+  // 且必须包含通信/质量报警（hub/source/tag 域）。
+  const activeCommunicationAlarms = communicationAlarms.filter(a => !a.cleared);
+  const unacknowledgedEquipmentAlarms = useScadaStore((s) => s.alarms).filter(a => !a.acknowledged);
+  const unacknowledgedCommunicationAlarms = activeCommunicationAlarms.filter(a => !a.acknowledged);
+  const globalCriticalCount = unacknowledgedEquipmentAlarms.filter(a => a.severity === 'critical').length
+    + unacknowledgedCommunicationAlarms.filter(a => a.currentSeverity === 'critical').length;
+  const globalUnacknowledgedCount = unacknowledgedEquipmentAlarms.length + unacknowledgedCommunicationAlarms.length;
+  const criticalBannerActive = globalCriticalCount > 0;
+  // 自动打开面板的触发器使用全局未确认（保持原行为语义：新报警提醒）。
+  const latestUnacknowledgedAlarmId = unacknowledgedEquipmentAlarms[0]?.id
+    ?? unacknowledgedCommunicationAlarms[0]?.alarmKey
+    ?? null;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -372,7 +384,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
   return (
     <div className={`scada-overlay-root${currentView === '3d' ? ' overlay-scene-mode' : ''}`}>
       {/* Emergency Vignette Alert Overlay */}
-      {unacknowledgedAlarms.length > 0 && unacknowledgedAlarms.some(a => a.severity === 'critical') && (
+      {criticalBannerActive && (
         <div className="emergency-vignette" />
       )}
       <header className={`scada-topbar scada-topbar-v2 scada-topbar-pro${currentView === '3d' ? ' topbar-has-tools-row' : ''}`}>
@@ -421,15 +433,15 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
             <button
               type="button"
               onClick={() => setAlarmPanelOpen(v => !v)}
-              className={`topbar-icon-btn ${unacknowledgedAlarms.length > 0 ? 'alert' : ''}`}
+              className={`topbar-icon-btn ${globalUnacknowledgedCount > 0 ? 'alert' : ''}`}
               title={`${currentSystem === 'purewater' ? '纯水房' : '污水站'}报警记录`}
               aria-label={`${currentSystem === 'purewater' ? '纯水房' : '污水站'}报警记录`}
               aria-expanded={alarmPanelOpen}
               aria-controls="alarm-history-panel"
             >
-              {unacknowledgedAlarms.length > 0 ? <Bell size={16} /> : <BellOff size={16} />}
-              {unacknowledgedAlarms.length > 0 && (
-                <span className="alarm-tool-badge">{unacknowledgedAlarms.length}</span>
+              {globalUnacknowledgedCount > 0 ? <Bell size={16} /> : <BellOff size={16} />}
+              {globalUnacknowledgedCount > 0 && (
+                <span className="alarm-tool-badge">{globalUnacknowledgedCount}</span>
               )}
             </button>
             <SystemMenu />
@@ -480,15 +492,21 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       </header>
 
       {/* Active Alarm Banner */}
-      {unacknowledgedAlarms.length > 0 && unacknowledgedAlarms.some(a => a.severity === 'critical') && (
+      {criticalBannerActive && (
         <div className="critical-alarm-banner">
           <AlertCircle size={16} className="critical-alarm-icon" />
           <span className="critical-alarm-text">
-            紧急报警: {unacknowledgedAlarms.filter(a => a.severity === 'critical').map(a => a.equipmentName).join('、')}
+            紧急报警: {[
+              ...unacknowledgedEquipmentAlarms.filter(a => a.severity === 'critical').map(a => a.equipmentName),
+              ...unacknowledgedCommunicationAlarms.filter(a => a.currentSeverity === 'critical').map(a => a.label),
+            ].join('、')}
           </span>
           <button
             type="button"
-            onClick={() => unacknowledgedAlarms.filter(a => a.severity === 'critical').forEach(a => useScadaStore.getState().acknowledgeAlarm(a.id))}
+            onClick={() => {
+              unacknowledgedEquipmentAlarms.filter(a => a.severity === 'critical').forEach(a => useScadaStore.getState().acknowledgeAlarm(a.id));
+              unacknowledgedCommunicationAlarms.filter(a => a.currentSeverity === 'critical').forEach(a => useScadaStore.getState().acknowledgeCommunicationAlarm(a.alarmKey));
+            }}
             className="critical-alarm-confirm"
           >
             确认报警
@@ -497,6 +515,30 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       )}
 
       {/* Alarm History Panel */}
+      {alarmPanelOpen && activeCommunicationAlarms.length > 0 && (
+        <div className="comm-alarm-strip" role="region" aria-label="通信与数据质量报警">
+          <span className="comm-alarm-strip-title">通信 / 数据质量</span>
+          {activeCommunicationAlarms.slice(0, 4).map((alarm) => (
+            <span key={alarm.alarmKey} className={`comm-alarm-chip ${alarm.currentSeverity}`}>
+              <span className="comm-alarm-chip-label">{alarm.label}</span>
+              <span className="comm-alarm-chip-severity">
+                {alarm.currentSeverity === 'critical' ? '严重' : '预警'}
+                {alarm.peakSeverity === 'critical' && alarm.currentSeverity === 'warning' ? '（曾严重）' : ''}
+              </span>
+              {!alarm.acknowledged && (
+                <button
+                  type="button"
+                  className="comm-alarm-chip-ack"
+                  onClick={() => useScadaStore.getState().acknowledgeCommunicationAlarm(alarm.alarmKey)}
+                >
+                  确认
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       {alarmPanelOpen && (
         <>
           <div
@@ -512,11 +554,11 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
           >
             <div className="overlay-panel-header">
               <h2 className="overlay-panel-title">
-                <Bell size={16} color={unacknowledgedAlarms.length > 0 ? 'var(--status-error)' : 'var(--accent-blue)'} />
+                <Bell size={16} color={globalUnacknowledgedCount > 0 ? 'var(--status-error)' : 'var(--accent-blue)'} />
                 {currentSystem === 'purewater' ? '纯水房' : '污水站'}报警记录
-                {unacknowledgedAlarms.length > 0 && (
+                {globalUnacknowledgedCount > 0 && (
                   <span className="alarm-count-badge">
-                    {unacknowledgedAlarms.length}
+                    {globalUnacknowledgedCount}
                   </span>
                 )}
               </h2>

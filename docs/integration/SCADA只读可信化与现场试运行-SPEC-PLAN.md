@@ -1010,7 +1010,9 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 
 ### WP3：报警状态机
 
-主要内容：
+> **状态（2026-08-20）：完成。** 新增 `alarmMachine.ts`（SPEC 10.1 转换表纯函数：同 alarmKey 单活动报警、升级重置确认、peakSeverity 保持、RTN 保留记录）；equipment 报警补齐 warning→critical 升级/降级路径（全部 6 个 detectAlarms 调用点）；通信报警引擎落地 source-stale/source-offline/tag-invalid/hub-offline（两帧恢复 RTN、offline 抑制 stale、未配置源与纯 demo 不评估 hub）；全局 critical 横幅/铃铛计数改为不按系统过滤并纳入通信报警；报警面板新增通信/质量段（含升级历史「曾严重」标注与逐条确认）。Vitest 34/34（新增 14 项覆盖转换表全行与两帧恢复）；`check:scene` 40/40。hub.heartbeat（5s 周期）依赖 WP4 信封升级，首版以 WS onopen/onclose + 连续成功帧作为 hub 恢复证据。
+
+主要文件：
 
 - 修复 warning/critical 升降级和 RTN。
 - 增加 M100 stale/offline/invalid 报警。

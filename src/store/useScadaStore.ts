@@ -37,6 +37,12 @@ import {
   type SourceCursor,
   type TagState,
 } from './tagQuality';
+import {
+  AlarmKeys,
+  acknowledgeAlarmRecord,
+  transitionAlarm,
+  type ManagedAlarmRecord,
+} from './alarmMachine';
 
 export type AlarmState = 'none' | 'warning' | 'critical';
 export type EquipmentType = 'pump' | 'tank' | 'mixingTank' | 'chemicalTank' | 'flowMeter' | 'valve' | 'screwPress' | 'outfall' | 'roUnit';
@@ -134,8 +140,12 @@ export interface AlarmRecord {
   equipmentId: string;
   equipmentName: string;
   severity: 'warning' | 'critical';
+  /** 历史最高严重度（SPEC 10.1：升级后降级不丢失 critical 记录）。 */
+  peakSeverity?: 'warning' | 'critical';
   message: string;
   timestamp: number;
+  /** 最近一次严重度变化时间（升级/降级）。 */
+  lastChangedAt?: number;
   acknowledged: boolean;
   source: 'equipment' | 'plc';
   tagAddress?: PureWaterPlcBitAddress;
@@ -205,6 +215,16 @@ interface ScadaState {
     meta?: { sourceEpoch?: string; eventSeq?: number },
   ) => void;
   refreshM100Connections: (now?: number) => void;
+  /** 通信/质量报警（SPEC 10.2）：source-stale/offline、tag-invalid、hub-offline。 */
+  communicationAlarms: ManagedAlarmRecord[];
+  /** WS 通道状态与两帧恢复计数（恢复去重，SPEC 10.2 表）。 */
+  hubWsConnected: boolean;
+  hubGoodStreak: number;
+  m100GoodStreaks: Record<string, number>;
+  tagInvalidStreaks: Record<string, number>;
+  tagGoodStreaks: Record<string, number>;
+  ingestHubConnection: (connected: boolean) => void;
+  acknowledgeCommunicationAlarm: (alarmKey: string) => void;
 
   /** Wastewater demo source. Kept as `demoMode` for the existing dashboard API. */
   demoMode: boolean;
@@ -238,6 +258,31 @@ interface ScadaState {
 
 function generateAlarmId(): string {
   return `alarm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** 活动 communicationAlarms 对 wastewater 系统状态的贡献（SPEC 10.2：失联不得显示运行正常）。 */
+function communicationSystemStatus(communicationAlarms: ManagedAlarmRecord[]): SystemStatus | null {
+  let status: SystemStatus | null = null;
+  for (const alarm of communicationAlarms) {
+    if (alarm.cleared) continue;
+    if (alarm.currentSeverity === 'critical') return 'critical';
+    status = 'warning';
+  }
+  return status;
+}
+
+function mergeCommunicationStatus(
+  statuses: Record<SystemId, SystemStatus>,
+  communicationAlarms: ManagedAlarmRecord[],
+): Record<SystemId, SystemStatus> {
+  const comm = communicationSystemStatus(communicationAlarms);
+  if (!comm) return statuses;
+  const wastewater = statuses.wastewater;
+  const rank: Record<SystemStatus, number> = { normal: 0, unknown: 1, warning: 2, critical: 3 };
+  if (rank[comm] > rank[wastewater]) {
+    return { ...statuses, wastewater: comm };
+  }
+  return statuses;
 }
 
 export function getEquipmentSystem(equipmentId: string): SystemId {
@@ -279,6 +324,8 @@ interface DetectAlarmsResult {
   newAlarms: AlarmRecord[];
   /** IDs of existing alarms that returned-to-normal and should be auto-cleared. */
   clearedAlarmIds: Set<string>;
+  /** 严重度变化（SPEC 10.1 升级/降级）：equipmentId -> 新严重度。 */
+  severityChanges: Map<string, 'warning' | 'critical'>;
 }
 
 function detectAlarms(
@@ -287,6 +334,7 @@ function detectAlarms(
 ): DetectAlarmsResult {
   const newAlarms: AlarmRecord[] = [];
   const clearedAlarmIds = new Set<string>();
+  const severityChanges = new Map<string, 'warning' | 'critical'>();
 
   for (const key of Object.keys(nextEquipments)) {
     const prev = prevEquipments[key];
@@ -297,6 +345,11 @@ function detectAlarms(
     // bits below. Skipping generic equipment transitions prevents duplicate
     // "equipment abnormal" records that lose the originating PLC address.
     if (getEquipmentSystem(next.id) === 'purewater') continue;
+
+    // SPEC 10.1：warning -> critical 升级 / critical -> warning 降级（同一报警，不新建）。
+    if (prev.alarmState !== 'none' && next.alarmState !== 'none' && prev.alarmState !== next.alarmState) {
+      severityChanges.set(next.id, next.alarmState as 'warning' | 'critical');
+    }
 
     // Rising edge: none -> warning/critical creates a new alarm.
     if (prev.alarmState === 'none' && next.alarmState !== 'none') {
@@ -324,7 +377,35 @@ function detectAlarms(
     }
   }
 
-  return { newAlarms, clearedAlarmIds };
+  return { newAlarms, clearedAlarmIds, severityChanges };
+}
+
+/** 应用严重度变化：升级重置确认并保持 peak=critical；降级保留 peak（SPEC 10.1）。 */
+function applySeverityChanges(
+  alarms: AlarmRecord[],
+  severityChanges: Map<string, 'warning' | 'critical'>,
+): { alarms: AlarmRecord[]; changed: boolean } {
+  if (severityChanges.size === 0) return { alarms, changed: false };
+  const now = Date.now();
+  let changed = false;
+  const next = alarms.map((alarm) => {
+    if (alarm.source !== 'equipment') return alarm;
+    const target = severityChanges.get(alarm.equipmentId);
+    if (!target || alarm.cleared || alarm.severity === target) return alarm;
+    changed = true;
+    const escalated = alarm.severity === 'warning' && target === 'critical';
+    return {
+      ...alarm,
+      severity: target,
+      peakSeverity: alarm.peakSeverity === 'critical' || target === 'critical' ? 'critical' as const : 'warning' as const,
+      message: escalated
+        ? `${alarm.equipmentName} 报警升级为严重`
+        : `${alarm.equipmentName} 报警降级为预警`,
+      lastChangedAt: now,
+      acknowledged: escalated ? false : alarm.acknowledged,
+    };
+  });
+  return { alarms: next, changed };
 }
 
 /** Applies an RTN result to the alarm list: auto-clears & acknowledges alarms for the given equipment ids. */
@@ -495,11 +576,12 @@ function applyDemoSnapshot(
     }
   }
 
-  const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, nextEquipments);
+  const { newAlarms, clearedAlarmIds, severityChanges } = detectAlarms(state.equipments, nextEquipments);
   let alarms = applyReturnToNormal(
     [...newAlarms, ...state.alarms].slice(0, 50),
     clearedAlarmIds
   );
+  alarms = applySeverityChanges(alarms, severityChanges).alarms;
 
   const pureWaterPlc = targets.purewater
     ? createPureWaterDemoPlcSnapshot(nextEquipments, tick)
@@ -690,6 +772,12 @@ export const useScadaStore = create<ScadaState>((set) => ({
   m100LiveEquipmentIds: [],
   m100SourceCursors: {},
   tagStates: {},
+  communicationAlarms: [],
+  hubWsConnected: false,
+  hubGoodStreak: 0,
+  m100GoodStreaks: {},
+  tagInvalidStreaks: {},
+  tagGoodStreaks: {},
   performanceMode: false,
   scenePaletteMode: 'bright',
   setPerformanceMode: (enabled) => set({ performanceMode: enabled }),
@@ -827,11 +915,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
       { ...prev, ...patch, id: prev.id, type: prev.type } as EquipmentData,
     );
     const nextEquipments = { ...state.equipments, [id]: next };
-    const { newAlarms, clearedAlarmIds } = detectAlarms({ [id]: prev }, { [id]: next });
-    const alarms = applyReturnToNormal(
+    const { newAlarms, clearedAlarmIds, severityChanges } = detectAlarms({ [id]: prev }, { [id]: next });
+    const alarms = applySeverityChanges(applyReturnToNormal(
       [...newAlarms, ...state.alarms].slice(0, 50),
       clearedAlarmIds
-    );
+    ), severityChanges).alarms;
     return {
       equipments: nextEquipments,
       alarms,
@@ -847,11 +935,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
     for (const [key, eq] of Object.entries(equipments)) {
       interlocked[key] = applyLowLevelAgitatorInterlock(eq);
     }
-    const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, interlocked);
-    const alarms = applyReturnToNormal(
+    const { newAlarms, clearedAlarmIds, severityChanges } = detectAlarms(state.equipments, interlocked);
+    const alarms = applySeverityChanges(applyReturnToNormal(
       [...newAlarms, ...state.alarms].slice(0, 50),
       clearedAlarmIds
-    );
+    ), severityChanges).alarms;
     return {
       equipments: interlocked,
       alarms,
@@ -883,11 +971,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
       } as EquipmentData;
     }
 
-    const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, nextEquipments);
-    let alarms = applyReturnToNormal(
+    const { newAlarms, clearedAlarmIds, severityChanges } = detectAlarms(state.equipments, nextEquipments);
+    let alarms = applySeverityChanges(applyReturnToNormal(
       [...newAlarms, ...state.alarms].slice(0, 50),
       clearedAlarmIds,
-    );
+    ), severityChanges).alarms;
     alarms = reconcilePureWaterPlcAlarms(
       alarms,
       state.pureWaterPlc,
@@ -958,6 +1046,16 @@ export const useScadaStore = create<ScadaState>((set) => ({
     const tagStates: Record<string, TagState> = { ...state.tagStates };
     const now = Date.now();
 
+    let communicationAlarms = state.communicationAlarms;
+    const m100GoodStreaks = { ...state.m100GoodStreaks };
+    const tagInvalidStreaks = { ...state.tagInvalidStreaks };
+    const tagGoodStreaks = { ...state.tagGoodStreaks };
+    let hubGoodStreak = state.hubGoodStreak;
+
+    const sourceLabel = sourceId === M100_DAF_SOURCE_ID ? '气浮 M100' : '地下池 M100';
+    const offlineKey = AlarmKeys.sourceOffline(sourceId);
+    const staleKey = AlarmKeys.sourceStale(sourceId);
+
     if (!telemetry.connected) {
       // 源断线：所属 Tag -> offline（value 置空、保留 lastGoodValue 作保持值显示），
       // equipment 派生字段 hold 不清零。
@@ -970,13 +1068,50 @@ export const useScadaStore = create<ScadaState>((set) => ({
         });
       }
 
+      // SPEC 10.2：connected=false -> source-offline(critical)；激活时抑制同源 source-stale。
+      m100GoodStreaks[sourceId] = 0;
+      communicationAlarms = transitionAlarm(communicationAlarms, {
+        alarmKey: staleKey, scope: 'source', sourceId, ruleId: 'source-stale',
+        label: `${sourceLabel} 通信陈旧`, severity: 'none', now,
+      });
+      communicationAlarms = transitionAlarm(communicationAlarms, {
+        alarmKey: offlineKey, scope: 'source', sourceId, ruleId: 'source-offline',
+        label: `${sourceLabel} 通信中断`, severity: 'critical', now,
+      });
+
       return {
         m100SourceCursors,
         m100LiveEquipmentIds: [...m100LiveEquipmentIds],
         tagStates,
         m100Realtime,
         m100Connections,
+        communicationAlarms,
+        m100GoodStreaks,
+        systemStatuses: mergeCommunicationStatus(
+          computeSystemStatuses(state.equipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+          communicationAlarms,
+        ),
       };
+    }
+
+    // 成功帧：两帧恢复（SPEC 10.2 表）——第 1 帧恢复 live 态，第 2 个连续成功帧才 RTN 关闭。
+    m100GoodStreaks[sourceId] = (m100GoodStreaks[sourceId] ?? 0) + 1;
+    if (m100GoodStreaks[sourceId] >= 2) {
+      for (const key of [offlineKey, staleKey]) {
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: key, scope: 'source', sourceId, ruleId: key.endsWith('source-offline') ? 'source-offline' : 'source-stale',
+          label: key.endsWith('source-offline') ? `${sourceLabel} 通信中断` : `${sourceLabel} 通信陈旧`,
+          severity: 'none', now,
+        });
+      }
+    }
+    // hub-offline 的恢复证据同样取连续成功帧（首版无 heartbeat，SPEC 10.2 以 WS 重连+数据帧为准）。
+    hubGoodStreak += 1;
+    if (hubGoodStreak >= 2) {
+      communicationAlarms = transitionAlarm(communicationAlarms, {
+        alarmKey: AlarmKeys.hubOffline(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-offline',
+        label: 'SCADA Hub 连接中断', severity: 'none', now,
+      });
     }
 
     // 成功帧：按 Tag 生命周期逐点更新（SPEC 7.1/7.2），再派生 equipment ViewModel。
@@ -993,9 +1128,32 @@ export const useScadaStore = create<ScadaState>((set) => ({
 
     const upsertTag = (tagId: string, value: number | boolean | null | undefined, warning: string) => {
       const base = clearStaleHeldValue(tagStates[tagId] ?? emptyTagState(), mappingVersion);
-      tagStates[tagId] = value === null || value === undefined
+      const invalid = value === null || value === undefined;
+      tagStates[tagId] = invalid
         ? applyInvalidFrame(base, warning, commonMeta)
         : applyGoodFrame(base, { value, sampledAt: receivedAt, ...commonMeta });
+
+      // SPEC 10.2：连续 2 帧同一 Tag invalid -> tag-invalid(warning)；连续 2 个 good 帧 RTN。
+      const invalidKey = AlarmKeys.tagInvalid(sourceId, tagId);
+      if (invalid) {
+        tagGoodStreaks[tagId] = 0;
+        tagInvalidStreaks[tagId] = (tagInvalidStreaks[tagId] ?? 0) + 1;
+        if (tagInvalidStreaks[tagId] >= 2) {
+          communicationAlarms = transitionAlarm(communicationAlarms, {
+            alarmKey: invalidKey, scope: 'tag', sourceId, tagId, ruleId: 'tag-invalid',
+            label: `${sourceLabel} ${tagId} 信号异常`, severity: 'warning', now,
+          });
+        }
+      } else {
+        tagInvalidStreaks[tagId] = 0;
+        tagGoodStreaks[tagId] = (tagGoodStreaks[tagId] ?? 0) + 1;
+        if (tagGoodStreaks[tagId] >= 2) {
+          communicationAlarms = transitionAlarm(communicationAlarms, {
+            alarmKey: invalidKey, scope: 'tag', sourceId, tagId, ruleId: 'tag-invalid',
+            label: `${sourceLabel} ${tagId} 信号异常`, severity: 'none', now,
+          });
+        }
+      }
     };
 
     if (sourceId === M100_DAF_SOURCE_ID) {
@@ -1035,11 +1193,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
       patchFromTags('tk-intermediate', fields);
     }
 
-    const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, nextEquipments);
-    const alarms = applyReturnToNormal(
+    const { newAlarms, clearedAlarmIds, severityChanges } = detectAlarms(state.equipments, nextEquipments);
+    const alarms = applySeverityChanges(applyReturnToNormal(
       [...newAlarms, ...state.alarms].slice(0, 50),
       clearedAlarmIds,
-    );
+    ), severityChanges).alarms;
 
     return {
       m100SourceCursors,
@@ -1047,10 +1205,18 @@ export const useScadaStore = create<ScadaState>((set) => ({
       tagStates,
       m100Realtime,
       m100Connections,
+      communicationAlarms,
+      m100GoodStreaks,
+      tagInvalidStreaks,
+      tagGoodStreaks,
+      hubGoodStreak,
       equipments: nextEquipments,
       alarms,
       overallStatus: computeOverallStatus(nextEquipments),
-      systemStatuses: computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+      systemStatuses: mergeCommunicationStatus(
+        computeSystemStatuses(nextEquipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+        communicationAlarms,
+      ),
     };
   }),
 
@@ -1081,8 +1247,85 @@ export const useScadaStore = create<ScadaState>((set) => ({
       }
     }
 
-    return changed ? { m100Connections, tagStates } : state;
+    // SPEC 10.2：source-stale(>10s warning) / source-offline(显式断线或 >30s critical)。
+    // offline 活动期间抑制 stale；恢复由成功帧的 streak>=2 驱动（见 ingest）。
+    let communicationAlarms = state.communicationAlarms;
+    for (const sourceId of [M100_DAF_SOURCE_ID, M100_UNDERGROUND_SOURCE_ID] as const) {
+      // 从未收到该源任何信封（未配置/未出现）时 Tag 为 unknown，不评估通信报警。
+      if (!state.m100Realtime[sourceId]) continue;
+      const connectionState = m100Connections[sourceId]?.state;
+      const sourceLabel = sourceId === M100_DAF_SOURCE_ID ? '气浮 M100' : '地下池 M100';
+      const offlineKey = AlarmKeys.sourceOffline(sourceId);
+      const staleKey = AlarmKeys.sourceStale(sourceId);
+
+      const alarmsBefore = communicationAlarms;
+      if (connectionState === 'offline') {
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: staleKey, scope: 'source', sourceId, ruleId: 'source-stale',
+          label: `${sourceLabel} 通信陈旧`, severity: 'none', now,
+        });
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: offlineKey, scope: 'source', sourceId, ruleId: 'source-offline',
+          label: `${sourceLabel} 通信中断`, severity: 'critical', now,
+        });
+      } else if (connectionState === 'stale') {
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: staleKey, scope: 'source', sourceId, ruleId: 'source-stale',
+          label: `${sourceLabel} 通信陈旧`, severity: 'warning', now,
+        });
+      }
+      // transitionAlarm 幂等返回原引用：引用变化即状态变化。
+      if (communicationAlarms !== alarmsBefore) changed = true;
+    }
+
+    if (!changed) return state;
+    return {
+      m100Connections,
+      tagStates,
+      communicationAlarms,
+      systemStatuses: mergeCommunicationStatus(
+        computeSystemStatuses(state.equipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+        communicationAlarms,
+      ),
+    };
   }),
+
+  ingestHubConnection: (connected) => set((state) => {
+    if (state.hubWsConnected === connected && connected) return state;
+    const now = Date.now();
+    let communicationAlarms = state.communicationAlarms;
+
+    if (connected) {
+      // 重连后等待数据帧：streak 从 1 起，第 2 帧成功采集才 RTN（SPEC 10.2 hub-offline 行）。
+      return { hubWsConnected: true, hubGoodStreak: 1 };
+    }
+
+    // 未配置任何现场源（无 ownership）时 Hub 断开属常态（纯 demo/离线开发），不报警。
+    if (state.m100LiveEquipmentIds.length === 0 && !state.hubWsConnected) return state;
+
+    communicationAlarms = transitionAlarm(communicationAlarms, {
+      alarmKey: AlarmKeys.hubStale(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-stale',
+      label: 'SCADA Hub 连接陈旧', severity: 'none', now,
+    });
+    communicationAlarms = transitionAlarm(communicationAlarms, {
+      alarmKey: AlarmKeys.hubOffline(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-offline',
+      label: 'SCADA Hub 连接中断', severity: 'critical', now,
+    });
+
+    return {
+      hubWsConnected: false,
+      hubGoodStreak: 0,
+      communicationAlarms,
+      systemStatuses: mergeCommunicationStatus(
+        computeSystemStatuses(state.equipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+        communicationAlarms,
+      ),
+    };
+  }),
+
+  acknowledgeCommunicationAlarm: (alarmKey) => set((state) => ({
+    communicationAlarms: acknowledgeAlarmRecord(state.communicationAlarms, alarmKey, Date.now()),
+  })),
 
   setDemoMode: (enabled) => set((state) => {
     if (!enabled) {
