@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react';
+import { sharedCanvasTexture } from '../shared/sharedCanvasTexture';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useCursor } from '@react-three/drei';
@@ -114,7 +115,8 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
     startPhase: seededUnit(seed * 3.1) * Math.PI * 2,
   }), [seed]);
 
-  const vortexTexture = useMemo(() => createVortexTexture(), []);
+  // WP6.5：多药剂桶实例共享同一涡流纹理
+  const vortexTexture = useMemo(() => sharedCanvasTexture('chem.vortex', createVortexTexture), []);
   const liquidColor = useMemo(() => new THREE.Color(color), [color]);
   const liquidEmissive = useMemo(() => new THREE.Color(color).multiplyScalar(0.3), [color]);
   const shaderArgs = useMemo(() => ({

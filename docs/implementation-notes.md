@@ -345,3 +345,23 @@
 
 ## 风险
 - 本机 quick 波动较大（10-20 FPS 级），细粒度 A/B 需要 FULL 模式多轮；三角形/calls 等结构指标则稳定可信。
+
+---
+
+# 2026-08-20 WP6.5：纹理共享
+
+## 决策
+- 共享缓存为模块级 Map（key→CanvasTexture），应用级生命周期；提供 disposeSharedCanvasTextures 供热更/测试。
+- Pipe3D 流动箭头是大头（每根动画管一份）：texture.repeat 是纹理级状态无法 per-instance——把密度差异移到每管独立 TubeGeometry 的 UV.x 缩放（flowRepeatX=max(len*2.5,2)），纹理即可全场景一份；共享纹理的组件卸载 dispose 调用同步移除。
+- 铭牌纹理含设备名：按名键控共享（cab.nameplate.<name>），仍消除重挂重复。
+- 不共享：DeepTreatment pH 值牌（值驱动动态重绘、单实例）、SludgeLogistics（本就是模块级单例回调）。
+
+## 验证
+- textures：110（基线）→ 99（设备纹理共享后）→ **29**（Pipe 箭头共享后）；门槛 <80 超额。
+- dispose 语义：5 轮视图往返 tex 29→30（懒加载晚建一次后稳定），共享纹理不被单实例销毁 ✓。
+- quick --performance-mode A/B：tex=30 稳定、calls/tris 不变、FPS 噪声内；视觉截图检查（箭头方向/密度正常）。
+- 回归：check:scene 40/40、test:store 35/35、lint 干净。
+
+## 风险 / 遗留
+- **geometries 视图往返每轮 +43 泄漏（5 轮 7054→7270）**：WP6.5 顺带发现的独立缺陷——重挂组件的手写 geometry 未释放；SPEC 16.3"往返稳定基线"门槛未达，归 WP6.7（Baker 替换与几何生命周期同批）。
+- 本机 quick FPS 仍有间歇 1fps 环境污染（复跑即恢复），结构指标（tex/calls/tris）不受影响。

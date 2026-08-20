@@ -1,5 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import * as THREE from 'three';
+import { sharedCanvasTexture } from '../shared/sharedCanvasTexture';
 import { useFrame } from '@react-three/fiber';
 import { useCursor, Html, Instances, Instance } from '@react-three/drei';
 import { FloatingPoolLabel3D } from '../shared/FloatingPoolLabel3D';
@@ -389,7 +390,8 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
     };
   }, []);
 
-  const bubbleTexture = useMemo(() => {
+  // WP6.5：气泡纹理共享
+  const bubbleTexture = useMemo(() => sharedCanvasTexture('daf.bubbles', () => {
     const canvas = document.createElement('canvas');
     canvas.width = 256; canvas.height = 256;
     const ctx = canvas.getContext('2d');
@@ -410,7 +412,7 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
     tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(2, 2);
     return tex;
-  }, []);
+  }), []);
 
   useFrame((state) => {
     // SPEC-PLAN WP1: 气泡滚动属于物理运行表现，DO 指令不驱动（未验证状态静止）。

@@ -1071,7 +1071,11 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 > - 6.3 perf-mode：DPR<=1.25 + shadows off，经 `?perf-mode=1` 在 store 创建期启用（运行时切换阴影会触发全量重编译致 1fps——已测量并规避）。本机 quick：气浮 15→33.8 FPS、污泥 15→36.5（**本机已达 >=30 门槛**）、P95≈33.4ms，进水/主处理/纯水 5-6→16-19；全局 6.4 FPS/5483 calls 不变（DPR/阴影不减 calls）。测量脚本加 --performance-mode。
 > - 6.4 管道细分减半（radial 32→16、密度 10→6，仅细分不改路径算法）：tris -30%（纯水 1.63M→1.09M 等），FPS 噪声内；12/4 激进参数实测触发渲染循环 1fps 崩塌（疑似低 tubularSegments 下 Frenet frames 病态）已排除；视觉回归截图检查通过。
 >
-> **硬门槛验收（60s×3×6 位 + soak）留待目标工控机（Gate C）。WP6.5 纹理共享 / WP6.6 分站实例化 / WP6.7 Baker 替换未开始。**
+> **硬门槛验收（60s×3×6 位 + soak）留待目标工控机（Gate C）。**
+>
+> **WP6.5 纹理共享（2026-08-20）：完成。** 新增 `shared/sharedCanvasTexture.ts` 模块级缓存；Tank3D 涡流/DAF 气泡/ChemicalTank 涡流/ScrewPress 螺旋/配电柜三处（铭牌按名键控）/**Pipe3D 流动箭头（大头：repeat 移至每管 UV 缩放实现全场景一份）** 共 7 类共享化。**textures 110 → 29**（门槛 <80 超额达成）；dispose 语义验证：5 轮视图往返 29→30（噪声级 1，共享纹理无泄漏）；视觉回归截图检查（箭头密度正常）。**新发现（归 WP6.7）：geometries 视图往返每轮 +43 泄漏（5 轮 +216，SPEC 16.3 往返稳定门槛未达）——组件重挂的手写 geometry 生命周期问题，与 Baker 替换同批处理。**
+>
+> **WP6.6 分站实例化 / WP6.7 Baker 替换未开始。**
 
 主要内容：
 
