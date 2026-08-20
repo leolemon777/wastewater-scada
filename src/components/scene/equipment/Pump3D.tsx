@@ -395,16 +395,15 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
             <cylinderGeometry args={[0.055, 0.055, 0.025, 12]} />
             <meshStandardMaterial color="#5A6470" metalness={0.78} roughness={0.28} />
           </mesh>
-          {/* Base plate securing bolts (4) */}
-          {Array.from({ length: 4 }, (_, i) => {
-            const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
-            return (
-              <mesh key={`eye-bolt-${i}`} position={[Math.cos(angle) * 0.04, 0.014, Math.sin(angle) * 0.04]} castShadow>
-                <cylinderGeometry args={[0.008, 0.008, 0.02, 6]} />
-                <meshStandardMaterial color="#7A8894" roughness={0.22} metalness={0.82} />
-              </mesh>
-            );
-          })}
+          {/* Base plate securing bolts (4) — WP6.6 实例化 4→1 */}
+          <Instances limit={4} castShadow>
+            <cylinderGeometry args={[0.008, 0.008, 0.02, 6]} />
+            <meshStandardMaterial color="#7A8894" roughness={0.22} metalness={0.82} />
+            {Array.from({ length: 4 }, (_, i) => {
+              const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+              return <Instance key={`eye-bolt-${i}`} position={[Math.cos(angle) * 0.04, 0.014, Math.sin(angle) * 0.04]} />;
+            })}
+          </Instances>
           {/* Threaded shank through the base */}
           <mesh castShadow position={[0, 0.04, 0]}>
             <cylinderGeometry args={[0.018, 0.018, 0.045, 10]} />
@@ -600,16 +599,14 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
             <torusGeometry args={[0.11, 0.012, 6, 24]} />
             <meshStandardMaterial color="#3A4550" roughness={0.48} />
           </mesh>
-          {/* Radial Spokes (8) representing safety grille bars */}
-          {Array.from({ length: 8 }).map((_, index) => {
-            const angle = (index / 8) * Math.PI;
-            return (
-              <mesh key={index} rotation={[0, 0, angle]} castShadow>
-                <boxGeometry args={[0.7, 0.012, 0.008]} />
-                <meshStandardMaterial color="#3A4550" roughness={0.48} />
-              </mesh>
-            );
-          })}
+          {/* Radial Spokes (8) — WP6.6 实例化 8→1 */}
+          <Instances limit={8} castShadow>
+            <boxGeometry args={[0.7, 0.012, 0.008]} />
+            <meshStandardMaterial color="#3A4550" roughness={0.48} />
+            {Array.from({ length: 8 }).map((_, index) => (
+              <Instance key={index} rotation={[0, 0, (index / 8) * Math.PI]} />
+            ))}
+          </Instances>
           {/* Center cap */}
           <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
             <cylinderGeometry args={[0.05, 0.05, 0.015, 12]} />
@@ -643,16 +640,15 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
             <cylinderGeometry args={[0.38, 0.41, 0.08, 32, 1, true]} />
             <meshStandardMaterial color="#4D555C" roughness={0.48} metalness={0.55} />
           </mesh>
-          {/* Bracket flange bolts (6) — visible at motor-side face */}
-          {Array.from({ length: 6 }, (_, i) => {
-            const a = (i / 6) * Math.PI * 2;
-            return (
-              <mesh key={`bracket-bolt-${i}`} position={[Math.sin(a) * 0.35, 0, Math.cos(a) * 0.35]} castShadow>
-                <cylinderGeometry args={[0.014, 0.014, 0.022, 6]} />
-                <meshStandardMaterial color="#94A3B8" roughness={0.2} metalness={0.8} />
-              </mesh>
-            );
-          })}
+          {/* Bracket flange bolts (6) — WP6.6 实例化 6→1 */}
+          <Instances limit={6} castShadow>
+            <cylinderGeometry args={[0.014, 0.014, 0.022, 6]} />
+            <meshStandardMaterial color="#94A3B8" roughness={0.2} metalness={0.8} />
+            {Array.from({ length: 6 }, (_, i) => {
+              const a = (i / 6) * Math.PI * 2;
+              return <Instance key={`bracket-bolt-${i}`} position={[Math.sin(a) * 0.35, 0, Math.cos(a) * 0.35]} />;
+            })}
+          </Instances>
           {/* Bracket vent slots (4 around circumference, top half only) */}
           {[-0.6, -0.2, 0.2, 0.6].map((angle, i) => (
             <mesh key={`bracket-slot-${i}`} position={[Math.sin(angle) * 0.39, 0, Math.cos(angle) * 0.39]} rotation={[0, angle, 0]}>
@@ -763,20 +759,20 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
           <torusGeometry args={[0.57, 0.018, 12, 36]} />
           <meshStandardMaterial color="#3A454A" roughness={0.5} metalness={0.35} />
         </mesh>
-        {/* Casing bolts (12) around the split band */}
-        {Array.from({ length: 12 }, (_, i) => {
-          const a = (i / 12) * Math.PI * 2;
-          return (
-            <mesh
-              key={`casing-bolt-${i}`}
-              position={[Math.cos(a) * 0.58, Math.sin(a) * 0.58 + 0.78, PUMP_VOLUTE_CENTER_Z]}
-              castShadow
-            >
-              <cylinderGeometry args={[0.018, 0.018, 0.03, 6]} />
-              <meshStandardMaterial color="#889299" roughness={0.22} metalness={0.78} />
-            </mesh>
-          );
-        })}
+        {/* Casing bolts (12) around the split band（WP6.6：实例化 12→1 draw call） */}
+        <Instances limit={12} castShadow>
+          <cylinderGeometry args={[0.018, 0.018, 0.03, 6]} />
+          <meshStandardMaterial color="#889299" roughness={0.22} metalness={0.78} />
+          {Array.from({ length: 12 }, (_, i) => {
+            const a = (i / 12) * Math.PI * 2;
+            return (
+              <Instance
+                key={`casing-bolt-${i}`}
+                position={[Math.cos(a) * 0.58, Math.sin(a) * 0.58 + 0.78, PUMP_VOLUTE_CENTER_Z]}
+              />
+            );
+          })}
+        </Instances>
 
         {/* ── Bottom drain plug ── */}
         <group position={[0, 0.21, -0.78]}>

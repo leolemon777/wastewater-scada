@@ -280,7 +280,7 @@ function App() {
               toneMapping: THREE.ACESFilmicToneMapping,
               toneMappingExposure: 0.95,
             }}
-            onCreated={({ gl, camera }) => {
+            onCreated={({ gl, camera, scene }) => {
               gl.outputColorSpace = THREE.SRGBColorSpace;
               const maxAniso = gl.capabilities.getMaxAnisotropy();
               THREE.Texture.DEFAULT_ANISOTROPY = Math.min(8, maxAniso);
@@ -289,6 +289,7 @@ function App() {
               if (typeof window !== 'undefined') {
                 (window as unknown as { __scadaGl?: THREE.WebGLRenderer }).__scadaGl = gl;
                 (window as unknown as { __scadaCamera?: THREE.Camera }).__scadaCamera = camera;
+                (window as unknown as { __scadaScene?: THREE.Scene }).__scadaScene = scene;
               }
               // First frame is about to render — let the loader fade out.
               requestAnimationFrame(() => setSceneReady(true));

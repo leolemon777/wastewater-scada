@@ -365,3 +365,19 @@
 ## 风险 / 遗留
 - **geometries 视图往返每轮 +43 泄漏（5 轮 7054→7270）**：WP6.5 顺带发现的独立缺陷——重挂组件的手写 geometry 未释放；SPEC 16.3"往返稳定基线"门槛未达，归 WP6.7（Baker 替换与几何生命周期同批）。
 - 本机 quick FPS 仍有间歇 1fps 环境污染（复跑即恢复），结构指标（tex/calls/tris）不受影响。
+
+---
+
+# 2026-08-20 WP6.6：分站实例化（样板）
+
+## 决策
+- 数据驱动选目标：perf 钩子补 `__scadaScene`（onCreated state.scene，camera 不在场景图中、DOM 无 __r3f 句柄——两版探测后定此路径），按 geometry×material 与顶层工段分组统计，Top18 重复组合全部为小五金。
+- 实例化范围：Pump3D 四组循环（壳体螺栓/基座螺栓/栅条/法兰螺栓）+ SkidFrame3D 锚板三件套——与既有 PUMP_BOLT_MATERIAL primitive 模式一致，无注册机制、组件内闭合。
+- 诚实结论：全局位 calls 持平（视锥内主体非小五金），geometries -23% 与默认视口 -830 calls 为实质收益；全局 ≤500 门槛路径确认为 WP6.7 Baker 静态合批，剩余低收益循环暂缓（记录于 SPEC）。
+
+## 验证
+- 回归：check:scene 40/40、test:store 35/35、lint/build 干净；视觉截图检查（泵/撬座细节完好）。
+- quick 六位 A/B 落盘；测量环境坑：残留 Edge 进程使 harness 连续崩溃（taskkill 后恢复），已记录。
+
+## 风险
+- InstancedMesh 组 castShadow 与原一致；阴影关闭的 perf-mode 下无额外成本。

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Instances, Instance } from '@react-three/drei';
 import { Materials } from './Materials';
 import { RubberPad3D } from './IndustrialParts';
 
@@ -141,25 +142,32 @@ export const SkidFrame3D: React.FC<SkidFrame3DProps> = ({
         </mesh>
       ))}
 
-      {/* 锚板 + 螺柱 + 螺母（每条导轨 anchorPerRail 处） */}
-      {[-anchorX, anchorX].map((z) =>
-        anchorZs.map((x, i) => (
-          <group key={`skid-anchor-${z}-${i}`} position={[x, anchorY, z]}>
-            <mesh castShadow receiveShadow>
+      {/* 锚板 + 螺柱 + 螺母（每条导轨 anchorPerRail 处）— WP6.6 三件套各实例化 */}
+      {(() => {
+        const anchors: Array<{ x: number; z: number }> = [];
+        for (const z of [-anchorX, anchorX]) {
+          anchorZs.forEach((x) => anchors.push({ x, z }));
+        }
+        return (
+          <>
+            <Instances limit={anchors.length} castShadow receiveShadow>
               <boxGeometry args={[0.16, 0.02, 0.16]} />
               <meshStandardMaterial color={ANCHOR_PLATE} roughness={0.52} metalness={0.66} />
-            </mesh>
-            <mesh castShadow position={[0, 0.06, 0]}>
+              {anchors.map((a, i) => <Instance key={`plate-${i}`} position={[a.x, anchorY, a.z]} />)}
+            </Instances>
+            <Instances limit={anchors.length} castShadow>
               <cylinderGeometry args={[0.014, 0.014, 0.12, 8]} />
               <meshStandardMaterial color={ANCHOR_STUD} roughness={0.2} metalness={0.8} />
-            </mesh>
-            <mesh castShadow position={[0, 0.09, 0]}>
+              {anchors.map((a, i) => <Instance key={`stud-${i}`} position={[a.x, anchorY + 0.06, a.z]} />)}
+            </Instances>
+            <Instances limit={anchors.length} castShadow>
               <cylinderGeometry args={[0.024, 0.024, 0.035, 6]} />
               <meshStandardMaterial color={ANCHOR_NUT} roughness={0.3} metalness={0.8} />
-            </mesh>
-          </group>
-        )),
-      )}
+              {anchors.map((a, i) => <Instance key={`nut-${i}`} position={[a.x, anchorY + 0.09, a.z]} />)}
+            </Instances>
+          </>
+        );
+      })()}
 
       {/* 橡胶减震垫（四角，在导轨之上） */}
       {rubberPads &&
