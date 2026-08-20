@@ -110,7 +110,6 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
   // equipment re-opens automatically (no effect needed).
   const [drawerCollapsedFor, setDrawerCollapsedFor] = useState<string | null>(null);
   const equipmentDrawerOpen = !!selectedEquipmentId && drawerCollapsedFor !== selectedEquipmentId;
-  const [pendingAction, setPendingAction] = useState<{message: string, onConfirm: () => void} | null>(null);
 
   const alarms = useScadaStore((s) => s.alarms).filter((alarm) => alarm.system === currentSystem);
   const unacknowledgedAlarms = alarms.filter(a => !a.acknowledged);
@@ -222,17 +221,16 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
               <DetailItem label="实时 pH" value={tk.pH.toFixed(2)} highlight={tk.pH > 9 || tk.pH < 6} />
             )}
             {tk.agitatorRunning !== undefined && (
-              <EquipmentActionGroup>
-                <EquipmentActionButton
-                  tone={tk.agitatorRunning ? 'running' : 'idle'}
-                  onClick={() => setPendingAction({
-                    message: tk.agitatorRunning ? `确定要停止 ${tk.name} 的搅拌机吗？` : `确定要启动 ${tk.name} 的搅拌机吗？`,
-                    onConfirm: () => useScadaStore.getState().toggleAgitator(tk.id)
-                  })}
-                >
-                  搅拌机: {tk.agitatorRunning ? '运行中 (点击停机)' : '已停机 (点击启动)'}
-                </EquipmentActionButton>
-              </EquipmentActionGroup>
+              <DetailItem label="搅拌机状态" value={tk.agitatorRunning ? '运行' : '停止'} />
+            )}
+            {tk.aerationRunning !== undefined && (
+              <DetailItem label="曝气指令 (DO1)" value={tk.aerationRunning ? '逻辑输出 ON' : '逻辑输出 OFF'} />
+            )}
+            {tk.scraperRunning !== undefined && (
+              <DetailItem label="刮沫指令 (DO2)" value={tk.scraperRunning ? '逻辑输出 ON' : '逻辑输出 OFF'} />
+            )}
+            {(tk.aerationRunning !== undefined || tk.scraperRunning !== undefined) && (
+              <div className="equipment-detail-muted">指令为 M100 逻辑输出，仅代表控制信号；物理运行状态未验证。</div>
             )}
           </>
         );
@@ -247,17 +245,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
              {(mix.pH2 !== undefined) && <DetailItem label="pH2 测量值" value={mix.pH2.toFixed(2)} highlight={mix.pH2 > 9 || mix.pH2 < 6} />}
              <DetailItem label="控制模式" value={mix.controlMode === 'auto' ? '自动' : '手动'} />
              {mix.agitatorRunning !== undefined && (
-               <EquipmentActionGroup>
-                 <EquipmentActionButton
-                   tone={mix.agitatorRunning ? 'running' : 'idle'}
-                   onClick={() => setPendingAction({
-                     message: mix.agitatorRunning ? `确定要停止 ${mix.name} 的搅拌机吗？` : `确定要启动 ${mix.name} 的搅拌机吗？`,
-                     onConfirm: () => useScadaStore.getState().toggleAgitator(mix.id)
-                   })}
-                 >
-                   混合机搅拌: {mix.agitatorRunning ? '运行中 (点击停机)' : '已停机 (点击启动)'}
-                 </EquipmentActionButton>
-               </EquipmentActionGroup>
+               <DetailItem label="混合机搅拌状态" value={mix.agitatorRunning ? '运行' : '停止'} />
              )}
           </>
         );
@@ -268,16 +256,16 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
           const dataUncertain = !pureWaterPlcConnection.valuesAreCurrent;
           const runState = dataUncertain
             ? pureWaterPlcConnection.holdsLastValues
-              ? `${pd.runStatus === 'running' ? '运行' : pd.runStatus === 'fault' ? '故障' : '停止'}（保持值）`
+              ? `${pd.runStatus === 'running' ? '指令 ON' : pd.runStatus === 'fault' ? '故障' : '指令 OFF'}（保持值）`
               : '--'
             : pd.runStatus === 'running'
-              ? '运行中'
+              ? '指令输出 ON'
               : pd.runStatus === 'fault'
                 ? '故障'
-                : '已停止';
+                : '指令输出 OFF';
           return (
             <>
-              <DetailItem label="运行状态" value={runState} highlight={pd.runStatus === 'fault' || dataUncertain} />
+              <DetailItem label="逻辑输出状态 (Y)" value={runState} highlight={pd.runStatus === 'fault' || dataUncertain} />
               <DetailItem label="数据状态" value={pureWaterConnectionLabel(pureWaterPlcConnection)} highlight={dataUncertain} />
               <div className="equipment-detail-muted">
                 纯水 PLC 仅开放只读监视；当前程序未提供电流、频率、流量和功率寄存器，也未开放启停控制。
@@ -293,17 +281,7 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
             <DetailItem label="运行频率" value={pd.frequency?.toFixed(1) || '0.0'} unit="Hz" />
             <DetailItem label="额定功率" value={pd.power?.toFixed(1) || '0.0'} unit="kW" />
             {pd.faultCode && <DetailItem label="故障代码" value={pd.faultCode} highlight />}
-            <EquipmentActionGroup>
-              <EquipmentActionButton
-                tone={pd.runStatus === 'running' ? 'danger' : 'idle'}
-                onClick={() => setPendingAction({
-                  message: pd.runStatus === 'running' ? `确定要紧急联锁停机 [${pd.name}] 吗？此操作将立即切断水泵电源！` : `确定要强制启动 [${pd.name}] 吗？`,
-                  onConfirm: () => useScadaStore.getState().toggleEquipmentRunStatus(pd.id)
-                })}
-              >
-                水泵: {pd.runStatus === 'running' ? '紧急联锁停机' : '强制启动'}
-              </EquipmentActionButton>
-            </EquipmentActionGroup>
+            <div className="equipment-detail-muted">只读监视 · 未开放设备控制</div>
           </>
         );
       }
@@ -403,7 +381,10 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
           <div className="topbar-cluster topbar-cluster-brand">
             <div className="topbar-brand-mark" aria-hidden="true" />
             <div className="topbar-brand-copy">
-              <h1>{currentSystem === 'purewater' ? '纯水房控制系统' : '污水站现场监控'}</h1>
+              <h1>
+                {currentSystem === 'purewater' ? '纯水房控制系统' : '污水站现场监控'}
+                <span className="topbar-readonly-badge">只读监视｜未开放设备控制</span>
+              </h1>
               <span className={`topbar-status ${statusClass}`}>
                 <span className={`topbar-status-lamp ${statusClass}`} aria-hidden="true" />
                 <span className="topbar-status-label">{statusLabel}</span>
@@ -638,53 +619,9 @@ export const OverlayUI: React.FC<OverlayUIProps> = ({ orbitControlsRef }) => {
       </aside>
       )}
 
-      {/* Confirmation Modal */}
-      {pendingAction && (
-        <>
-          <div className="overlay-backdrop alarm-backdrop" onClick={() => setPendingAction(null)} />
-          <div className="panel-solid overlay-panel" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '320px', zIndex: 100000, margin: 0, maxHeight: 'auto' }}>
-            <div className="overlay-panel-header">
-              <h2 className="overlay-panel-title"><AlertCircle size={16} color="var(--status-warn)" /> 操作确认</h2>
-            </div>
-            <div className="overlay-panel-body" style={{ padding: '20px', flexDirection: 'column' }}>
-              <p style={{ margin: 0, marginBottom: '20px', fontSize: '14px', color: 'var(--text-primary)' }}>{pendingAction.message}</p>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setPendingAction(null)} style={{ padding: '6px 16px', background: 'transparent', border: '1px solid var(--bg-panel-border)', color: 'var(--text-primary)', borderRadius: '4px', cursor: 'pointer' }}>取消</button>
-                <button type="button" onClick={() => { pendingAction.onConfirm(); setPendingAction(null); }} style={{ padding: '6px 16px', background: 'var(--status-error)', border: 'none', color: '#fff', borderRadius: '4px', cursor: 'pointer' }}>确认执行</button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
     </div>
   );
 };
-
-const EquipmentActionGroup = ({ children }: { children: React.ReactNode }) => (
-  <div className="equipment-action-group">
-    <span className="equipment-action-label">设备联控</span>
-    {children}
-  </div>
-);
-
-const EquipmentActionButton = ({
-  children,
-  tone,
-  onClick,
-}: {
-  children: React.ReactNode;
-  tone: 'running' | 'idle' | 'danger';
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    className={`equipment-action-btn ${tone}`}
-    onClick={onClick}
-  >
-    {children}
-  </button>
-);
 
 const AlarmRow = ({ alarm }: { alarm: AlarmRecord }) => {
   const time = new Date(alarm.timestamp).toLocaleString('zh-CN', { hour12: false });

@@ -3,7 +3,7 @@ import { useScadaStore, type TankData, type PumpData, type FlowMeterData } from 
 import { getDemoScenario } from '../../store/demoScenarios';
 import { Activity, Power, Database, Droplets, FlaskConical, RefreshCw } from 'lucide-react';
 import { LEVEL_MONITORED_TANKS, displayTankName } from '../../store/equipmentUtils';
-import { ControlRow, TankLevelRow } from './dashboard-parts';
+import { StatusRow, TankLevelRow } from './dashboard-parts';
 
 type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator';
 
@@ -21,8 +21,6 @@ function groupPumps(pumps: PumpData[]) {
 export const DataDashboard: React.FC = () => {
   const {
     equipments,
-    toggleEquipmentRunStatus,
-    toggleAgitator,
     demoMode,
     currentScenarioId,
     demoTick,
@@ -148,7 +146,7 @@ export const DataDashboard: React.FC = () => {
         <section className="dash-panel dash-col dash-col-control">
           <header className="dash-panel-head">
             <Power size={16} />
-            <h2>设备集控</h2>
+            <h2>设备状态</h2>
           </header>
           <div className="dash-control-tabs" role="tablist" aria-label="设备分组">
             {([
@@ -171,23 +169,21 @@ export const DataDashboard: React.FC = () => {
           </div>
           <div className="dash-panel-body dash-control-list" role="tabpanel">
             {controlTab !== 'agitator' && activePumps.map((pump) => (
-              <ControlRow
+              <StatusRow
                 key={pump.id}
                 label={pump.name}
-                checked={pump.runStatus === 'running'}
-                onChange={() => toggleEquipmentRunStatus(pump.id)}
+                running={pump.runStatus === 'running'}
               />
             ))}
             {controlTab === 'agitator' && agitators.map((tank) => (
-              <ControlRow
+              <StatusRow
                 key={tank.id}
                 label={getAgitatorName(tank.name)}
-                checked={!!tank.agitatorRunning}
-                onChange={() => toggleAgitator(tank.id)}
+                running={!!tank.agitatorRunning}
               />
             ))}
           </div>
-          <p className="dash-control-hint">操作即时同步至 3D 现场视图</p>
+          <p className="dash-control-hint">只读监视 · 未开放设备控制</p>
         </section>
       </div>
 

@@ -956,18 +956,27 @@ html[data-zone-density='sparse'] .zone-label-chip {
   background: rgba(139, 152, 169, 0.18);
 }
 
-.daf-control-button-3d {
+/* SPEC-PLAN WP1: DO command indicator — a static tag, not a button. */
+.daf-control-status-3d {
+  display: inline-block;
   min-width: 36px;
   height: 16px;
   padding: 0 5px;
   border: none;
   border-radius: 3px;
   color: var(--text-on-accent);
-  cursor: pointer;
   font-size: 8px;
   font-weight: 800;
   line-height: 16px;
-  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.daf-control-note-3d {
+  margin-top: 3px;
+  color: var(--status-warn, #f59e0b);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
 /* 3D equipment labels: aerospace nameplate chips — deep-space bezel with a
@@ -1132,63 +1141,35 @@ html[data-ui-density='compact'] {
 
 /* Live dashboard chrome lives in scada-shell.css (.dash-*). The classes below
    are the still-used overlay primitives shared by Overlay.tsx (DetailItem,
-   AlarmRow, overview rows) and DataDashboard.tsx (scada-switch). */
+   AlarmRow, overview rows) and DataDashboard.tsx (status rows). */
 
-/* Light HMI toggle — soft track, teal when ON, white knob.
-   Used by DataDashboard control rows. */
-.scada-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-  flex-shrink: 0;
+/* SPEC-PLAN WP1: monitor-only status tag replaces the old scada-switch.
+   The row is display-only — no checkbox, no click affordance. */
+.dash-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--bg-panel-border, rgba(148, 163, 184, 0.35));
 }
 
-.scada-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+.dash-status-tag.is-running {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(52, 211, 153, 0.08);
 }
 
-.scada-switch-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #E4EAE7;
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.10);
-  transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
-  border-radius: 999px;
-  border: 1px solid #C9D4CF;
+.dash-status-tag.is-stopped {
+  color: var(--text-secondary, #94a3b8);
 }
 
-.scada-switch-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 2px;
-  bottom: 2px;
-  background: #FFFFFF;
-  transition: transform var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
-}
-
-.scada-switch input:checked + .scada-switch-slider {
-  background-color: color-mix(in srgb, var(--accent-primary) 78%, #FFFFFF);
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 18%, transparent),
-              0 4px 10px color-mix(in srgb, var(--accent-primary) 22%, transparent);
-}
-
-.scada-switch input:checked + .scada-switch-slider:before {
-  transform: translateX(20px);
-  background: #FFFFFF;
-}
-
-.scada-switch input:disabled + .scada-switch-slider {
-  opacity: 0.5;
-  cursor: not-allowed;
+.dash-status-note {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.75;
 }
 
 .detail-item {

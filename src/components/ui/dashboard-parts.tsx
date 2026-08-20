@@ -9,24 +9,23 @@
  */
 import type { TankData } from '../../store/useScadaStore';
 
-/** A single equipment on/off switch row with a scada-switch. */
-export const ControlRow = ({ label, checked, onChange, readOnly = false }: {
+/**
+ * Read-only equipment status row (SPEC-PLAN WP1 monitor-only UI).
+ * No switch, no click affordance — the value shown is display-only.
+ */
+export const StatusRow = ({ label, running, note }: {
   label: string;
-  checked: boolean;
-  onChange: () => void;
-  /** Monitor-only row: status visible, switch disabled (control reserved). */
-  readOnly?: boolean;
+  running: boolean;
+  /** Optional qualifier such as 逻辑输出/未验证 semantics. */
+  note?: string;
 }) => (
-  <label
-    className={`dash-control-row ${checked ? 'is-active' : ''} ${readOnly ? 'is-readonly' : ''}`}
-    title={readOnly ? '现场演示运行中 · 关闭演示后可手动控制' : undefined}
-  >
+  <div className={`dash-control-row dash-status-row ${running ? 'is-active' : ''}`}>
     <span className="dash-control-label" title={label}>{label}</span>
-    <span className="scada-switch">
-      <input type="checkbox" checked={checked} onChange={onChange} disabled={readOnly} />
-      <span className="scada-switch-slider" />
+    <span className={`dash-status-tag ${running ? 'is-running' : 'is-stopped'}`}>
+      {running ? '运行' : '停止'}
+      {note && <em className="dash-status-note">{note}</em>}
     </span>
-  </label>
+  </div>
 );
 
 /** A horizontal tank level bar with high/low limit markers. */

@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
 import { useCursor } from '@react-three/drei';
 import { PumpIndicator3D } from '../shared/IndustrialParts';
 import { useScadaStore, type PumpData } from '../../../store/useScadaStore';
@@ -30,6 +29,8 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const [hovered, setHovered] = React.useState(false);
   // 对标 Pump3D:电机外壳静止(只微震),只有顶部风扇/转子旋转。
+  // SPEC-PLAN WP1：runStatus 由 PLC Y 指令驱动（逻辑输出），不驱动风扇/微震动画；
+  // refs 仅保留造型锚点，物理运行未验证时组件静止。
   const motorShakeRef = useRef<THREE.Group>(null);
   const fanRef = useRef<THREE.Group>(null);
 
@@ -37,33 +38,13 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
 
   const telemetryIsCurrent = pureWaterConnectionState === 'live' || pureWaterConnectionState === 'demo';
 
-  useFrame(({ clock }, delta: number) => {
-    const running = telemetryIsCurrent && pumpData?.runStatus === 'running';
-    // 立式泵风扇轴竖直,绕 Y 旋转(区别于卧式 Pump3D 绕 Z)。
-    if (fanRef.current && running) {
-      fanRef.current.rotation.y += delta * 18;
-    }
-    // 运行时电机外壳亚毫米级微震(机座/泵筒体/联轴器不在此组,接口不撕开)。
-    const shake = motorShakeRef.current;
-    if (shake) {
-      if (running) {
-        const t = clock.elapsedTime;
-        shake.position.x = Math.sin(t * 47) * 0.004;
-        shake.position.z = Math.sin(t * 41 + 0.7) * 0.004;
-        shake.position.y = Math.sin(t * 53) * 0.003;
-      } else {
-        shake.position.set(0, 0, 0);
-      }
-    }
-  });
-
   if (!pumpData) return null;
 
   const bodyColor = isSelected ? '#E2E8F0' : STAINLESS;
   const accentColor = isSelected ? '#38BDF8' : HEAD_DARK;
-  const running = telemetryIsCurrent && pumpData.runStatus === 'running';
+  // SPEC-PLAN WP1：Y 指令不得点亮"运行"灯；仅故障红与停止灰。
   const indicatorStatus: 'running' | 'stopped' | 'fault' =
-    pumpData.runStatus === 'fault' ? 'fault' : running ? 'running' : 'stopped';
+    pumpData.runStatus === 'fault' ? 'fault' : 'stopped';
 
   return (
     <group position={position} rotation={rotation} userData={{ bakeExclude: true }}>

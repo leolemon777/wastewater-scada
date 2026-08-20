@@ -484,11 +484,6 @@
   white-space: nowrap;
 }
 
-/* The scada-switch sits on the dark row — brighten its ON glow toward cyan. */
-.pw-cabinet .pw-channel .scada-switch input:checked + .scada-switch-slider {
-  background: linear-gradient(180deg, #4fe3dc, var(--pw-led-permeate));
-  box-shadow: 0 0 6px var(--pw-led-permeate-glow);
-}
 
 /* Control hint. */
 .pw-cabinet .pw-control-hint.dash-control-hint {
