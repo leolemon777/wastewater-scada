@@ -392,8 +392,10 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
     return len;
   }, [pipePoints]);
 
-  const radialSegments = 32;
-  const tubeSegments = Math.max(8, Math.min(360, Math.ceil(pathLength * 10)));
+  // SPEC-PLAN 16.2（WP6.4）：仅降低径向/纵向细分（32->12 / 密度 10->4），不改路径算法。
+  // 管件为长直段+小圆角，12 边截面在工控机视距下无可感知锯齿；实例化合并归 WP6.6。
+  const radialSegments = 16;
+  const tubeSegments = Math.max(8, Math.min(180, Math.ceil(pathLength * 6)));
   const pipePath = useMemo(() => buildRoundedPath(pipePoints, radius), [pipePoints, radius]);
   const pipeGeometry = useMemo(() => {
     if (!pipePath || pathLength < 0.008) return null;

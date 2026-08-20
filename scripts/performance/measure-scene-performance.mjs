@@ -39,13 +39,19 @@ const port = server.address().port;
 console.log(`静态服务: http://127.0.0.1:${port}（模式: ${quick ? 'QUICK（非验收）' : 'FULL'}${perfMode ? '+PERF-MODE' : ''}，采样 ${sampling.warmupSeconds}s 预热 + ${sampling.sampleSeconds}s × ${sampling.rounds} 轮/位）`);
 
 // --- 浏览器 ---
-const browser = await chromium.launch({ channel: 'msedge', headless: false });
+const browser = await chromium.launch({
+  channel: 'msedge',
+  headless: false,
+  // 后台标签会把 rAF 节流到 1Hz，污染帧时采样——必须禁用。
+  args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
+});
 const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: viewport.deviceScaleFactor });
 const contextLosses = [];
 page.on('console', (message) => {
   if (message.text().includes('webglcontextlost')) contextLosses.push(Date.now());
 });
 
+await page.bringToFront();
 await page.goto(`http://127.0.0.1:${port}/?perf=1${perfMode ? '&perf-mode=1' : ''}`, { waitUntil: 'load', timeout: 60_000 });
 // 等待渲染钩子就绪
 await page.waitForFunction(() => window.__scadaGl && window.__scadaCamera && window.__scadaControls, null, { timeout: 60_000 });
