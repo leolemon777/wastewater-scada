@@ -1063,7 +1063,15 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 
 ### WP6：3D 工控机性能收口
 
-> **状态（2026-08-20）：WP6.0 完成（测量基础设施）。** `scripts/performance/scene-profile.json` 冻结（6 固定相机位/1920x1080@100%/预热 15s 采样 60s×3 轮/SPEC 16.3 硬门槛/目标机信息占位待现场回填）；`measure-scene-performance.mjs` + `npm run perf:scene`（Node 静态 dist + Playwright msedge 硬件加速 + rAF 帧时采样 + renderer.info 统计 + context-loss 监听，`--quick` 开发模式）；App 暴露只读 perf 钩子（`__scadaGl/__scadaCamera/__scadaControls`，无 mutation 能力）。**本机 QUICK 开发基线已采集**（results/ 目录，gitignore）：全局 2.9-6 FPS / 5483 calls / 8948 geos / 112 tex（与 16.1 记载吻合），深度/污泥位 15 FPS / 462-657 calls——WP6.1+ 优化优先级与对照基线就绪。已知瑕疵：全局位 triangles 统计溢出显示 Infinity（WP6.优化时排查）。**硬门槛验收（60s×3×6 位 + soak）留待目标工控机（Gate C）。WP6.1-6.7 整改未开始。**
+> **状态（2026-08-20）：WP6.0 完成；WP6.1-6.4 完成（各自单独提交+quick A/B）。** `scripts/performance/scene-profile.json` 冻结（6 固定相机位/1920x1080@100%/预热 15s 采样 60s×3 轮/SPEC 16.3 硬门槛/目标机信息占位待现场回填）；`measure-scene-performance.mjs` + `npm run perf:scene`（Node 静态 dist + Playwright msedge 硬件加速 + rAF 帧时采样 + renderer.info 统计 + context-loss 监听，`--quick` 开发模式）；App 暴露只读 perf 钩子（`__scadaGl/__scadaCamera/__scadaControls`，无 mutation 能力）。**本机 QUICK 开发基线已采集**（results/ 目录，gitignore）：全局 2.9-6 FPS / 5483 calls / 8948 geos / 112 tex（与 16.1 记载吻合），深度/污泥位 15 FPS / 462-657 calls——WP6.1+ 优化优先级与对照基线就绪。已知瑕疵：全局位 triangles 统计溢出显示 Infinity（WP6.优化时排查）。
+>
+> **WP6.1-6.4（2026-08-20，commits 6e1b54b/565ad10/77cf972+389db1e/6f5baba）：**
+> - 6.1 停帧：Dashboard/后台 frameloop=never，renderer 帧增量 ~600/10s→6/10s（SPEC 允许 <=1，残余帧来自每秒 store 刷新的偶发 invalidate，留待工控机验收轮处理；真后台验证受 CDP 限制）。
+> - 6.2 空 EffectComposer 删除：calls 不变（MSAA 不加 call），收益为 763KB postprocessing vendor 移出 bundle + 少一层 pass 带宽。
+> - 6.3 perf-mode：DPR<=1.25 + shadows off，经 `?perf-mode=1` 在 store 创建期启用（运行时切换阴影会触发全量重编译致 1fps——已测量并规避）。本机 quick：气浮 15→33.8 FPS、污泥 15→36.5（**本机已达 >=30 门槛**）、P95≈33.4ms，进水/主处理/纯水 5-6→16-19；全局 6.4 FPS/5483 calls 不变（DPR/阴影不减 calls）。测量脚本加 --performance-mode。
+> - 6.4 管道细分减半（radial 32→16、密度 10→6，仅细分不改路径算法）：tris -30%（纯水 1.63M→1.09M 等），FPS 噪声内；12/4 激进参数实测触发渲染循环 1fps 崩塌（疑似低 tubularSegments 下 Frenet frames 病态）已排除；视觉回归截图检查通过。
+>
+> **硬门槛验收（60s×3×6 位 + soak）留待目标工控机（Gate C）。WP6.5 纹理共享 / WP6.6 分站实例化 / WP6.7 Baker 替换未开始。**
 
 主要内容：
 

@@ -323,3 +323,25 @@
 ## 风险
 - 全局位 triangles 显示 Infinity（统计溢出/异常累计）——只影响报表可读性，WP6 优化时排查。
 - 本机（开发工作站 Iris Xe）与工控机 GPU 不同，基线只用于 A/B 趋势；SPEC 门槛判定必须目标机 FULL 模式。
+
+---
+
+# 2026-08-20 WP6.1-6.4：停帧与低风险削减（每步单独提交 + quick A/B）
+
+## 决策
+- 停帧判定读 renderer.info.render.frame（SPEC 语义），页面 rAF 在 canvas 隐藏时仍跑（曾用错指标）。
+- perf-mode 必须在 store 创建期由 URL 启用：运行时切换 shadows 会触发 R3F 全场景材质重编译（实测 1fps 崩塌），首挂即目标配置则无此问题。
+- 管道细分取 16/6：12/4 实测渲染循环崩塌（复现两次，回滚恢复，归因疑似 TubeGeometry 低 tubularSegments 的 Frenet frames 数值病态）——激进参数不可用，记录边界。
+- quick 测量的两处环境坑（都已修入 harness）：后台标签 rAF 节流 1Hz 污染采样（launch args + bringToFront）；窗口失焦同样触发。
+
+## 与规格的偏差
+- 停帧残余 6 帧/10s（SPEC <=1）：来自每秒 store 刷新的偶发 invalidate，量化后留工控机验收轮优化；能耗削减 99%+ 已达成。
+- WP6.5-6.7 未开始（本会话上下文预算）。
+
+## 验证
+- 每步 npm run perf:scene -- --quick [--performance-mode] A/B 落盘 results/；视觉回归截图（管道细分后）人工检查。
+- 提交序列：6e1b54b（停帧）、565ad10（composer）、77cf972+389db1e（perf-mode+守卫对齐）、6f5baba（管道）。
+- 全回归：check:scene 40/40（含更新后的 render-quality 守卫）、test:store 35/35、dotnet 69/69、build/lint 干净。
+
+## 风险
+- 本机 quick 波动较大（10-20 FPS 级），细粒度 A/B 需要 FULL 模式多轮；三角形/calls 等结构指标则稳定可信。
