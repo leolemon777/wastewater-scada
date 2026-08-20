@@ -170,3 +170,25 @@
 - 设备级 `Enabled` 默认 false 是行为变更：现有任何未带 `Enabled:true` 的设备配置（含工控机上的旧 local.json）会静默禁用——部署指南已同步，切换时需注意。
 - Git 历史中的凭据仍在（真实风险），轮换+历史清理完成前不得发布正式包；待办见 `凭据治理与历史清理待办.md`。
 - `git grep` 当前树干净 ≠ 历史干净；`check:secrets` 只扫当前树。
+
+---
+
+# 2026-08-20 WP1：MONITOR ONLY UI
+
+## 决策
+- 开关一律换成状态标签而非 CSS 禁用（SPEC 9.1）：`ControlRow`→`StatusRow`，`dash-control-row` 布局保留、右侧 `scada-switch` 替换为 `dash-status-tag`；死样式整段删除。
+- DO/Y 显示语义统一为「逻辑输出 ON/OFF + 物理运行未验证」：DAF 悬浮面板（原按钮）、Overlay 详情（原搅拌/泵控制按钮）两处；纯水泵「运行中」改「指令输出 ON」。
+- 物理动画解耦范围：DAF 气泡滚动/波纹强度/气泡透明度/刮沫+排渣总成、纯水泵风扇旋转/微震/运行灯（fault 红与 stopped 灰保留）。**纯水阀 Y→openingPercent 暂保留**（共享 Valve3D 组件、开度属位置显示而非运行动画），完整 commanded/verified 双状态归 WP2 TagState 一并处理——记录为明确的范围裁剪。
+- store 的 toggle* action 与 demo 源未删除：UI 已无任何调用点（守卫断言），但 demo tick 仍在写设备字段；readonly-trial 构建不导出 mutation 属 WP2 构建变体。
+- `window.__scadaStore` 暴露移除（原为 perf 诊断用）；WP6 性能工具如需 store 访问改走专用测量注入。
+
+## 与规格的偏差
+- 纯水阀开度显示暂未改语义（见上）；SPEC 15 守卫未覆盖阀条目，WP2 补。
+
+## 验证
+- 新守卫 `check-readonly-trial-ui.mjs`（12 组断言：无 toggle 调用/无执行性文案/无 pH 回退/动画解耦/无 store 暴露/无 iowrite/无 .send）。
+- `npm run check:scene` 39/39、`npm run build`、`npm run lint` 全绿；tsc noEmit 通过。
+
+## 风险
+- 3D 表现变化：气浮池气泡/刮沫与纯水泵动画在无独立反馈下永久静止（合规要求，视觉降级预期内）；demo 模式下这些动画同样静止——demo 观感回归由 WP2 的独立 /demo 路由恢复。
+- `equipment-detail-muted` 类复用于多条只读说明，样式已存在无需新增。

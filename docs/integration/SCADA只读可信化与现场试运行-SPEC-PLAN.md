@@ -960,6 +960,8 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 
 ### WP1：MONITOR ONLY UI
 
+> **状态（2026-08-20）：完成（commit 788b4b3）。** 全部控制开关/按钮替换为只读状态行；执行性文案清除；顶栏固定只读标识；DO/Y 全部改为「逻辑输出」语义并标注「物理运行未验证」；DAF 气泡/波纹/刮沫动画与 DO 解耦、纯水泵风扇/震动/运行灯与 Y 解耦；pH 7.20 固定回退移除；`window.__scadaStore` 暴露移除；新增守卫 `check-readonly-trial-ui.mjs`。`check:scene` 39/39、build、lint 通过。demo 源与 store action 未动（demo 隔离与 readonly-trial 构建变体属 WP2）。
+
 主要文件：
 
 - `src/components/ui/Overlay.tsx`
