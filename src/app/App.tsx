@@ -3,7 +3,6 @@ import { Canvas } from '@react-three/fiber';
 import { Preload, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { EffectComposer } from '@react-three/postprocessing';
 // Lazy-load the heavy 3D scene so the three/drei vendor bundles split off from
 // the initial UI shell and only load when the canvas mounts.
 const SCADAScene = lazy(() =>
@@ -295,7 +294,6 @@ function App() {
               requestAnimationFrame(() => setSceneReady(true));
             }}
           >
-            <EffectComposer multisampling={4}><></></EffectComposer>
             {/* Lazy SCADAScene: while the dynamic import resolves, render nothing
                 inside the canvas (the outer-DOM <SceneLoader> at top covers the
                 loading screen). A DOM fallback here would crash R3F ("Div is not
