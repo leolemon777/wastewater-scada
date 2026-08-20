@@ -105,6 +105,17 @@ function App() {
   const performanceMode = useScadaStore((state) => state.performanceMode);
   const canvasDpr = getCanvasDpr(performanceMode);
 
+  // SPEC-PLAN WP6.1：Dashboard 视图 / 浏览器后台时暂停 Canvas 渲染（停帧）。
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  );
+  useEffect(() => {
+    const onChange = () => setPageVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  const frameLoopActive = currentView === '3d' && pageVisible;
+
   useEffect(() => {
     if (!shouldUseLowLatencyUi()) return;
     document.body.classList.add('clear-mode');
@@ -261,7 +272,8 @@ function App() {
             shadows={"percentage"}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}
             dpr={canvasDpr}
-            frameloop="always"
+            // WP6.1：非 3D 视图或后台时完全停帧（SPEC 16.3：后台 10s frame 增量 <=1）。
+            frameloop={frameLoopActive ? 'always' : 'never'}
             camera={{ position: [22, 18, 38], fov: 38 }}
             gl={{
               antialias: true,
