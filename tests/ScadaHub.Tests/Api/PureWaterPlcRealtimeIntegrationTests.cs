@@ -48,6 +48,8 @@ public sealed class PureWaterPlcRealtimeIntegrationTests
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddSingleton<IOptions<PureWaterPlcOptions>>(options);
         builder.Services.AddSingleton<IOptions<M100Options>>(Options.Create(new M100Options()));
+        builder.Services.AddSingleton(new ScadaHub.Infrastructure.HubEpoch());
+        builder.Services.AddSingleton(new ScadaHub.Infrastructure.DeviceIoGate(false));
         builder.Services.AddSingleton<IScadaClock>(clock);
         builder.Services.AddSingleton<PureWaterPlcStateCache>();
         builder.Services.AddSingleton<M100StateCache>();

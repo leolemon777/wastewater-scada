@@ -68,6 +68,8 @@ public sealed class PureWaterPlcOptionsValidator : IValidateOptions<PureWaterPlc
 
         if (options.Enabled)
         {
+            // SPEC 4.3：只读试运行版本未授权启用纯水 PLC（正式启用需另行评审并修订 SPEC）。
+            failures.Add("PureWaterPlc:Enabled 在 readonly-trial 版本必须为 false（未授权启用）。");
             ValidateEnabledAddress(options, failures);
         }
 

@@ -1023,6 +1023,8 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 
 ### WP4：Hub 隔离、身份校验和发布解耦
 
+> **状态（2026-08-20）：完成。** 信封升级 contractVersion=2：sourceEpoch（进程 UUID）、信封 seq=eventSeq（snapshot/status 全事件递增）、payload.dataSequence（仅成功采集）、逐 Tag `tags` 结构（value/lastGoodValue/quality/unit/rawKey/rawValue/rawUnit/sampledAt）、configuredEnabled/ioSuppressed、断线快照 hold；hub.heartbeat 每 5s 广播（版本/commit/uptime，独立 eventSeq）；allowlist fail-closed（仅两台权威设备、Role/IP 精确匹配、禁第三台、纯水启用即拒启动）；Publisher 采集/分发解耦（序列化一次+入队即返、每客户端有界队列 64 条/1MiB、可合并消息保最新、不可合并溢出 1013、发送超时 5s、客户端上限 8、registry 锁内原子回放）；HTTP 加固（无代理/无重定向/64KiB 响应上限/Content-Type allowlist）。前端接 heartbeat：hub-stale(>15s)/hub-offline(>30s) 龄分档 + 两连续 heartbeat RTN（WP3 遗留补齐）。校验：dotnet 69/69（新增 allowlist 错配/纯水拒绝/v2 断言）、hub:runtime、check:scene 40/40、test:store 35/35、build、lint 全绿。**遗留：独立 /api/sources/status 契约端点与 /api/health 分层（13 节）归 WP5 发布打包时一并落；慢客户端阻塞测试以代码结构（入队即返）+ 现有集成测试覆盖，专项慢客户端集成测试随 WP5 补。**
+
 主要文件：
 
 - `services/ScadaHub/Program.cs`

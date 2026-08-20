@@ -37,9 +37,15 @@ public sealed class HttpM100IOTransport : IM100HttpTransport, IDisposable
             throw new InvalidOperationException($"M100 设备 {device.SourceId} 的 IpAddress 无法构造读取地址。");
         }
 
-        _client = new HttpClient
+        _client = new HttpClient(new HttpClientHandler
+        {
+            // SPEC 12.3：禁用系统代理与自动重定向（直连内网固定 IP）。
+            UseProxy = false,
+            AllowAutoRedirect = false,
+        }, disposeHandler: true)
         {
             Timeout = TimeSpan.FromMilliseconds(Math.Clamp(device.RequestTimeoutMs, 100, 60_000)),
+            MaxResponseContentBufferSize = MaxResponseBytes,
         };
 
         if (!string.IsNullOrEmpty(device.Username))
@@ -49,20 +55,65 @@ public sealed class HttpM100IOTransport : IM100HttpTransport, IDisposable
         }
     }
 
+    private const int MaxResponseBytes = 64 * 1024;
+    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/json",
+        "text/json",
+        "text/plain",
+        "text/html",
+    };
+
     public async Task<M100HttpResponse> ReadIOAsync(CancellationToken cancellationToken)
     {
         try
         {
-            using var response = await _client.GetAsync(_readUri, cancellationToken).ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            using var response = await _client.GetAsync(
+                _readUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
-            return response.IsSuccessStatusCode
-                ? new M100HttpResponse(true, (int)response.StatusCode, body, null)
-                : new M100HttpResponse(
+            if (!response.IsSuccessStatusCode)
+            {
+                return new M100HttpResponse(
                     false,
                     (int)response.StatusCode,
-                    body,
+                    null,
                     DescribeFailure((int)response.StatusCode, device: null));
+            }
+
+            // SPEC 12.3：Content-Type allowlist + 响应体上限 64KiB。
+            var contentType = (response.Content.Headers.ContentType?.MediaType ?? string.Empty).Split(';')[0].Trim();
+            if (!AllowedContentTypes.Contains(contentType))
+            {
+                return new M100HttpResponse(false, (int)response.StatusCode, null,
+                    $"Content-Type 不在允许列表：{contentType}（预期 application/json 等）");
+            }
+
+            if (response.Content.Headers.ContentLength is > MaxResponseBytes)
+            {
+                return new M100HttpResponse(false, (int)response.StatusCode, null,
+                    $"响应体超上限（{response.Content.Headers.ContentLength} bytes > {MaxResponseBytes}）");
+            }
+
+            var buffer = new byte[MaxResponseBytes + 1];
+            var read = 0;
+            using (var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+            {
+                while (read <= buffer.Length - 1)
+                {
+                    var chunk = await stream.ReadAsync(buffer.AsMemory(read), cancellationToken).ConfigureAwait(false);
+                    if (chunk == 0) break;
+                    read += chunk;
+                }
+            }
+
+            if (read > MaxResponseBytes)
+            {
+                return new M100HttpResponse(false, (int)response.StatusCode, null,
+                    $"响应体超上限（> {MaxResponseBytes} bytes）");
+            }
+
+            var body = System.Text.Encoding.UTF8.GetString(buffer, 0, read);
+            return new M100HttpResponse(true, (int)response.StatusCode, body, null);
         }
         catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
         {

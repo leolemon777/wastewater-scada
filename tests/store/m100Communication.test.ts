@@ -21,6 +21,7 @@ beforeEach(() => {
   useScadaStore.setState({
     communicationAlarms: [],
     hubWsConnected: false,
+    hubLastHeartbeatAt: null,
     hubGoodStreak: 0,
     m100GoodStreaks: {},
     tagInvalidStreaks: {},
@@ -86,24 +87,39 @@ describe('SPEC 10.2 tag-invalid（连续 2 帧）', () => {
   });
 });
 
-describe('SPEC 10.2 hub-offline（WS 通道）', () => {
-  it('配置了现场源后 WS 断开 -> hub-offline critical；重连 + 2 帧恢复 -> RTN', () => {
-    // 先建立 ownership（收到任一信封）
+describe('SPEC 10.2 hub-stale / hub-offline（heartbeat 龄分档）', () => {
+  it('heartbeat 龄 >15s -> hub-stale warning；>30s -> hub-offline critical（offline 抑制 stale）', () => {
+    // 建立 ownership + 心跳基线
     useScadaStore.getState().ingestM100Telemetry(DAF, { enabled: true, connected: false }, { sourceEpoch: 'e1', eventSeq: 1 });
-    useScadaStore.getState().ingestHubConnection(true);
-    useScadaStore.getState().ingestHubConnection(false);
+    const t0 = Date.now();
+    useScadaStore.getState().ingestHubHeartbeat(t0);
 
+    useScadaStore.getState().refreshM100Connections(t0 + 16_000);
+    expect(active(AlarmKeys.hubStale())?.currentSeverity).toBe('warning');
+
+    useScadaStore.getState().refreshM100Connections(t0 + 31_000);
     expect(active(AlarmKeys.hubOffline())?.currentSeverity).toBe('critical');
-
-    useScadaStore.getState().ingestHubConnection(true); // 重连，streak=1
-    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame(), { sourceEpoch: 'e1', eventSeq: 2 }); // streak=2
-    useScadaStore.getState().ingestM100Telemetry(DAF, goodFrame(), { sourceEpoch: 'e1', eventSeq: 3 });
-    expect(active(AlarmKeys.hubOffline())).toBeUndefined();
+    expect(active(AlarmKeys.hubStale())).toBeUndefined(); // offline 抑制 stale
   });
 
-  it('未配置现场源时 Hub 断开不报警（纯 demo 场景）', () => {
-    useScadaStore.getState().ingestHubConnection(false);
+  it('第二个连续 heartbeat RTN（第一个不关闭）', () => {
+    useScadaStore.getState().ingestM100Telemetry(DAF, { enabled: true, connected: false }, { sourceEpoch: 'e1', eventSeq: 1 });
+    const t0 = Date.now();
+    useScadaStore.getState().ingestHubHeartbeat(t0);
+    useScadaStore.getState().refreshM100Connections(t0 + 31_000);
+    expect(active(AlarmKeys.hubOffline())).toBeTruthy();
+
+    useScadaStore.getState().ingestHubHeartbeat(t0 + 32_000); // streak=1（重置后）
+    expect(active(AlarmKeys.hubOffline())).toBeTruthy();
+    useScadaStore.getState().ingestHubHeartbeat(t0 + 33_000); // streak=2 -> RTN
     expect(active(AlarmKeys.hubOffline())).toBeUndefined();
+    expect(active(AlarmKeys.hubStale())).toBeUndefined();
+  });
+
+  it('WS 断开不立即报警（15s 宽限）；未配置现场源不评估', () => {
+    useScadaStore.getState().ingestHubConnection(false);
+    expect(active(AlarmKeys.hubOffline())).toBeUndefined(); // 无 ownership + 未收到过心跳
+    expect(active(AlarmKeys.hubStale())).toBeUndefined();
   });
 });
 

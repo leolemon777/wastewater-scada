@@ -217,13 +217,15 @@ interface ScadaState {
   refreshM100Connections: (now?: number) => void;
   /** 通信/质量报警（SPEC 10.2）：source-stale/offline、tag-invalid、hub-offline。 */
   communicationAlarms: ManagedAlarmRecord[];
-  /** WS 通道状态与两帧恢复计数（恢复去重，SPEC 10.2 表）。 */
+  /** WS 通道状态、最后 heartbeat 与连续 heartbeat 计数（SPEC 8.4/10.2：15s stale、30s offline）。 */
   hubWsConnected: boolean;
+  hubLastHeartbeatAt: number | null;
   hubGoodStreak: number;
   m100GoodStreaks: Record<string, number>;
   tagInvalidStreaks: Record<string, number>;
   tagGoodStreaks: Record<string, number>;
   ingestHubConnection: (connected: boolean) => void;
+  ingestHubHeartbeat: (receivedAt?: number) => void;
   acknowledgeCommunicationAlarm: (alarmKey: string) => void;
 
   /** Wastewater demo source. Kept as `demoMode` for the existing dashboard API. */
@@ -774,6 +776,7 @@ export const useScadaStore = create<ScadaState>((set) => ({
   tagStates: {},
   communicationAlarms: [],
   hubWsConnected: false,
+  hubLastHeartbeatAt: null,
   hubGoodStreak: 0,
   m100GoodStreaks: {},
   tagInvalidStreaks: {},
@@ -1225,7 +1228,8 @@ export const useScadaStore = create<ScadaState>((set) => ({
     const m100Connections = { ...state.m100Connections };
     for (const sourceId of [M100_DAF_SOURCE_ID, M100_UNDERGROUND_SOURCE_ID] as const) {
       const next = getM100ConnectionInfo(state.m100Realtime[sourceId], now);
-      const previous = m100Connections[sourceId];
+      // 连接表缺项（状态被部分重置）时按 offline/无龄处理，保证循环健壮。
+      const previous = m100Connections[sourceId] ?? { state: 'offline' as const, ageMs: null, lastReceivedAt: null };
       const previousAgeSecond = previous.ageMs === null ? null : Math.floor(previous.ageMs / 1000);
       const nextAgeSecond = next.ageMs === null ? null : Math.floor(next.ageMs / 1000);
       if (previous.state === next.state
@@ -1278,11 +1282,39 @@ export const useScadaStore = create<ScadaState>((set) => ({
       if (communicationAlarms !== alarmsBefore) changed = true;
     }
 
-    if (!changed) return state;
+    // SPEC 10.2：hub-stale（heartbeat 龄 >15s warning）/ hub-offline（>30s critical）。
+    // 仅在配置了现场源（ownership 存在）后评估；从未收到 heartbeat 且 WS 在线时等待首帧。
+    let hubGoodStreak = state.hubGoodStreak;
+    if (state.m100LiveEquipmentIds.length > 0 && state.hubLastHeartbeatAt !== null) {
+      const hubAge = now - state.hubLastHeartbeatAt;
+      if (hubAge > 30_000) {
+        const before = communicationAlarms;
+        hubGoodStreak = 0; // 报警激活即重置恢复计数：重连后需两个连续 heartbeat 才 RTN
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: AlarmKeys.hubStale(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-stale',
+          label: 'SCADA Hub 连接陈旧', severity: 'none', now,
+        });
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: AlarmKeys.hubOffline(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-offline',
+          label: 'SCADA Hub 连接中断', severity: 'critical', now,
+        });
+        if (communicationAlarms !== before) changed = true;
+      } else if (hubAge > 15_000) {
+        const before = communicationAlarms;
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: AlarmKeys.hubStale(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-stale',
+          label: 'SCADA Hub 连接陈旧', severity: 'warning', now,
+        });
+        if (communicationAlarms !== before) changed = true;
+      }
+    }
+
+    if (!changed && hubGoodStreak === state.hubGoodStreak) return state;
     return {
       m100Connections,
       tagStates,
       communicationAlarms,
+      hubGoodStreak,
       systemStatuses: mergeCommunicationStatus(
         computeSystemStatuses(state.equipments, state.pureWaterPlc, state.pureWaterPlcConnection),
         communicationAlarms,
@@ -1291,35 +1323,40 @@ export const useScadaStore = create<ScadaState>((set) => ({
   }),
 
   ingestHubConnection: (connected) => set((state) => {
-    if (state.hubWsConnected === connected && connected) return state;
-    const now = Date.now();
-    let communicationAlarms = state.communicationAlarms;
+    if (state.hubWsConnected === connected) return state;
+    // SPEC 8.4/10.2：断开不立即报警——hub-stale/offline 分档由 refresh 按 heartbeat 龄评估
+    //（WS 刚断 15s 内仍视为可用窗口，与 5s heartbeat 周期匹配）。
+    return { hubWsConnected: connected, ...(connected ? { hubGoodStreak: 0 } : {}) };
+  }),
 
-    if (connected) {
-      // 重连后等待数据帧：streak 从 1 起，第 2 帧成功采集才 RTN（SPEC 10.2 hub-offline 行）。
-      return { hubWsConnected: true, hubGoodStreak: 1 };
+  ingestHubHeartbeat: (receivedAt = Date.now()) => set((state) => {
+    const hubGoodStreak = state.hubGoodStreak + 1;
+    let communicationAlarms = state.communicationAlarms;
+    // SPEC 10.2：第二个连续 heartbeat 关闭 hub-stale/hub-offline 并 RTN。
+    if (hubGoodStreak >= 2) {
+      const now = receivedAt;
+      for (const rule of ['hub-stale', 'hub-offline'] as const) {
+        communicationAlarms = transitionAlarm(communicationAlarms, {
+          alarmKey: rule === 'hub-stale' ? AlarmKeys.hubStale() : AlarmKeys.hubOffline(),
+          scope: 'hub', sourceId: 'scada-hub', ruleId: rule,
+          label: rule === 'hub-stale' ? 'SCADA Hub 连接陈旧' : 'SCADA Hub 连接中断',
+          severity: 'none', now,
+        });
+      }
     }
 
-    // 未配置任何现场源（无 ownership）时 Hub 断开属常态（纯 demo/离线开发），不报警。
-    if (state.m100LiveEquipmentIds.length === 0 && !state.hubWsConnected) return state;
-
-    communicationAlarms = transitionAlarm(communicationAlarms, {
-      alarmKey: AlarmKeys.hubStale(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-stale',
-      label: 'SCADA Hub 连接陈旧', severity: 'none', now,
-    });
-    communicationAlarms = transitionAlarm(communicationAlarms, {
-      alarmKey: AlarmKeys.hubOffline(), scope: 'hub', sourceId: 'scada-hub', ruleId: 'hub-offline',
-      label: 'SCADA Hub 连接中断', severity: 'critical', now,
-    });
-
     return {
-      hubWsConnected: false,
-      hubGoodStreak: 0,
-      communicationAlarms,
-      systemStatuses: mergeCommunicationStatus(
-        computeSystemStatuses(state.equipments, state.pureWaterPlc, state.pureWaterPlcConnection),
-        communicationAlarms,
-      ),
+      hubLastHeartbeatAt: receivedAt,
+      hubGoodStreak,
+      ...(communicationAlarms !== state.communicationAlarms
+        ? {
+            communicationAlarms,
+            systemStatuses: mergeCommunicationStatus(
+              computeSystemStatuses(state.equipments, state.pureWaterPlc, state.pureWaterPlcConnection),
+              communicationAlarms,
+            ),
+          }
+        : {}),
     };
   }),
 

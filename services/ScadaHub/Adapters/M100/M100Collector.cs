@@ -137,10 +137,16 @@ public sealed class M100Collector : IAsyncDisposable
             var points = M100PointMap.ApplyEngineering(runtime.Options.Role, frame, out var warnings);
             frame = frame with { PointWarnings = warnings.ToArray() };
 
+            var tags = M100PointMap.BuildTags(
+                runtime.Options.Role,
+                frame,
+                points,
+                receivedAt.ToUnixTimeMilliseconds());
             var envelope = _stateCache.PublishSuccess(
                 runtime.Options.SourceId,
                 frame,
                 points,
+                tags,
                 runtime.Sequence,
                 receivedAt);
             await _publisher.BroadcastAsync(envelope, cancellationToken).ConfigureAwait(false);

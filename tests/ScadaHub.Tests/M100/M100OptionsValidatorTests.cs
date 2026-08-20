@@ -48,17 +48,91 @@ public sealed class M100OptionsValidatorTests
         Assert.Contains(result.Failures!, failure => failure.Contains("IpAddress 必须是合法 IPv4"));
     }
 
-    [Theory]
-    [InlineData("192.168.0.31")]
-    [InlineData("192.168.0.8")]
-    [InlineData("192.168.2.80")]
-    public void Enabled_WithValidHostAddresses_Passes(string ipAddress)
+    [Fact]
+    public void Enabled_WithExactAllowlistDevices_Passes()
     {
-        var options = ValidOptions();
-        options.Enabled = true;
-        options.Devices[0].IpAddress = ipAddress;
+        // SPEC 4.3：必须且只能包含 allowlist 两台，Role/IP 精确匹配。
+        var options = new M100Options
+        {
+            Enabled = true,
+            Devices = new List<M100DeviceOptions>
+            {
+                new() { Enabled = true, SourceId = "m100-daf-01", Role = "daf", IpAddress = "192.168.0.31" },
+                new() { Enabled = true, SourceId = "m100-underground-01", Role = "underground", IpAddress = "192.168.0.8" },
+            },
+        };
         var result = new M100OptionsValidator().Validate(null, options);
         Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("wrong-role")]
+    [InlineData("wrong-daf-ip")]
+    [InlineData("wrong-underground-ip")]
+    [InlineData("lowercase-sourceid")]
+    public void Enabled_WithAllowlistMismatch_Fails(string mode)
+    {
+        var options = new M100Options
+        {
+            Enabled = true,
+            Devices = new List<M100DeviceOptions>
+            {
+                new() { Enabled = true, SourceId = "m100-daf-01", Role = "daf", IpAddress = "192.168.0.31" },
+                new() { Enabled = true, SourceId = "m100-underground-01", Role = "underground", IpAddress = "192.168.0.8" },
+            },
+        };
+        switch (mode)
+        {
+            case "wrong-role":
+                options.Devices[0].Role = "underground";
+                break;
+            case "wrong-daf-ip":
+                options.Devices[0].IpAddress = "192.168.0.99";
+                break;
+            case "wrong-underground-ip":
+                options.Devices[1].IpAddress = "192.168.0.7";
+                break;
+            case "lowercase-sourceid":
+                options.Devices[0].SourceId = "M100-DAF-01"; // 大小写敏感：视为缺失
+                break;
+        }
+
+        var result = new M100OptionsValidator().Validate(null, options);
+        Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public void Enabled_WithThirdDevice_Fails()
+    {
+        var options = new M100Options
+        {
+            Enabled = true,
+            Devices = new List<M100DeviceOptions>
+            {
+                new() { Enabled = true, SourceId = "m100-daf-01", Role = "daf", IpAddress = "192.168.0.31" },
+                new() { Enabled = true, SourceId = "m100-underground-01", Role = "underground", IpAddress = "192.168.0.8" },
+                new() { Enabled = true, SourceId = "m100-extra-01", Role = "daf", IpAddress = "192.168.0.32" },
+            },
+        };
+        var result = new M100OptionsValidator().Validate(null, options);
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Failures!, failure => failure.Contains("禁止新增"));
+    }
+
+    [Fact]
+    public void Enabled_WithSwappedRole_Fails()
+    {
+        var options = new M100Options
+        {
+            Enabled = true,
+            Devices = new List<M100DeviceOptions>
+            {
+                new() { Enabled = true, SourceId = "m100-daf-01", Role = "underground", IpAddress = "192.168.0.31" },
+                new() { Enabled = true, SourceId = "m100-underground-01", Role = "underground", IpAddress = "192.168.0.8" },
+            },
+        };
+        var result = new M100OptionsValidator().Validate(null, options);
+        Assert.False(result.Succeeded);
     }
 
     [Theory]

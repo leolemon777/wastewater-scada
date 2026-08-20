@@ -34,10 +34,13 @@ public sealed class PureWaterPlcOptionsValidatorTests
     }
 
     [Fact]
-    public void EnabledConfiguration_AcceptsReviewedPlcDataSubnetAndPort()
+    public void EnabledConfiguration_IsRejectedInReadonlyTrial()
     {
-        var result = _validator.Validate(null, ValidEnabledOptions());
-        Assert.True(result.Succeeded);
+        // SPEC 4.3：readonly-trial 版本未授权启用纯水 PLC（正式启用需另行评审）。
+        var options = ValidEnabledOptions();
+        var result = _validator.Validate(null, options);
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Failures!, failure => failure.Contains("readonly-trial"));
     }
 
     private static PureWaterPlcOptions ValidEnabledOptions() => new()

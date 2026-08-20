@@ -28,7 +28,7 @@ public sealed class M100CollectorTests
     {
         var options = new M100Options { Enabled = enabled, Devices = new List<M100DeviceOptions> { device } };
         var clock = new FakeScadaClock(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
-        var cache = new M100StateCache(Options.Create(options), clock);
+        var cache = new M100StateCache(Options.Create(options), new ScadaHub.Infrastructure.DeviceIoGate(false), new ScadaHub.Infrastructure.HubEpoch(), clock);
         var publisher = new CapturingRealtimePublisher();
         var logger = new CapturingLogger<M100Collector>();
         var factory = FakeM100HttpTransportFactory.Single(transport);
@@ -79,7 +79,7 @@ public sealed class M100CollectorTests
         Assert.Equal("m100-http", envelope.SourceType);
         Assert.Equal("m100-daf-01", envelope.SourceId);
         Assert.Equal("good", envelope.Quality);
-        Assert.Equal(1, envelope.Payload.Sequence);
+        Assert.Equal(1, envelope.Payload.DataSequence);
         Assert.True(envelope.Payload.Connected);
         Assert.True(envelope.Payload.Do["do01"]);
         Assert.True(envelope.Payload.Do["do02"]);
@@ -169,7 +169,7 @@ public sealed class M100CollectorTests
 
         var snapshot = fixture.Publisher.Messages.OfType<ScadaEnvelope<M100Telemetry>>().Single();
         Assert.True(snapshot.Payload.Connected);
-        Assert.Equal(1, snapshot.Payload.Sequence);
+        Assert.Equal(1, snapshot.Payload.DataSequence);
         Assert.Equal("good", fixture.Cache.GetStatus("m100-daf-01").Quality);
     }
 

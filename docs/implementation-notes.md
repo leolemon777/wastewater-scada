@@ -244,3 +244,31 @@
 ## 风险
 - communicationAlarms 无上限增长（每 alarmKey 至多一条活动+历史保留）——长期运行记录量随键数线性，WP5 持久化/归档时再加窗口限制。
 - hub 断开在弱网抖动下会短暂 raise/RTN 往复（无 15s 缓冲）；heartbeat 后改善。
+
+---
+
+# 2026-08-20 WP4：Hub 隔离、身份校验和发布解耦
+
+## 决策
+- sourceEpoch 用进程级 `HubEpoch` 单例（Guid + 每源 SequenceCounter），纯水信封同批携带（信封加可选 SourceEpoch 字段，未填不序列化影响为零）。
+- dataSequence 与 eventSeq 分离：collector 的 runtime.Sequence 继续当 dataSequence（仅成功采集递增）；cache 内部 counter 发 eventSeq（snapshot/status/初始快照共用）。
+- tags 在后端构造（M100PointMap.BuildTags）：value=null+warning 表 invalid；断线时 cache 把 tags 转 offline（value 置空、lastGoodValue 保留）——前端 tags 与 do/points 双轨过渡（前端仍读 points，新 UI 切 tags 由 WP2 遗留的 readonly-trial 构建变体决定）。
+- heartbeat 的 commit 取 AssemblyMetadata SourceRevisionId（SDK 自动嵌入），取不到为 unknown——WP5 version.json 生成后可对齐。
+- MergeKeyOf 用具体泛型模式匹配（三个实际信封类型），未知类型保守视为不可合并（慢客户端满队列 1013 而非丢弃）。
+- 纯水启用即拒：validator 加 readonly-trial 断言（正式启用需评审+SPEC 修订，测试同步改为期望失败）。
+- 前端 hub 分档：WS 断开不再立即 critical（15s 宽限由 heartbeat 龄自然给出）；报警 raise 时重置 streak——恢复需两个连续 heartbeat。
+- PublishSuccess 调用链在 collector 内构造 tags（BuildTags 与 ApplyEngineering 同源换算，避免两套量程）。
+
+## 与规格的偏差
+- /api/health/live|ready 分层与 /api/sources/status 契约端点未做（SPEC 13）——归 WP5 发布打包；现 /api/health 聚合端点已含 m100 状态。
+- 专项慢客户端集成测试（SPEC 14.3）未写：解耦由结构保证（BroadcastAsync 同步返回，仅入队）；WP5 补 socket-level 慢消费测试。
+
+## 验证
+- dotnet 69/69：新增 allowlist 精确匹配通过/四类错配失败/第三台拒绝/角色错换/纯水启用拒绝；集成测试补 v2 断言（contractVersion/sourceEpoch/tags/结构化断连快照）。
+- hub:runtime 通过（多帧回放+硬门禁断言不回归）；check:scene 40/40；test:store 35/35（hub 分档 3 项重写为 heartbeat 龄语义）；build/lint 干净。
+- 修复两处过程缺陷：m100Connections 缺项时 refresh 循环崩溃（不变量假设）；refresh 未返回 hubGoodStreak 导致恢复计数失效（python 替换锚点未命中被吞）。
+
+## 风险
+- Publisher 每客户端独立 drain task：8 客户端上限下线程占用可控；drain 异常路径已收敛（异常即 Dispose）。
+- HttpClient 每 dispose handler：设备数固定 2，无泄漏压力。
+- heartbeat 5s + 前端 15/30s 阈值：时钟依赖本机单调性可接受（SPEC 7.2 要求本地单调钟用于数据龄——Date.now 跨系统时钟回拨有小风险，首版接受）。

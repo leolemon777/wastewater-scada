@@ -6,7 +6,10 @@ using ScadaHub.Infrastructure;
 
 namespace ScadaHub.State;
 
-/// <summary>按 SourceId 维护多台 M100 网关的快照与质量状态。断连时保持最后一帧（hold）。</summary>
+/// <summary>
+/// 按 SourceId 维护多台 M100 网关的快照与质量状态（contractVersion=2）。
+/// 断连时保持最后一帧：tags.value 置空、lastGoodValue 保留为明确保持值（SPEC 8.2）。
+/// </summary>
 public sealed class M100StateCache
 {
     public const string SnapshotMessageType = "m100.snapshot";
@@ -14,46 +17,66 @@ public sealed class M100StateCache
     private const string DisabledAdapterLabel = "M100 网关通信待配置";
 
     private readonly object _sync = new();
+    private readonly M100Options _options;
+    private readonly DeviceIoGate _ioGate;
+    private readonly HubEpoch _epoch;
     private readonly IScadaClock _clock;
     private readonly Dictionary<string, DeviceState> _devices = new(StringComparer.Ordinal);
 
-    public M100StateCache(IOptions<M100Options> options, IScadaClock clock)
+    public M100StateCache(
+        IOptions<M100Options> options,
+        DeviceIoGate ioGate,
+        HubEpoch epoch,
+        IScadaClock clock)
     {
+        _options = options.Value;
+        _ioGate = ioGate;
+        _epoch = epoch;
         _clock = clock;
         foreach (var device in options.Value.Devices)
         {
-            _devices[device.SourceId] = new DeviceState(device);
+            _devices[device.SourceId] = new DeviceState(device, _epoch.CounterFor(device.SourceId));
         }
     }
+
+    private bool ConfiguredEnabled => _options.Enabled;
+
+    private bool IoSuppressed => _ioGate.IoSuppressed;
 
     public ScadaEnvelope<M100Telemetry> PublishSuccess(
         string sourceId,
         M100Frame frame,
         IReadOnlyDictionary<string, double?> points,
-        long sequence,
+        IReadOnlyDictionary<string, M100TagSnapshot> tags,
+        long dataSequence,
         DateTimeOffset receivedAt)
     {
         lock (_sync)
         {
             var state = GetDevice(sourceId);
+            var eventSeq = state.EventCounter.Next();
             state.ConsecutiveFailures = 0;
             state.LastError = null;
             state.Quality = "good";
             state.Telemetry = new M100Telemetry
             {
+                ConfiguredEnabled = ConfiguredEnabled,
+                IoSuppressed = IoSuppressed,
                 Enabled = true,
                 Connected = true,
                 AdapterLabel = M100PointMap.AdapterLabel(state.Options.Role),
                 ReceivedAt = receivedAt.ToUnixTimeMilliseconds(),
-                Sequence = sequence,
+                LastSuccessAt = receivedAt.ToUnixTimeMilliseconds(),
+                DataSequence = dataSequence,
                 Do = ToDictionary(frame.Do, "do"),
                 Di = ToDictionary(frame.Di, "di"),
                 Ai = ToRawDictionary(frame.Ai, "ai"),
                 Points = new Dictionary<string, double?>(points, StringComparer.OrdinalIgnoreCase),
+                Tags = CloneTags(tags),
                 Warnings = frame.PointWarnings.ToArray(),
             };
 
-            return BuildSnapshotEnvelope(sourceId, state.Telemetry, receivedAt, state.Quality);
+            return BuildSnapshotEnvelope(sourceId, state.Telemetry, eventSeq, receivedAt, state.Quality);
         }
     }
 
@@ -67,6 +90,7 @@ public sealed class M100StateCache
         {
             var state = GetDevice(sourceId);
             var previousFailures = state.ConsecutiveFailures;
+            var eventSeq = state.EventCounter.Next();
             state.LastError = reason;
             state.ConsecutiveFailures = consecutiveFailures;
             var wasConnected = state.Telemetry.Connected;
@@ -74,7 +98,12 @@ public sealed class M100StateCache
             if (markDisconnected)
             {
                 state.Quality = "offline";
-                state.Telemetry = state.Telemetry with { Connected = false };
+                // 断线快照（SPEC 8.2）：携带同 Hub 进程内末次好值，value 置空、点质量 offline。
+                state.Telemetry = state.Telemetry with
+                {
+                    Connected = false,
+                    Tags = OfflineTags(state.Telemetry.Tags),
+                };
             }
 
             var now = _clock.UtcNow;
@@ -84,7 +113,8 @@ public sealed class M100StateCache
                     MessageType = "source.status",
                     SourceId = sourceId,
                     SourceType = SourceType,
-                    Seq = state.Telemetry.Sequence,
+                    SourceEpoch = _epoch.Value,
+                    Seq = eventSeq,
                     Timestamp = now,
                     Quality = state.Quality,
                     Payload = new PureWaterSourceStatusEvent
@@ -92,8 +122,8 @@ public sealed class M100StateCache
                         Enabled = true,
                         Connected = state.Telemetry.Connected,
                         AdapterLabel = state.Telemetry.AdapterLabel,
-                        ReceivedAt = state.Telemetry.ReceivedAt,
-                        Sequence = state.Telemetry.Sequence,
+                        ReceivedAt = state.Telemetry.LastSuccessAt,
+                        Sequence = state.Telemetry.DataSequence,
                         Reason = reason,
                     },
                 },
@@ -110,6 +140,7 @@ public sealed class M100StateCache
                 .Select(state => BuildSnapshotEnvelope(
                     state.Options.SourceId,
                     state.Telemetry,
+                    state.EventCounter.Current,
                     _clock.UtcNow,
                     state.Quality))
                 .ToArray();
@@ -121,7 +152,7 @@ public sealed class M100StateCache
         lock (_sync)
         {
             var state = GetDevice(sourceId);
-            return BuildSnapshotEnvelope(sourceId, state.Telemetry, _clock.UtcNow, state.Quality);
+            return BuildSnapshotEnvelope(sourceId, state.Telemetry, state.EventCounter.Current, _clock.UtcNow, state.Quality);
         }
     }
 
@@ -145,11 +176,13 @@ public sealed class M100StateCache
     {
         SourceId = state.Options.SourceId,
         Role = state.Options.Role,
+        ConfiguredEnabled = ConfiguredEnabled,
+        IoSuppressed = IoSuppressed,
         Enabled = state.Telemetry.Enabled,
         Connected = state.Telemetry.Connected,
         Quality = state.Quality,
-        Sequence = state.Telemetry.Sequence,
-        LastReceivedAt = state.Telemetry.ReceivedAt,
+        Sequence = state.Telemetry.DataSequence,
+        LastSuccessAt = state.Telemetry.LastSuccessAt,
         LastError = state.LastError,
         ConsecutiveFailures = state.ConsecutiveFailures,
     };
@@ -164,9 +197,10 @@ public sealed class M100StateCache
         return state;
     }
 
-    private static ScadaEnvelope<M100Telemetry> BuildSnapshotEnvelope(
+    private ScadaEnvelope<M100Telemetry> BuildSnapshotEnvelope(
         string sourceId,
         M100Telemetry telemetry,
+        long eventSeq,
         DateTimeOffset timestamp,
         string quality)
     {
@@ -175,12 +209,27 @@ public sealed class M100StateCache
             MessageType = SnapshotMessageType,
             SourceId = sourceId,
             SourceType = SourceType,
-            Seq = telemetry.Sequence,
+            SourceEpoch = _epoch.Value,
+            Seq = eventSeq,
             Timestamp = timestamp,
             Quality = quality,
             Payload = telemetry,
         };
     }
+
+    private static IReadOnlyDictionary<string, M100TagSnapshot> OfflineTags(IReadOnlyDictionary<string, M100TagSnapshot> tags)
+    {
+        var result = new Dictionary<string, M100TagSnapshot>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (tagId, tag) in tags)
+        {
+            result[tagId] = tag with { Value = null, Quality = "offline" };
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyDictionary<string, M100TagSnapshot> CloneTags(IReadOnlyDictionary<string, M100TagSnapshot> source)
+        => new Dictionary<string, M100TagSnapshot>(source, StringComparer.OrdinalIgnoreCase);
 
     private static IReadOnlyDictionary<string, bool?> ToDictionary(IReadOnlyList<bool?> values, string prefix)
     {
@@ -206,24 +255,30 @@ public sealed class M100StateCache
 
     private sealed class DeviceState
     {
-        public DeviceState(M100DeviceOptions options)
+        public DeviceState(M100DeviceOptions options, HubEpoch.SequenceCounter eventCounter)
         {
             Options = options;
+            EventCounter = eventCounter;
             Telemetry = new M100Telemetry
             {
+                ConfiguredEnabled = false,
+                IoSuppressed = false,
                 Enabled = false,
                 Connected = false,
                 AdapterLabel = DisabledAdapterLabel,
                 ReceivedAt = null,
-                Sequence = 0,
+                LastSuccessAt = null,
+                DataSequence = 0,
                 Do = new Dictionary<string, bool?>(),
                 Di = new Dictionary<string, bool?>(),
                 Ai = new Dictionary<string, int?>(),
                 Points = new Dictionary<string, double?>(),
+                Tags = new Dictionary<string, M100TagSnapshot>(),
             };
         }
 
         public M100DeviceOptions Options { get; }
+        public HubEpoch.SequenceCounter EventCounter { get; }
         public M100Telemetry Telemetry { get; set; }
         public string Quality { get; set; } = "offline";
         public string? LastError { get; set; }

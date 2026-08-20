@@ -62,6 +62,8 @@ public sealed class M100RealtimeIntegrationTests
         builder.Services.AddSingleton<IOptions<PureWaterPlcOptions>>(
             Options.Create(new PureWaterPlcOptions()));
         builder.Services.AddSingleton<IOptions<M100Options>>(options);
+        builder.Services.AddSingleton(new ScadaHub.Infrastructure.HubEpoch());
+        builder.Services.AddSingleton(new ScadaHub.Infrastructure.DeviceIoGate(false));
         builder.Services.AddSingleton<IScadaClock>(clock);
         builder.Services.AddSingleton<PureWaterPlcStateCache>();
         builder.Services.AddSingleton<M100StateCache>();
@@ -101,9 +103,15 @@ public sealed class M100RealtimeIntegrationTests
         Assert.Equal("m100.snapshot", dafLive.RootElement.GetProperty("messageType").GetString());
         var dafPayload = dafLive.RootElement.GetProperty("payload");
         Assert.True(dafPayload.GetProperty("connected").GetBoolean());
-        Assert.Equal(1, dafPayload.GetProperty("sequence").GetInt64());
+        Assert.Equal(1, dafPayload.GetProperty("dataSequence").GetInt64());
         Assert.True(dafPayload.GetProperty("do").GetProperty("do01").GetBoolean());
         Assert.Equal(4.826, dafPayload.GetProperty("points").GetProperty("ph").GetDouble(), precision: 3);
+        Assert.Equal(2, dafPayload.GetProperty("contractVersion").GetInt32());
+        Assert.False(dafPayload.GetProperty("ioSuppressed").GetBoolean());
+        Assert.Equal(4.826, dafPayload.GetProperty("tags").GetProperty("tk-daf.pH").GetProperty("value").GetDouble(), precision: 3);
+        Assert.Equal("good", dafPayload.GetProperty("tags").GetProperty("tk-daf.pH").GetProperty("quality").GetString());
+        Assert.True(dafPayload.GetProperty("tags").GetProperty("tk-daf.aerationCommanded").GetProperty("value").GetBoolean());
+        Assert.False(string.IsNullOrEmpty(dafLive.RootElement.GetProperty("sourceEpoch").GetString()));
 
         using var undergroundLive = await ReceiveJsonAsync(socket, timeout.Token);
         Assert.Equal("m100-underground-01", undergroundLive.RootElement.GetProperty("sourceId").GetString());

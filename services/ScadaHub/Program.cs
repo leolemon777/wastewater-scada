@@ -37,6 +37,7 @@ builder.Services.AddSingleton<IScadaClock, SystemScadaClock>();
 // 设备 IO 硬门禁（SPEC-PLAN 11.2）：进程环境直读，先于任何设备注册；
 // Testing 或 SCADA_DISABLE_ALL_DEVICE_IO=1 时所有适配器不出网。
 builder.Services.AddSingleton(DeviceIoGate.FromEnvironment(builder.Environment));
+builder.Services.AddSingleton<HubEpoch>();
 builder.Services.AddSingleton<PureWaterPlcStateCache>();
 builder.Services.AddSingleton<IMitsubishiPlcTransportFactory, HslMitsubishiPlcTransportFactory>();
 builder.Services.AddSingleton<PureWaterPlcReader>();
@@ -47,6 +48,7 @@ builder.Services.AddSingleton<PureWaterPlcCollector>();
 builder.Services.AddSingleton<M100Collector>();
 builder.Services.AddHostedService<PureWaterPlcPollingService>();
 builder.Services.AddHostedService<M100PollingService>();
+builder.Services.AddHostedService<HubHeartbeatService>();
 
 var app = builder.Build();
 

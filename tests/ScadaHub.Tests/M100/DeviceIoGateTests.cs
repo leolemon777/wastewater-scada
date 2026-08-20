@@ -74,7 +74,7 @@ public sealed class DeviceIoGateTests
             },
         };
         var clock = new FakeScadaClock(new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero));
-        var cache = new M100StateCache(Options.Create(options), clock);
+        var cache = new M100StateCache(Options.Create(options), new ScadaHub.Infrastructure.DeviceIoGate(false), new ScadaHub.Infrastructure.HubEpoch(), clock);
         var publisher = new CapturingRealtimePublisher();
         var collector = new M100Collector(
             Options.Create(options),
@@ -113,7 +113,7 @@ public sealed class DeviceIoGateTests
             },
         };
         var clock = new FakeScadaClock(new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero));
-        var cache = new M100StateCache(Options.Create(options), clock);
+        var cache = new M100StateCache(Options.Create(options), new ScadaHub.Infrastructure.DeviceIoGate(false), new ScadaHub.Infrastructure.HubEpoch(), clock);
         var publisher = new CapturingRealtimePublisher();
         var collector = new M100Collector(
             Options.Create(options),

@@ -124,6 +124,9 @@ function App() {
       onHubConnectionChange: (connected) => {
         useScadaStore.getState().ingestHubConnection(connected);
       },
+      onHeartbeat: ({ receivedAt }) => {
+        useScadaStore.getState().ingestHubHeartbeat(receivedAt);
+      },
     });
     client.start();
     return () => client.stop();

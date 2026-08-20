@@ -93,6 +93,9 @@ public sealed class M100OptionsValidator : IValidateOptions<M100Options>
                     failures.Add($"M100:Devices[{device.SourceId}].IpAddress 不能使用回环地址或 APIPA 自动地址。");
                 }
             }
+
+            // SPEC 4.3 allowlist fail-closed：仅允许两台权威设备，Role/IP 精确匹配。
+            failures.AddRange(M100Allowlist.Validate(options.Devices));
         }
 
         return failures.Count == 0

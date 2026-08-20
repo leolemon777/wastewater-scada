@@ -36,6 +36,8 @@ export interface ScadaRealtimeClientOptions {
   onM100Telemetry?: (message: M100DecodedMessage) => void;
   /** Hub WebSocket 通道状态（open/close），驱动 hub-offline 通信报警（SPEC 10.2）。 */
   onHubConnectionChange?: (connected: boolean) => void;
+  /** hub.heartbeat（SPEC 8.4）：仅证明 Hub/WS 通道存活；15s 无帧 stale、30s offline。 */
+  onHeartbeat?: (payload: { receivedAt: number }) => void;
 }
 
 export interface ScadaRealtimeClient {
@@ -245,7 +247,21 @@ export function createScadaRealtimeClient(options: ScadaRealtimeClientOptions): 
           return;
         }
         const m100Message = decodeM100RealtimeMessage(event.data);
-        if (m100Message) reportM100Telemetry(m100Message);
+        if (m100Message) {
+          reportM100Telemetry(m100Message);
+          return;
+        }
+
+        try {
+          const envelope = JSON.parse(event.data);
+          if (envelope?.schema === 'scada.v1'
+            && envelope.messageType === 'hub.heartbeat'
+            && envelope.sourceId === 'scada-hub') {
+            options.onHeartbeat?.({ receivedAt: Date.now() });
+          }
+        } catch {
+          // 坏 heartbeat 帧进入诊断静默（非业务通道）。
+        }
       };
 
       nextSocket.onerror = () => {
