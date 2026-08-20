@@ -269,12 +269,16 @@ function App() {
               toneMapping: THREE.ACESFilmicToneMapping,
               toneMappingExposure: 0.95,
             }}
-            onCreated={({ gl }) => {
+            onCreated={({ gl, camera }) => {
               gl.outputColorSpace = THREE.SRGBColorSpace;
               const maxAniso = gl.capabilities.getMaxAnisotropy();
               THREE.Texture.DEFAULT_ANISOTROPY = Math.min(8, maxAniso);
-              // Expose the renderer for perf diagnostics (draw-call counting).
-              if (typeof window !== 'undefined') (window as unknown as { __scadaGl?: THREE.WebGLRenderer }).__scadaGl = gl;
+              // Expose the renderer/camera for perf diagnostics (read-only stats,
+              // SPEC-PLAN 16: scripts/performance/measure-scene-performance.mjs).
+              if (typeof window !== 'undefined') {
+                (window as unknown as { __scadaGl?: THREE.WebGLRenderer }).__scadaGl = gl;
+                (window as unknown as { __scadaCamera?: THREE.Camera }).__scadaCamera = camera;
+              }
               // First frame is about to render — let the loader fade out.
               requestAnimationFrame(() => setSceneReady(true));
             }}
@@ -288,7 +292,12 @@ function App() {
               <SCADAScene />
             </Suspense>
             <OrbitControlsFixed
-              ref={orbitControlsRef}
+              ref={(controls) => {
+                orbitControlsRef.current = controls;
+                if (typeof window !== 'undefined') {
+                  (window as unknown as { __scadaControls?: OrbitControlsImpl | null }).__scadaControls = controls;
+                }
+              }}
               target={[-6, 1, 0]}
               enableRotate={true}
               maxPolarAngle={Math.PI / 2.2}

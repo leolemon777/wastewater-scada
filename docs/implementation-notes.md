@@ -299,3 +299,27 @@
 ## 风险
 - sc.exe 服务参数（delayed-auto/obj 虚拟账户/failure actions）未经真实安装验证——需管理员现场演练（WP7/Gate B）。
 - 回滚 60s 目标未计时验证（依赖服务启停时长，现场演练确认）。
+
+---
+
+# 2026-08-20 WP6.0：3D 性能测量基础设施
+
+## 决策
+- 测量用 Playwright channel=msedge（系统 Edge，免浏览器下载）+ Node 原生 http 服务 dist（不依赖 vite preview）；1920x1080@100%/DPR1 按 profile 冻结。
+- App 只读 perf 钩子（__scadaGl 既有 + 新增 __scadaCamera/__scadaControls）：仅测量控制（相机位设置）与统计读取，无 store/mutation 暴露——SPEC 5.13 只禁 __scadaStore。
+- 采样器 page.evaluate 注入 rAF 循环（armed 窗口收集 frame times）；renderer.info 每帧自动 reset 下读稳态值；context loss 以 console 标记 + preventDefault 监听。
+- quick 模式（3s 预热/8s×1 轮）仅开发趋势；结果 JSON 带 mode 标记，硬门槛只认 FULL+目标机。
+- results/ 入 gitignore（机器相关产物不入库）。
+
+## 与规格的偏差
+- 无。FULL 模式数值与 profile 一致；目标机信息待现场回填（profile 占位 TBD）。
+
+## 验证
+- 本机 QUICK 基线：全局 2.9-6 FPS / 5483 calls / 8948 geos / 112 tex——与 SPEC 16.1 记载（6.2 FPS / 5581 calls / ~9000 geos / 146 tex）吻合，测量可信。
+- 六相机位全部产出统计；深度/污泥位 15 FPS、462/657 calls（近景门槛 <=300 calls 未达，WP6.1+ 目标明确）。
+- 过程缺陷：采样器注入遗漏导致首轮 FPS=0（已修复并重采）。
+- lint/check:scene 回归通过。
+
+## 风险
+- 全局位 triangles 显示 Infinity（统计溢出/异常累计）——只影响报表可读性，WP6 优化时排查。
+- 本机（开发工作站 Iris Xe）与工控机 GPU 不同，基线只用于 A/B 趋势；SPEC 门槛判定必须目标机 FULL 模式。

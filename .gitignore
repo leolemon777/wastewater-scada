@@ -65,3 +65,4 @@ scripts/tmp-cdp-shot.mjs
 *.njsproj
 *.sln
 *.sw?
+scripts/performance/results/

@@ -1063,6 +1063,8 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 
 ### WP6：3D 工控机性能收口
 
+> **状态（2026-08-20）：WP6.0 完成（测量基础设施）。** `scripts/performance/scene-profile.json` 冻结（6 固定相机位/1920x1080@100%/预热 15s 采样 60s×3 轮/SPEC 16.3 硬门槛/目标机信息占位待现场回填）；`measure-scene-performance.mjs` + `npm run perf:scene`（Node 静态 dist + Playwright msedge 硬件加速 + rAF 帧时采样 + renderer.info 统计 + context-loss 监听，`--quick` 开发模式）；App 暴露只读 perf 钩子（`__scadaGl/__scadaCamera/__scadaControls`，无 mutation 能力）。**本机 QUICK 开发基线已采集**（results/ 目录，gitignore）：全局 2.9-6 FPS / 5483 calls / 8948 geos / 112 tex（与 16.1 记载吻合），深度/污泥位 15 FPS / 462-657 calls——WP6.1+ 优化优先级与对照基线就绪。已知瑕疵：全局位 triangles 统计溢出显示 Infinity（WP6.优化时排查）。**硬门槛验收（60s×3×6 位 + soak）留待目标工控机（Gate C）。WP6.1-6.7 整改未开始。**
+
 主要内容：
 
 - Dashboard/后台暂停渲染。

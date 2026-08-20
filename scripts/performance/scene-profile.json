@@ -1,0 +1,33 @@
+{
+  "$comment": "SPEC-PLAN 16.3（WP6.0）冻结的 3D 性能测量配置。目标工控机信息在验收时回填 targetMachine；本机开发基线仅作趋势对比，硬门槛只在目标机签核。",
+  "targetMachine": {
+    "model": "TBD（现场回填）",
+    "cpu": "TBD",
+    "gpu": "TBD",
+    "gpuDriver": "TBD",
+    "windows": "TBD",
+    "browser": "Microsoft Edge（Chromium，硬件加速开启，缩放 100%）",
+    "viewport": { "width": 1920, "height": 1080, "deviceScaleFactor": 1 }
+  },
+  "sampling": {
+    "warmupSeconds": 15,
+    "sampleSeconds": 60,
+    "rounds": 3,
+    "quickOverride": { "warmupSeconds": 3, "sampleSeconds": 8, "rounds": 1, "note": "开发迭代用（--quick），不作验收" }
+  },
+  "cameras": [
+    { "id": "global", "label": "全局", "position": [22, 18, 38], "target": [-6, 1, 0] },
+    { "id": "intake", "label": "进水", "position": [-20, 12, 34], "target": [-29, 1, 19] },
+    { "id": "main", "label": "主处理", "position": [-4, 12, 16], "target": [-10, 1, 0] },
+    { "id": "daf", "label": "深度处理/气浮", "position": [30, 10, -2], "target": [20, 1, -15] },
+    { "id": "sludge", "label": "污泥", "position": [16, 10, -8], "target": [8, 1, -18] },
+    { "id": "purewater", "label": "纯水", "position": [12, 12, 14], "target": [0, 1, 0] }
+  ],
+  "metrics": ["fps", "frameTimeMsP50", "frameTimeMsP95", "frameTimeMsP99", "drawCalls", "triangles", "geometries", "textures", "contextLoss"],
+  "hardGates": {
+    "global": { "fps": ">=30", "frameTimeMsP95": "<=33", "drawCalls": "<=500", "triangles": "<=1800000" },
+    "closeup": { "drawCalls": "<=300" },
+    "scene": { "geometries": "<3000", "textures": "<80", "pixelRatio": "<=1.25" },
+    "note": "所有轮次必须同时达标；见 SPEC-PLAN 16.3 全量清单（soak/readiness/隐藏停帧等在 WP6 后续与 Gate C 执行）"
+  }
+}
