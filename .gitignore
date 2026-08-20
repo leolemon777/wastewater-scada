@@ -17,8 +17,8 @@ dist-ssr
 *.local.txt
 **/appsettings.local.json
 
-# 构建产物
-release
+# 构建产物（仅根目录的发布输出；scripts/release/ 脚本必须入库）
+/release
 *.exe
 
 # 工具缓存与临时输出
@@ -48,7 +48,7 @@ docs/integration/本地凭据.local.md
 .zcode/
 
 # 发布暂存与发布包（SPEC-PLAN 18/20：staging 不入库）
-releases/
+/releases/
 release-staging/
 WastewaterScada-*/
 
