@@ -15,6 +15,7 @@ const repo = path.resolve(__dirname, '..', '..');
 const profile = JSON.parse(fs.readFileSync(path.join(__dirname, 'scene-profile.json'), 'utf8'));
 
 const quick = process.argv.includes('--quick');
+const perfMode = process.argv.includes('--performance-mode');
 const sampling = quick ? profile.sampling.quickOverride : profile.sampling;
 const viewport = profile.targetMachine.viewport;
 
@@ -35,7 +36,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
-console.log(`静态服务: http://127.0.0.1:${port}（模式: ${quick ? 'QUICK（非验收）' : 'FULL'}，采样 ${sampling.warmupSeconds}s 预热 + ${sampling.sampleSeconds}s × ${sampling.rounds} 轮/位）`);
+console.log(`静态服务: http://127.0.0.1:${port}（模式: ${quick ? 'QUICK（非验收）' : 'FULL'}${perfMode ? '+PERF-MODE' : ''}，采样 ${sampling.warmupSeconds}s 预热 + ${sampling.sampleSeconds}s × ${sampling.rounds} 轮/位）`);
 
 // --- 浏览器 ---
 const browser = await chromium.launch({ channel: 'msedge', headless: false });
@@ -45,7 +46,7 @@ page.on('console', (message) => {
   if (message.text().includes('webglcontextlost')) contextLosses.push(Date.now());
 });
 
-await page.goto(`http://127.0.0.1:${port}/?perf=1`, { waitUntil: 'load', timeout: 60_000 });
+await page.goto(`http://127.0.0.1:${port}/?perf=1${perfMode ? '&perf-mode=1' : ''}`, { waitUntil: 'load', timeout: 60_000 });
 // 等待渲染钩子就绪
 await page.waitForFunction(() => window.__scadaGl && window.__scadaCamera && window.__scadaControls, null, { timeout: 60_000 });
 console.log('渲染钩子就绪（__scadaGl/__scadaCamera/__scadaControls）');
@@ -68,7 +69,8 @@ const INJECT = () => {
 };
 await page.evaluate(INJECT);
 
-const results = { capturedAt: new Date().toISOString(), mode: quick ? 'quick' : 'full', machine: 'dev-workstation (baseline)', cameras: [] };
+const results = { capturedAt: new Date().toISOString(), mode: quick ? 'quick' : 'full',
+  performanceMode: perfMode, machine: 'dev-workstation (baseline)', cameras: [] };
 
 for (const camera of profile.cameras) {
   await page.evaluate(([position, target]) => {

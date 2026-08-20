@@ -781,7 +781,9 @@ export const useScadaStore = create<ScadaState>((set) => ({
   m100GoodStreaks: {},
   tagInvalidStreaks: {},
   tagGoodStreaks: {},
-  performanceMode: false,
+  // SPEC-PLAN 16.2：工控机运行模式可经 URL ?perf-mode=1 在 store 创建时启用
+  //（首挂即目标 DPR/阴影配置，避免运行时切换触发全场景材质重编译）。
+  performanceMode: typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('perf-mode'),
   scenePaletteMode: 'bright',
   setPerformanceMode: (enabled) => set({ performanceMode: enabled }),
   setScenePaletteMode: (mode) => set({ scenePaletteMode: mode }),

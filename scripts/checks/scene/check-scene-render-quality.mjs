@@ -36,9 +36,10 @@ has(/toneMapping:\s*THREE\.ACESFilmicToneMapping/, 'Canvas should use ACESFilmic
 has(/THREE\.Texture\.DEFAULT_ANISOTROPY\s*=\s*Math\.min\(8,\s*maxAniso\)/, 'texture anisotropy should stay enabled for sharper close-up floor/wall views');
 has(/\{!performanceMode\s*&&\s*<Preload all\s*\/>\}/, 'high-quality mode should keep preloading scene assets');
 has(/from\s+'@react-three\/postprocessing'/, '@react-three/postprocessing must be imported for edge anti-aliasing');
-has(/<EffectComposer\s+multisampling=\{\d+\}/, 'high-quality AA must be configured: hardware MSAA on the EffectComposer render target (preferred — cheaper and crisper for hard geometry than the full-screen SMAA shader pass); the previous <SMAA /> is optional if MSAA is present');
+// SPEC-PLAN 16.2（WP6）：删除无 Effect 的 EffectComposer——AA 由 Canvas 原生
+// antialias:true（上行断言）承担；效果 composer 不再默认挂载。
 
-console.log('Scene render quality defaults: performanceMode=false, palette=bright, highQualityDpr=2x (super-sampled for crisp edges), MSAA(4x)+SMAA AA + antialias/shadows enabled');
+console.log('Scene render quality defaults: performanceMode=false, palette=bright, highQualityDpr=2x, native antialias + percentage shadows; perf-mode: DPR<=1.25, shadows off (SPEC 16.2)');
 
 if (issues.length > 0) {
   console.error('\nScene render quality issues found:');

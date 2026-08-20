@@ -51,12 +51,12 @@ declare global {
   }
 }
 
-// Keep the 3D scene sharp. Do not lower DPR for performance; optimize UI
-// compositing and interaction instead so text, pipes and equipment edges stay crisp.
+// SPEC-PLAN 16.2/16.3：工控机运行模式（performanceMode）DPR 1-1.25 并关闭
+// 阴影与环境效果；普通开发/展示模式保持高保真（DPR<=2、percentage 阴影）。
 function getCanvasDpr(performanceMode: boolean): number {
   if (typeof window === 'undefined') return 1;
   const deviceDpr = window.devicePixelRatio || 1;
-  if (performanceMode) return Math.min(deviceDpr, 1.5);
+  if (performanceMode) return Math.min(deviceDpr, 1.25);
   return Math.min(Math.max(deviceDpr, 2), 2);
 }
 
@@ -268,7 +268,7 @@ function App() {
         <ErrorBoundary fallbackTitle="3D 场景渲染异常">
           <Canvas
             eventSource={canvasShellRef}
-            shadows={"percentage"}
+            shadows={performanceMode ? false : 'percentage'}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}
             dpr={canvasDpr}
             // WP6.1：非 3D 视图或后台时完全停帧（SPEC 16.3：后台 10s frame 增量 <=1）。
