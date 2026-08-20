@@ -58,3 +58,50 @@ export const TankLevelRow = ({ tank, displayName }: { tank: TankData; displayNam
     </div>
   );
 };
+
+/**
+ * Data-quality strip (SPEC-PLAN 7.2 / 9.2): per-tag source, quality badge,
+ * data age and held value. Reads the unified TagState (single mutable truth)
+ * — never the derived equipment fields.
+ */
+import { useScadaStore } from '../../store/useScadaStore';
+import { qualityDisplay } from '../../store/tagQuality';
+
+const TELEMETRY_STRIP_TAGS: readonly { tagId: string; label: string; sourceId: 'm100-daf-01' | 'm100-underground-01' }[] = [
+  { tagId: 'tk-daf.pH', label: '气浮 pH', sourceId: 'm100-daf-01' },
+  { tagId: 'tk-daf.aerationCommanded', label: '曝气指令 DO1', sourceId: 'm100-daf-01' },
+  { tagId: 'tk-intermediate.levelValue', label: '中间池液位', sourceId: 'm100-underground-01' },
+];
+
+export const TelemetryQualityStrip: React.FC = () => {
+  const tagStates = useScadaStore((state) => state.tagStates);
+  const m100Connections = useScadaStore((state) => state.m100Connections);
+  const hubOffline = m100Connections['m100-daf-01']?.state === 'offline'
+    && m100Connections['m100-underground-01']?.state === 'offline';
+
+  return (
+    <div className="dash-quality-strip" role="status" aria-label="数据质量">
+      <span className={`dash-quality-hub ${hubOffline ? 'is-offline' : 'is-up'}`}>
+        Hub {hubOffline ? '失联' : '在线'}
+      </span>
+      {TELEMETRY_STRIP_TAGS.map(({ tagId, label, sourceId }) => {
+        const tag = tagStates[tagId];
+        const display = qualityDisplay(tag?.quality ?? 'unknown');
+        const held = tag?.quality === 'offline' || tag?.quality === 'stale';
+        const ageSeconds = m100Connections[sourceId]?.ageMs;
+        return (
+          <span key={tagId} className="dash-quality-item">
+            <span className="dash-quality-name">{label}</span>
+            <span className={`tag-quality-badge ${display.badgeClass}`}>{display.badge}</span>
+            {ageSeconds != null && ageSeconds >= 0 && (
+              <span className="dash-quality-age">{Math.floor(ageSeconds / 1000)}s</span>
+            )}
+            {held && tag?.lastGoodValue != null && (
+              <span className="dash-quality-held">保持值 {String(tag.lastGoodValue)}</span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+};

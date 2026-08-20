@@ -16,12 +16,18 @@ interface ScadaEnvelope {
   schema: string;
   messageType: string;
   sourceId: string;
+  sourceEpoch?: string;
+  seq?: number;
   payload: unknown;
 }
 
 export interface M100DecodedMessage {
   sourceId: M100SourceId;
   telemetry: M100TelemetryFrame;
+  /** Hub 进程标识（SPEC 8.1）；旧信封缺省时由 store 以默认 epoch 处理。 */
+  sourceEpoch?: string;
+  /** 信封顶层 seq（eventSeq），用于防回退。 */
+  eventSeq?: number;
 }
 
 export interface ScadaRealtimeClientOptions {
@@ -149,6 +155,8 @@ export function decodeM100RealtimeMessage(raw: string): M100DecodedMessage | nul
     return {
       sourceId: envelope.sourceId as M100SourceId,
       telemetry: { enabled, connected: false },
+      ...(typeof envelope.sourceEpoch === 'string' ? { sourceEpoch: envelope.sourceEpoch } : {}),
+      ...(typeof envelope.seq === 'number' ? { eventSeq: envelope.seq } : {}),
     };
   }
 
@@ -157,7 +165,12 @@ export function decodeM100RealtimeMessage(raw: string): M100DecodedMessage | nul
   const telemetry = normalizeM100Telemetry(payload);
   if (!telemetry || typeof payload.connected !== 'boolean') return null;
 
-  return { sourceId: envelope.sourceId as M100SourceId, telemetry };
+  return {
+    sourceId: envelope.sourceId as M100SourceId,
+    telemetry,
+    ...(typeof envelope.sourceEpoch === 'string' ? { sourceEpoch: envelope.sourceEpoch } : {}),
+    ...(typeof envelope.seq === 'number' ? { eventSeq: envelope.seq } : {}),
+  };
 }
 
 export function getDefaultScadaHubWebSocketUrl(): string {

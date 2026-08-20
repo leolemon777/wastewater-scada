@@ -19,6 +19,8 @@ export interface M100TelemetryFrame {
   adapterLabel?: string;
   receivedAt?: number;
   sequence?: number;
+  /** 点表映射版本（SPEC 8.2），跨版本变化时用于清除不匹配保持值。 */
+  mappingVersion?: string;
   doPoints?: Readonly<Record<string, boolean | 1 | 0 | null>>;
   diPoints?: Readonly<Record<string, boolean | 1 | 0 | null>>;
   aiPoints?: Readonly<Record<string, number | null>>;
@@ -86,6 +88,7 @@ export function normalizeM100Telemetry(payload: unknown): M100TelemetryFrame | n
     ...(adapterLabel ? { adapterLabel } : {}),
     ...(receivedAt !== undefined ? { receivedAt } : {}),
     ...(sequence !== undefined ? { sequence } : {}),
+    ...(typeof payload.mappingVersion === 'string' ? { mappingVersion: payload.mappingVersion } : {}),
     ...(cleanFlags(payload.do) ? { doPoints: cleanFlags(payload.do) } : {}),
     ...(cleanFlags(payload.di) ? { diPoints: cleanFlags(payload.di) } : {}),
     ...(cleanNumbers(payload.ai) ? { aiPoints: cleanNumbers(payload.ai) } : {}),
@@ -113,7 +116,7 @@ export function getM100ConnectionInfo(
   return { state: 'live', valuesAreCurrent: true, lastReceivedAt: frame.receivedAt, ageMs };
 }
 
-const flagToBool = (value: boolean | 1 | 0 | null | undefined): boolean | undefined => {
+export const flagToBool = (value: boolean | 1 | 0 | null | undefined): boolean | undefined => {
   if (value === true || value === 1) return true;
   if (value === false || value === 0) return false;
   return undefined;

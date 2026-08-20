@@ -118,8 +118,8 @@ function App() {
       onPureWaterTelemetry: (telemetry) => {
         useScadaStore.getState().ingestPureWaterPlcTelemetry(telemetry);
       },
-      onM100Telemetry: ({ sourceId, telemetry }) => {
-        useScadaStore.getState().ingestM100Telemetry(sourceId, telemetry);
+      onM100Telemetry: ({ sourceId, telemetry, sourceEpoch, eventSeq }) => {
+        useScadaStore.getState().ingestM100Telemetry(sourceId, telemetry, { sourceEpoch, eventSeq });
       },
     });
     client.start();

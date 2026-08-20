@@ -16,13 +16,27 @@ import {
 } from './pureWaterPlc';
 import {
   getM100ConnectionInfo,
-  m100EquipmentPatches,
+  flagToBool,
   M100_DAF_SOURCE_ID,
   M100_UNDERGROUND_SOURCE_ID,
   type M100ConnectionInfo,
   type M100SourceId,
   type M100TelemetryFrame,
 } from './m100Realtime';
+import {
+  advanceCursor,
+  ageTransition,
+  applyGoodFrame,
+  applyInvalidFrame,
+  applySourceOffline,
+  clearStaleHeldValue,
+  emptyTagState,
+  ownedEquipmentIdsBySource,
+  shouldAcceptEvent,
+  TAG_OWNERSHIP,
+  type SourceCursor,
+  type TagState,
+} from './tagQuality';
 
 export type AlarmState = 'none' | 'warning' | 'critical';
 export type EquipmentType = 'pump' | 'tank' | 'mixingTank' | 'chemicalTank' | 'flowMeter' | 'valve' | 'screwPress' | 'outfall' | 'roUnit';
@@ -179,9 +193,17 @@ interface ScadaState {
   /** Read-only M100 gateway telemetry (气浮 / 地下池), driven by ScadaHub WebSocket. */
   m100Realtime: Partial<Record<M100SourceId, M100TelemetryFrame>>;
   m100Connections: Record<M100SourceId, M100ConnectionInfo>;
-  /** Equipment ids taken over by live M100 frames; the wastewater demo tick must not overwrite them. */
+  /** Equipment ids taken over by live M100 sources; the wastewater demo tick must not overwrite them. */
   m100LiveEquipmentIds: string[];
-  ingestM100Telemetry: (sourceId: M100SourceId, telemetry: M100TelemetryFrame) => void;
+  /** 每来源事件游标：(sourceId, sourceEpoch, eventSeq) 防回退（SPEC 8.1）。 */
+  m100SourceCursors: Record<string, SourceCursor>;
+  /** 统一 Tag 状态（SPEC 7）：现场遥测唯一可变事实源，Equipment 现场字段是其派生 ViewModel。 */
+  tagStates: Record<string, TagState>;
+  ingestM100Telemetry: (
+    sourceId: M100SourceId,
+    telemetry: M100TelemetryFrame,
+    meta?: { sourceEpoch?: string; eventSeq?: number },
+  ) => void;
   refreshM100Connections: (now?: number) => void;
 
   /** Wastewater demo source. Kept as `demoMode` for the existing dashboard API. */
@@ -651,8 +673,10 @@ export const useScadaStore = create<ScadaState>((set) => ({
       hazwasteStoredBagCount: Math.min(state.hazwasteStoredBagCount + 1, 4),
     })),
 
-  demoMode: true,
-  pureWaterDemoMode: true,
+  // SPEC-PLAN 22：生产首次启动 demo 关闭；正式 Tag 显示 --/unknown。
+  // 演示经 SystemMenu 手动开启（开发用途），readonly-trial 构建将彻底移除 demo（WP2 构建变体）。
+  demoMode: false,
+  pureWaterDemoMode: false,
   currentScenarioId: 'normal',
   demoTick: 0,
   pureWaterDemoTick: 0,
@@ -664,6 +688,8 @@ export const useScadaStore = create<ScadaState>((set) => ({
     [M100_UNDERGROUND_SOURCE_ID]: getM100ConnectionInfo(undefined),
   },
   m100LiveEquipmentIds: [],
+  m100SourceCursors: {},
+  tagStates: {},
   performanceMode: false,
   scenePaletteMode: 'bright',
   setPerformanceMode: (enabled) => set({ performanceMode: enabled }),
@@ -900,8 +926,26 @@ export const useScadaStore = create<ScadaState>((set) => ({
     };
   }),
 
-  ingestM100Telemetry: (sourceId, telemetry) => set((state) => {
+  ingestM100Telemetry: (sourceId, telemetry, meta) => set((state) => {
     if (telemetry.enabled === false) return state;
+
+    // SPEC 8.1：(sourceId, sourceEpoch, eventSeq) 防回退——同 epoch 下旧序号拒绝，
+    // 新 epoch（Hub 重启）重置游标并接受初始事件。
+    const cursor = state.m100SourceCursors[sourceId];
+    if (!shouldAcceptEvent(cursor, sourceId, meta?.sourceEpoch, meta?.eventSeq)) {
+      return state;
+    }
+    const m100SourceCursors: Record<string, SourceCursor> = {
+      ...state.m100SourceCursors,
+      [sourceId]: advanceCursor(cursor, sourceId, meta?.sourceEpoch, meta?.eventSeq ?? 0),
+    };
+
+    // SPEC 7.4：该 SourceId 一经出现（含启动即断线的初始回放帧）即取得 Tag ownership，
+    // 即使从未成功采集也不回退 demo。
+    const m100LiveEquipmentIds = new Set(state.m100LiveEquipmentIds);
+    for (const equipmentId of ownedEquipmentIdsBySource(sourceId)) {
+      m100LiveEquipmentIds.add(equipmentId);
+    }
 
     // 断连时保持最后一帧（hold），不回退 demo 假数据。
     const frame: M100TelemetryFrame = telemetry.connected
@@ -911,21 +955,84 @@ export const useScadaStore = create<ScadaState>((set) => ({
     const connection = getM100ConnectionInfo(frame);
     const m100Connections = { ...state.m100Connections, [sourceId]: connection };
     const nextEquipments = { ...state.equipments };
-    const m100LiveEquipmentIds = new Set(state.m100LiveEquipmentIds);
+    const tagStates: Record<string, TagState> = { ...state.tagStates };
+    const now = Date.now();
 
-    if (telemetry.connected) {
-      const patches = m100EquipmentPatches(sourceId, frame);
-      for (const [id, patch] of Object.entries(patches)) {
-        const previous = nextEquipments[id];
-        if (!previous || Object.keys(patch).length === 0) continue;
-        m100LiveEquipmentIds.add(id);
-        nextEquipments[id] = {
-          ...previous,
-          ...patch,
-          id: previous.id,
-          type: previous.type,
-        } as EquipmentData;
+    if (!telemetry.connected) {
+      // 源断线：所属 Tag -> offline（value 置空、保留 lastGoodValue 作保持值显示），
+      // equipment 派生字段 hold 不清零。
+      for (const [tagId, owner] of Object.entries(TAG_OWNERSHIP)) {
+        if (owner !== sourceId) continue;
+        tagStates[tagId] = applySourceOffline(tagStates[tagId] ?? emptyTagState(), {
+          sourceId,
+          receivedAt: now,
+          sourceEpoch: meta?.sourceEpoch,
+        });
       }
+
+      return {
+        m100SourceCursors,
+        m100LiveEquipmentIds: [...m100LiveEquipmentIds],
+        tagStates,
+        m100Realtime,
+        m100Connections,
+      };
+    }
+
+    // 成功帧：按 Tag 生命周期逐点更新（SPEC 7.1/7.2），再派生 equipment ViewModel。
+    const receivedAt = telemetry.receivedAt ?? now;
+    const mappingVersion = telemetry.mappingVersion;
+    const commonMeta = {
+      source: 'm100' as const,
+      sourceId,
+      receivedAt,
+      sourceEpoch: meta?.sourceEpoch,
+      eventSeq: meta?.eventSeq,
+      mappingVersion,
+    };
+
+    const upsertTag = (tagId: string, value: number | boolean | null | undefined, warning: string) => {
+      const base = clearStaleHeldValue(tagStates[tagId] ?? emptyTagState(), mappingVersion);
+      tagStates[tagId] = value === null || value === undefined
+        ? applyInvalidFrame(base, warning, commonMeta)
+        : applyGoodFrame(base, { value, sampledAt: receivedAt, ...commonMeta });
+    };
+
+    if (sourceId === M100_DAF_SOURCE_ID) {
+      upsertTag('tk-daf.pH', telemetry.points?.ph, 'pH 无有效值（量程外或原始值缺失）');
+      upsertTag('tk-daf.aerationCommanded', flagToBool(telemetry.doPoints?.do01), 'do01 无有效值');
+      upsertTag('tk-daf.scraperCommanded', flagToBool(telemetry.doPoints?.do02), 'do02 无有效值');
+    } else {
+      upsertTag('tk-intermediate.levelValue', telemetry.points?.level, '液位无有效值（量程外或原始值缺失）');
+      const level = telemetry.points?.level;
+      upsertTag('tk-intermediate.levelPercent',
+        typeof level === 'number' ? Math.min(100, Math.max(0, (level / 4.75) * 100)) : null,
+        '液位百分比依赖有效液位');
+    }
+
+    // 派生 ViewModel：仅 good 值写入现场字段；invalid/offline 时保持旧值由徽标覆盖。
+    const patchFromTags = (equipmentId: string, fields: Partial<TankData>) => {
+      const previous = nextEquipments[equipmentId];
+      if (!previous || Object.keys(fields).length === 0) return;
+      nextEquipments[equipmentId] = { ...previous, ...fields, id: previous.id, type: previous.type } as EquipmentData;
+    };
+
+    if (sourceId === M100_DAF_SOURCE_ID) {
+      const fields: Partial<TankData> = {};
+      const ph = tagStates['tk-daf.pH'];
+      if (ph?.quality === 'good' && typeof ph.value === 'number') fields.pH = ph.value;
+      const aeration = tagStates['tk-daf.aerationCommanded'];
+      if (aeration?.quality === 'good' && aeration.value !== null) fields.aerationRunning = aeration.value === true;
+      const scraper = tagStates['tk-daf.scraperCommanded'];
+      if (scraper?.quality === 'good' && scraper.value !== null) fields.scraperRunning = scraper.value === true;
+      patchFromTags('tk-daf', fields);
+    } else {
+      const fields: Partial<TankData> = {};
+      const level = tagStates['tk-intermediate.levelValue'];
+      if (level?.quality === 'good' && typeof level.value === 'number') fields.levelValue = level.value;
+      const percent = tagStates['tk-intermediate.levelPercent'];
+      if (percent?.quality === 'good' && typeof percent.value === 'number') fields.levelPercent = percent.value;
+      patchFromTags('tk-intermediate', fields);
     }
 
     const { newAlarms, clearedAlarmIds } = detectAlarms(state.equipments, nextEquipments);
@@ -935,9 +1042,11 @@ export const useScadaStore = create<ScadaState>((set) => ({
     );
 
     return {
+      m100SourceCursors,
+      m100LiveEquipmentIds: [...m100LiveEquipmentIds],
+      tagStates,
       m100Realtime,
       m100Connections,
-      m100LiveEquipmentIds: [...m100LiveEquipmentIds],
       equipments: nextEquipments,
       alarms,
       overallStatus: computeOverallStatus(nextEquipments),
@@ -961,7 +1070,18 @@ export const useScadaStore = create<ScadaState>((set) => ({
       m100Connections[sourceId] = next;
       changed = true;
     }
-    return changed ? { m100Connections } : state;
+
+    // 数据龄转移（SPEC 7.2）：good -> stale(>10s) -> offline(>30s)，离开 good 时 value 置空。
+    const tagStates = { ...state.tagStates };
+    for (const tagId of Object.keys(tagStates)) {
+      const next = ageTransition(tagStates[tagId], now);
+      if (next !== tagStates[tagId]) {
+        tagStates[tagId] = next;
+        changed = true;
+      }
+    }
+
+    return changed ? { m100Connections, tagStates } : state;
   }),
 
   setDemoMode: (enabled) => set((state) => {

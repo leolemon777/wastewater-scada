@@ -2279,3 +2279,93 @@ body.clear-mode .scada-topbar-pro .scene-hud-zoom button {
   background: rgba(251, 191, 36, 0.08);
   vertical-align: middle;
 }
+
+/* ── SPEC-PLAN WP2: data-quality strip & tags ── */
+.dash-quality-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  margin: 0 0 10px;
+  border: 1px solid var(--bg-panel-border, rgba(148, 163, 184, 0.25));
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.35);
+  font-size: 12px;
+}
+
+.dash-quality-hub {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.dash-quality-hub.is-up { color: #34d399; background: rgba(52, 211, 153, 0.1); }
+.dash-quality-hub.is-offline { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+
+.dash-quality-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash-quality-name { color: var(--text-secondary, #94a3b8); }
+
+.tag-quality-badge {
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.tag-quality-badge.is-live { color: #34d399; border-color: rgba(52, 211, 153, 0.45); }
+.tag-quality-badge.is-stale { color: #fbbf24; border-color: rgba(251, 191, 36, 0.45); }
+.tag-quality-badge.is-invalid { color: #f97316; border-color: rgba(249, 115, 22, 0.45); }
+.tag-quality-badge.is-offline { color: #f87171; border-color: rgba(248, 113, 113, 0.45); }
+.tag-quality-badge.is-suppressed { color: #a78bfa; border-color: rgba(167, 139, 250, 0.45); }
+.tag-quality-badge.is-unknown { color: #94a3b8; border-color: rgba(148, 163, 184, 0.35); }
+
+.dash-quality-age {
+  color: var(--text-secondary, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-quality-held {
+  color: #fbbf24;
+  font-style: normal;
+  opacity: 0.9;
+}
+
+/* 趋势未接入 / 演示标注 */
+.dash-trend-unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 34px 0;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dash-trend-unavailable em { font-style: normal; font-size: 12px; opacity: 0.75; }
+
+.dash-trend-demo-note,
+.dash-outfall-demo-note {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fbbf24;
+  border: 1px dashed rgba(251, 191, 36, 0.55);
+  border-radius: 4px;
+  background: rgba(251, 191, 36, 0.06);
+  text-align: center;
+}
+
+.dash-outfall-demo-note { margin: 0 0 6px; }
+.dash-outfall-hero.unknown { filter: saturate(0.55); }
+.dash-outfall-badge.unknown { color: #94a3b8; border-color: rgba(148, 163, 184, 0.4); }
+.dash-outfall-badge.demo { color: #fbbf24; border-color: rgba(251, 191, 36, 0.5); }
+.dash-outfall-lamp.unknown { background: #64748b; }
+.dash-outfall-missing { color: var(--text-secondary, #94a3b8); font-size: 13px; }

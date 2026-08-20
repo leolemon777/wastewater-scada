@@ -986,6 +986,8 @@ WP5 只实现发布机制和脚本，不产生最终签核包。WP6 所有 3D �
 
 ### WP2：Tag 来源、质量和 demo 隔离
 
+> **状态（2026-08-20）：完成（核心数据面）。** 新增 `tagQuality.ts`（TagState 类型 + 生命周期 + ownership 固定映射 + epoch/eventSeq 防回退）；store 增加 `tagStates` 唯一可变遥测事实源，Equipment 现场字段改为 good 值派生 ViewModel；SourceId 出现即取得 ownership（启动即断线/断线刷新不回退 demo）；demo 默认关闭；排放合规合成值与正弦假趋势移除（现场 -- /无法判定/历史趋势未接入，demo 显式标注）；新增数据质量条（来源/质量/数据龄/保持值）。新建 Vitest 套件 `npm run test:store` 20 项覆盖 SPEC 14.2 可测条目；`check:scene` 40/40（新增 source-quality 守卫）。**readonly-trial 构建变体（彻底剔除 demo scheduler/独立 /demo 路由）与纯水侧 TagState 迁移列为 WP2 遗留，随 WP4/WP5 构建流水线一并落地。**
+
 主要文件：
 
 - `src/store/tagQuality.ts`（新增）

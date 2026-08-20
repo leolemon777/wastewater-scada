@@ -3,7 +3,7 @@ import { useScadaStore, type TankData, type PumpData, type FlowMeterData } from 
 import { getDemoScenario } from '../../store/demoScenarios';
 import { Activity, Power, Database, Droplets, FlaskConical, RefreshCw } from 'lucide-react';
 import { LEVEL_MONITORED_TANKS, displayTankName } from '../../store/equipmentUtils';
-import { StatusRow, TankLevelRow } from './dashboard-parts';
+import { StatusRow, TankLevelRow, TelemetryQualityStrip } from './dashboard-parts';
 
 type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator';
 
@@ -95,7 +95,7 @@ export const DataDashboard: React.FC = () => {
           <span className="dash-mission-tag">集控中枢 · pH 优先监控</span>
           <h1 className="dash-title">全厂运行参数监测台</h1>
           <p className="dash-subtitle">
-            重点盯 pH 与排放合规 · 设备联控 · {currentScenario.description}
+            重点盯 pH 与排放水质 · 设备状态只读监视 · {currentScenario.description}
           </p>
         </div>
         <div className={`dash-live-badge ${demoMode ? 'live' : ''}`}>
@@ -104,6 +104,8 @@ export const DataDashboard: React.FC = () => {
           <span className="dash-live-scenario">{currentScenario.shortName}</span>
         </div>
       </header>
+
+      <TelemetryQualityStrip />
 
       {/* ① pH 主视觉区 — 工艺核心 */}
       <section className="dash-ph-hero" aria-label="pH 关键监控">
@@ -214,9 +216,20 @@ export const DataDashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* ④ 趋势：pH 在前，流量在后 */}
+      {/* ④ 趋势：无历史服务时显示"历史趋势未接入"；演示曲线醒目标注（SPEC 9.3）。 */}
       <section className="dash-panel dash-trends">
-        <TrendChartHub historyPoints={historyPoints} />
+        {demoMode ? (
+          <>
+            <TrendChartHub historyPoints={historyPoints} />
+            <div className="dash-trend-demo-note">演示曲线，不代表现场</div>
+          </>
+        ) : (
+          <div className="dash-trend-unavailable">
+            <Activity size={16} />
+            <span>历史趋势未接入</span>
+            <em>需接入历史数据服务后启用</em>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -334,60 +347,74 @@ const PhTile = ({ label, value }: { label: string; value: number }) => {
 };
 
 const OutfallPanel: React.FC = () => {
-  const { equipments, currentScenarioId, demoTick } = useScadaStore();
+  // SPEC-PLAN 9.3：排放 COD/氨氮/总磷/pH 无真实 Tag 时显示 -- / 未接入，
+  // 不生成排放合规结论；演示模式保留合成值但必须醒目标注"演示数据，不代表现场"。
+  const { equipments, currentScenarioId, demoTick, demoMode } = useScadaStore();
   const outfallTank = equipments['tk-outfall'] as TankData | undefined;
-  const ph = outfallTank?.pH ?? 7.0;
-  const isCompliant = ph >= 6.0 && ph <= 9.0;
-  let cod = 22.4, nh3 = 1.15, tp = 0.12;
-  if (currentScenarioId === 'ph-abnormal') { cod = 84.5; nh3 = 9.24; tp = 0.88; }
-  else if (currentScenarioId === 'high-level') { cod = 32.1; nh3 = 1.62; tp = 0.18; }
-  else if (currentScenarioId === 'maintenance') { cod = 12.0; nh3 = 0.45; tp = 0.05; }
-  else {
-    const wave = Math.sin(demoTick / 5);
-    cod += wave * 1.5; nh3 += wave * 0.08; tp += wave * 0.015;
+  const isDemo = demoMode;
+
+  let cod: number | null = null, nh3: number | null = null, tp: number | null = null;
+  if (isDemo) {
+    cod = 22.4; nh3 = 1.15; tp = 0.12;
+    if (currentScenarioId === 'ph-abnormal') { cod = 84.5; nh3 = 9.24; tp = 0.88; }
+    else if (currentScenarioId === 'high-level') { cod = 32.1; nh3 = 1.62; tp = 0.18; }
+    else if (currentScenarioId === 'maintenance') { cod = 12.0; nh3 = 0.45; tp = 0.05; }
+    else {
+      const wave = Math.sin(demoTick / 5);
+      cod += wave * 1.5; nh3 += wave * 0.08; tp += wave * 0.015;
+    }
   }
+
+  const showValue = (value: number | null, digits: number) =>
+    value === null ? <span className="dash-outfall-missing">-- 未接入</span>
+      : <strong className="digit-font">{value.toFixed(digits)}</strong>;
+
   return (
-    <div className={`dash-outfall dash-outfall-hero ${isCompliant ? 'ok' : 'bad'}`}>
+    <div className={`dash-outfall dash-outfall-hero ${isDemo ? 'ok' : 'unknown'}`}>
       <div className="dash-outfall-head">
         <span className="dash-outfall-title">
-          <span className={`dash-outfall-lamp ${isCompliant ? 'ok' : 'bad'}`} aria-hidden="true" />
+          <span className={`dash-outfall-lamp ${isDemo ? 'ok' : 'unknown'}`} aria-hidden="true" />
           排放口水质 · 合规总览
         </span>
-        <span className={`dash-outfall-badge ${isCompliant ? 'ok' : 'bad'}`}>
-          {isCompliant ? '达标' : '超标'}
-        </span>
+        {isDemo
+          ? <span className="dash-outfall-badge demo">DEMO</span>
+          : <span className="dash-outfall-badge unknown">无法判定</span>}
       </div>
+
+      {isDemo && <div className="dash-outfall-demo-note">演示数据，不代表现场</div>}
 
       <div className="dash-outfall-main">
         <div className="dash-outfall-ph">
           <span className="dash-outfall-ph-label">排放 pH</span>
           <div className="dash-outfall-ph-row">
-            <span className="digit-font dash-outfall-ph-val">{ph.toFixed(2)}</span>
-            <span className="dash-outfall-ph-unit">pH</span>
+            {isDemo && outfallTank?.pH !== undefined
+              ? <span className="digit-font dash-outfall-ph-val">{outfallTank.pH.toFixed(2)}</span>
+              : <span className="dash-outfall-ph-val dash-outfall-missing">--</span>}
+            {isDemo && <span className="dash-outfall-ph-unit">pH</span>}
           </div>
-          <span className="dash-outfall-ph-limit">标准 6.0 – 9.0</span>
+          <span className="dash-outfall-ph-limit">{isDemo ? '标准 6.0 – 9.0（演示限值）' : '排放 pH 未接入'}</span>
         </div>
 
         <div className="dash-outfall-grid">
           <div className="dash-outfall-item">
             <span className="dash-outfall-item-label">COD</span>
             <div className="dash-outfall-item-val-wrap">
-              <strong className="digit-font">{cod.toFixed(1)}</strong>
-              <span className="dash-outfall-item-unit">mg/L</span>
+              {showValue(cod, 1)}
+              {cod !== null && <span className="dash-outfall-item-unit">mg/L</span>}
             </div>
           </div>
           <div className="dash-outfall-item">
             <span className="dash-outfall-item-label">氨氮</span>
             <div className="dash-outfall-item-val-wrap">
-              <strong className="digit-font">{nh3.toFixed(2)}</strong>
-              <span className="dash-outfall-item-unit">mg/L</span>
+              {showValue(nh3, 2)}
+              {nh3 !== null && <span className="dash-outfall-item-unit">mg/L</span>}
             </div>
           </div>
           <div className="dash-outfall-item">
             <span className="dash-outfall-item-label">总磷</span>
             <div className="dash-outfall-item-val-wrap">
-              <strong className="digit-font">{tp.toFixed(3)}</strong>
-              <span className="dash-outfall-item-unit">mg/L</span>
+              {showValue(tp, 3)}
+              {tp !== null && <span className="dash-outfall-item-unit">mg/L</span>}
             </div>
           </div>
         </div>

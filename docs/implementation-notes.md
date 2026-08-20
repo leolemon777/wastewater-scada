@@ -192,3 +192,28 @@
 ## 风险
 - 3D 表现变化：气浮池气泡/刮沫与纯水泵动画在无独立反馈下永久静止（合规要求，视觉降级预期内）；demo 模式下这些动画同样静止——demo 观感回归由 WP2 的独立 /demo 路由恢复。
 - `equipment-detail-muted` 类复用于多条只读说明，样式已存在无需新增。
+
+---
+
+# 2026-08-20 WP2：Tag 来源、质量和 demo 隔离
+
+## 决策
+- TagState 为唯一可变遥测事实源：live 帧先写 `tagStates`（生命周期纯函数），再由 good 值派生 equipment 字段（invalid/offline 不写、UI 由徽标覆盖）——Equipment 未做物理拆分（静态元数据+selector 的完整重构风险过大），以"派生 ViewModel + 不从 demo 直写"达成 SPEC 6 的行为约束。
+- ownership 语义：收到某 SourceId 的任何信封（含 Hub 启动时的断线初始回放）即接管设备，永不回退 demo——比"收到 good 帧才接管"更强，覆盖"启动即 401/断网"与"断线刷新"两场景。
+- 防回退游标：信封缺 sourceEpoch（后端 WP4 才发）时用固定默认 epoch，eventSeq 用顶层 seq——WP4 加字段后前端零改动生效。
+- applySourceOffline 显式断线帧统一置 offline（不再保留 unknown）：源存在性由信封本身证明。
+- demo 默认 false（生产首启关闭）；demo 数据保留但全部走显式标注（演示数据/演示曲线），合规合成值仅 demo 分支。
+- 质量条数据龄读 store 的响应式 ageMs（每秒 refresh 更新），避免 render 中 Date.now() 的纯度违例。
+
+## 与规格的偏差
+- readonly-trial 构建变体（Vite 双入口/剔除 demo scheduler）与纯水 PLC 链路 TagState 化未在本包实现——分别依赖 WP5 构建流水线与 WP4 信封升级，已在 SPEC-PLAN WP2 状态块中记录为遗留项。
+- SPEC 14.2 的 2/9/10/12/13/14 条（UI 渲染级/构建级/报警级）部分依赖上述遗留项，随对应工作包补齐。
+
+## 验证
+- Vitest（新增 devDependency，SPEC 14.2 指定）：`npm run test:store` 20/20（生命周期/ownership/防回退/断线不回退 demo/无效点 hold/数据龄/零值不混淆）。
+- `check:scene` 40/40（新增 check-m100-source-quality.mjs：ownership 表、防回退集成、demo 默认关、无 pH 回退、无达标结论、演示标注、质量条存在）。
+- `npm run build`、`npm run lint` 干净；修复 check-purewater-alarm-store-runtime 的 data:URL import 链（补 tagQuality 重写）。
+
+## 风险
+- demo 默认关闭改变开箱体验：首次打开全 --（现场语义正确）；演示需经 SystemMenu 手动开启——现场培训时需说明。
+- equipment 派生字段在 invalid/offline 时保留旧值（不写即保持），显示侧靠徽标区分——3D/详情读字段处已有 WP1 的"未验证"标注兜底。
