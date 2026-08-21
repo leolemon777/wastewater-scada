@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { useScadaStore } from '../../../store/useScadaStore';
 import { useThree } from '@react-three/fiber';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -121,31 +122,35 @@ function collectStaticMeshes(
  * render passes stay separated. This collapses ~900 meshes into ~20–40 PBR
  * draw calls — comfortably under the ≤300 budget.
  */
-const PBR_LEVELS = 10;     // WP6.7: PBR 粗化到 10 级（颜色在顶点色，组数由属性组合决定）
+const COLOR_LEVELS = 16;   // HQ 分组用：每通道 16 级（WP6.7 前原值）
+const HQ_PBR_LEVELS = 32; // HQ：PBR 量化原值 32 级（源码视觉不变）
+const PERF_PBR_LEVELS = 10; // PERF：PBR 粗化 10 级（组数收敛）
 
-function materialSignature(mat: THREE.Material): string | null {
+function materialSignature(mat: THREE.Material, colorInKey: boolean, pbrLevels: number): string | null {
   const m = mat as THREE.MeshStandardMaterial;
   if (!m || typeof m.color === 'undefined') return null;
-  // WP6.7：颜色不再参与分组 —— 烘焙材质是 vertexColors，每个部件的真实颜色
-  // 已经乘进顶点色（见下方 colors 循环），材质模板色保持白色。因此只需按
-  // PBR 光学属性（roughness/metalness/透明/自发光/clearcoat）分桶，
-  // 组数从 ~314 降到 PBR 组合数（~20-40）。
-  const rough = Math.round((m.roughness ?? 1) * (PBR_LEVELS - 1));
-  const metal = Math.round((m.metalness ?? 0) * (PBR_LEVELS - 1));
+  // WP6.7（仅 PERF 模式）：颜色不参与分组 —— 烘焙材质是 vertexColors，
+  // 每个部件的真实颜色逐 mesh 乘进顶点色（见 colors 循环），模板材质保持白。
+  // HQ 模式保持旧行为（颜色入键 + 组模板色），源码视觉不变。
+  const cr = colorInKey ? `c${Math.round(m.color.r * (COLOR_LEVELS - 1))}_${Math.round(m.color.g * (COLOR_LEVELS - 1))}_${Math.round(m.color.b * (COLOR_LEVELS - 1))}|` : '';
+  const rough = Math.round((m.roughness ?? 1) * (pbrLevels - 1));
+  const metal = Math.round((m.metalness ?? 0) * (pbrLevels - 1));
   const transparent = (m.transparent && (m.opacity ?? 1) < 1) ? 1 : 0;
   const emissive = (m as THREE.MeshStandardMaterial).emissive;
   const hasEmissive = emissive && (emissive.r > 0 || emissive.g > 0 || emissive.b > 0);
   const clearcoat = Math.round(((m as THREE.MeshPhysicalMaterial).clearcoat ?? 0) * 7);
-  return `r${rough}|m${metal}|t${transparent}|e${hasEmissive ? 1 : 0}|cc${clearcoat}`;
+  return `${cr}r${rough}|m${metal}|t${transparent}|e${hasEmissive ? 1 : 0}|cc${clearcoat}`;
 }
 
 function groupByMaterial(
   entries: { mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }[],
+  colorInKey: boolean,
+  perfMode: boolean,
 ): Map<string, { material: THREE.Material; meshes: THREE.Mesh[] }> {
   const map = new Map<string, { material: THREE.Material; meshes: THREE.Mesh[] }>();
   for (const { mesh, material } of entries) {
     if (Array.isArray(material)) continue; // multi-material: skip
-    const sig = materialSignature(material);
+    const sig = materialSignature(material, colorInKey, perfMode ? PERF_PBR_LEVELS : HQ_PBR_LEVELS);
     if (!sig) continue;
     const group = map.get(sig);
     if (group) {
@@ -163,7 +168,7 @@ const bakedMarkers = new WeakSet<THREE.Object3D>();
 // otherwise each toggle leaks one MeshStandardMaterial per bucket.
 let bakedMaterials: THREE.Material[] = [];
 
-function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.Group | null>) {
+function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.Group | null>, perfMode: boolean) {
   // Tear down any previous bake: remove the merged group, dispose its merged
   // geometries, AND dispose the shared materials minted last pass (fix for the
   // Lambert/Standard material leak on re-bake).
@@ -185,7 +190,7 @@ function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.
   const entries: { mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }[] = [];
   collectStaticMeshes(scene, entries);
   if (entries.length === 0) return;
-  const groups = groupByMaterial(entries);
+  const groups = groupByMaterial(entries, !perfMode, perfMode);
 
   const bakedGroup = new THREE.Group();
   bakedGroup.name = '__baked_static__';
@@ -200,10 +205,14 @@ function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.
   const hiddenOriginals: THREE.Mesh[] = [];
   for (const [, { material, meshes }] of groups) {
     const src = material as THREE.MeshStandardMaterial;
-    // 顶点色承载真实颜色：材质模板色不再使用（保持白色），避免双重乘。
-    const col = new THREE.Color(1, 1, 1);
+    // HQ（旧行为）：顶点色 = 源顶点色 × 组模板色 × AO —— 与 WP6.7 之前完全一致。
+    // PERF：模板色白，逐 mesh 用自己的材质色（组内颜色不同也能正确烘色）。
+    const templateCol = src.color ? src.color.clone() : new THREE.Color(0xcccccc);
     const groupGeos: THREE.BufferGeometry[] = [];
     for (const m of meshes) {
+      const col = perfMode
+        ? ((m.material as THREE.MeshStandardMaterial).color ?? templateCol)
+        : templateCol;
       const g = m.geometry.clone();
       g.applyMatrix4(m.matrixWorld);
       // mergeGeometries requires a consistent index attribute across all
@@ -333,16 +342,19 @@ function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.
 export const StaticGeometryBaker: React.FC<{ rebuildKey?: string }> = ({ rebuildKey }) => {
   const { scene } = useThree();
   const bakedGroupRef = useRef<THREE.Group | null>(null);
+  // WP6.7：baker 行为按运行模式分裂 —— HQ 走 WP6.7 之前的原路径（源码视觉不变），
+  // PERF（?perf-mode=1）才启用 PBR-only 分桶 + 逐 mesh 顶点色 + 扩大的静态集合。
+  const performanceMode = useScadaStore((state) => state.performanceMode);
 
   useEffect(() => {
     // Two-pass bake: the first pass collapses whatever is mounted at ~1.5s; the
     // second pass at ~4.5s catches geometry that mounted late (e.g. after
     // <Preload all> resolves in high-quality mode, or after the first demo tick
     // updates store-driven conditionals). Each pass fully tears down and re-bakes.
-    const t1 = window.setTimeout(() => doBake(scene, bakedGroupRef), BAKE_DELAY_MS);
-    const t2 = window.setTimeout(() => doBake(scene, bakedGroupRef), BAKE_SECOND_PASS_MS);
+    const t1 = window.setTimeout(() => doBake(scene, bakedGroupRef, performanceMode), BAKE_DELAY_MS);
+    const t2 = window.setTimeout(() => doBake(scene, bakedGroupRef, performanceMode), BAKE_SECOND_PASS_MS);
     return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
-  }, [scene, rebuildKey]);
+  }, [scene, rebuildKey, performanceMode]);
 
   return null;
 };
