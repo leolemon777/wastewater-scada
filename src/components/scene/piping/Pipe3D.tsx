@@ -1,7 +1,9 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useContext, useMemo, useRef, useEffect } from 'react';
+import { sharedCanvasTexture } from '../shared/sharedCanvasTexture';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { PIPE_COLORS } from './pipeRouting';
+import { PipeAnimationContext } from './PipeAnimationContext';
 
 interface PipeLogisticsProps {
   points: [number, number, number][];
@@ -360,6 +362,8 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   startOverlap,
   endOverlap,
 }) => {
+  const animationGateOpen = useContext(PipeAnimationContext);
+  const shouldAnimate = animated && animationGateOpen;
   const jointPoints = useMemo(
     () => normalizePipePolyline(points),
     [points],
@@ -389,12 +393,22 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
     return len;
   }, [pipePoints]);
 
-  const radialSegments = 32;
-  const tubeSegments = Math.max(8, Math.min(360, Math.ceil(pathLength * 10)));
+  // SPEC-PLAN 16.2（WP6.4）：仅降低径向/纵向细分（32->12 / 密度 10->4），不改路径算法。
+  // 管件为长直段+小圆角，12 边截面在工控机视距下无可感知锯齿；实例化合并归 WP6.6。
+  const radialSegments = 16;
+  const tubeSegments = Math.max(8, Math.min(180, Math.ceil(pathLength * 6)));
   const pipePath = useMemo(() => buildRoundedPath(pipePoints, radius), [pipePoints, radius]);
   const pipeGeometry = useMemo(() => {
     if (!pipePath || pathLength < 0.008) return null;
-    return new THREE.TubeGeometry(pipePath, tubeSegments, radius, radialSegments, false);
+    const geometry = new THREE.TubeGeometry(pipePath, tubeSegments, radius, radialSegments, false);
+    // WP6.5：流动箭头密度 —— UV.x 按管长缩放（替代 per-instance texture.repeat）。
+    const flowRepeatX = Math.max(pathLength * 2.5, 2);
+    const uv = geometry.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) {
+      uv.setX(i, uv.getX(i) * flowRepeatX);
+    }
+    uv.needsUpdate = true;
+    return geometry;
   }, [pathLength, pipePath, radialSegments, radius, tubeSegments]);
 
   const outerColor = color ?? pipeShellColor(flowType);
@@ -432,33 +446,35 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
                   ? '#EC4899'
                   : routeColor;
 
+  // WP6.5：全场景共享同一箭头纹理；每管密度差异改由独立 geometry 的 UV 缩放承担
+  //（texture.repeat 是纹理级状态，无法 per-instance —— 移到 UV 后即可共享）。
   const flowTexture = useMemo(() => {
-    if (flowType === 'none' || !animated) return null;
+    if (flowType === 'none' || !shouldAnimate) return null;
+    return sharedCanvasTexture('pipe.flow-arrows', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 32;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return new THREE.CanvasTexture(document.createElement('canvas'));
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 32;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
+      ctx.clearRect(0, 0, 256, 32);
+      ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      for (let x = 0; x < 256; x += 64) {
+        ctx.beginPath();
+        ctx.moveTo(x + 6, 10);
+        ctx.lineTo(x + 22, 16);
+        ctx.lineTo(x + 6, 22);
+        ctx.stroke();
+      }
 
-    ctx.clearRect(0, 0, 256, 32);
-    ctx.strokeStyle = 'rgba(255,255,255,0.62)';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    for (let x = 0; x < 256; x += 64) {
-      ctx.beginPath();
-      ctx.moveTo(x + 6, 10);
-      ctx.lineTo(x + 22, 16);
-      ctx.lineTo(x + 6, 22);
-      ctx.stroke();
-    }
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(Math.max(pathLength * 2.5, 2), 1);
-    return tex;
-  }, [animated, flowType, pathLength]);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    });
+  }, [flowType, shouldAnimate]);
 
   const flowMaterial = useMemo(() => {
     if (!flowTexture) return null;
@@ -481,11 +497,11 @@ export const Pipe3D: React.FC<PipeLogisticsProps> = ({
   const texRef = useRef<THREE.Texture | null>(null);
   useEffect(() => {
     texRef.current = flowTexture;
-    return () => { flowTexture?.dispose(); };
+    // WP6.5：flowTexture 为共享实例，禁止组件卸载时 dispose。
   }, [flowTexture]);
 
   useFrame((_, delta) => {
-    if (animated && texRef.current) {
+    if (shouldAnimate && texRef.current) {
       const speed = flowType === 'sludge' ? 0.35 : flowType === 'chemical' ? 0.75 : 0.95;
       texRef.current.offset.x -= delta * speed * (speedMultiplier ?? 1.0);
     }

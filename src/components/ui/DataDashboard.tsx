@@ -2,28 +2,25 @@ import React, { useMemo, useState } from 'react';
 import { useScadaStore, type TankData, type PumpData, type FlowMeterData } from '../../store/useScadaStore';
 import { getDemoScenario } from '../../store/demoScenarios';
 import { Activity, Power, Database, Droplets, FlaskConical, RefreshCw } from 'lucide-react';
-import { LEVEL_MONITORED_TANKS } from '../../store/equipmentUtils';
+import { LEVEL_MONITORED_TANKS, displayTankName } from '../../store/equipmentUtils';
+import { StatusRow, TankLevelRow, TelemetryQualityStrip } from './dashboard-parts';
 
-type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator' | 'pureWater';
+type ControlTab = 'lift' | 'process' | 'sludge' | 'agitator';
 
 function groupPumps(pumps: PumpData[]) {
   return {
-    lift: pumps.filter((p) => (p.id.includes('lift') || p.id.includes('gas-lift')) && !p.id.startsWith('pw-')),
+    lift: pumps.filter((p) => p.id.includes('lift') || p.id.includes('gas-lift')),
     process: pumps.filter((p) =>
-      (p.id.includes('drain') || p.id.includes('daf') ||
-      p.id.includes('pac') || p.id.includes('pam') || p.id.includes('cacl')) && !p.id.startsWith('pw-'),
+      p.id.includes('drain') || p.id.includes('daf') ||
+      p.id.includes('pac') || p.id.includes('pam') || p.id.includes('cacl'),
     ),
-    sludge: pumps.filter((p) => (p.id.includes('sludge') || p.id.includes('screw')) && !p.id.startsWith('pw-')),
-    // 纯水房(二级 RO)— 完全独立的泵组分区,第一版纯监视(控制预留)。
-    pureWater: pumps.filter((p) => p.id.startsWith('pw-')),
+    sludge: pumps.filter((p) => p.id.includes('sludge') || p.id.includes('screw')),
   };
 }
 
 export const DataDashboard: React.FC = () => {
   const {
     equipments,
-    toggleEquipmentRunStatus,
-    toggleAgitator,
     demoMode,
     currentScenarioId,
     demoTick,
@@ -54,7 +51,7 @@ export const DataDashboard: React.FC = () => {
   });
 
   const pumps = Object.values(equipments).filter(
-    (eq) => eq.type === 'pump' && !eq.name.includes('中间池泵'),
+    (eq) => eq.type === 'pump' && !eq.name.includes('中间池泵') && !eq.id.startsWith('pw-'),
   ) as PumpData[];
   const pumpGroups = groupPumps(pumps);
   const tanks = Object.values(equipments).filter(
@@ -69,24 +66,7 @@ export const DataDashboard: React.FC = () => {
   const activePumps =
     controlTab === 'lift' ? pumpGroups.lift :
     controlTab === 'process' ? pumpGroups.process :
-    controlTab === 'sludge' ? pumpGroups.sludge :
-    controlTab === 'pureWater' ? pumpGroups.pureWater : [];
-
-  const displayTankName = (tankId: string) => {
-    const map: Record<string, string> = {
-      'tk-collection-1': '收集池 1',
-      'tk-collection-2': '收集池 2',
-      'tk-intermediate': '中间池',
-      'tk-drainage': '排水池',
-      'tk-ph-cacl2': 'CaCl₂ 桶',
-      'tk-ph-pac': 'PAC 桶',
-      'tk-ph-pam': 'PAM 桶',
-      'tk-daf-pac': '气浮 PAC',
-      'tk-daf-pam': '气浮 PAM',
-      'tk-screw-pam': '污泥 PAM',
-    };
-    return map[tankId] ?? '未知池体';
-  };
+    controlTab === 'sludge' ? pumpGroups.sludge : [];
 
   const getAgitatorName = (tankName: string) => {
     const map: Record<string, string> = {
@@ -115,7 +95,7 @@ export const DataDashboard: React.FC = () => {
           <span className="dash-mission-tag">集控中枢 · pH 优先监控</span>
           <h1 className="dash-title">全厂运行参数监测台</h1>
           <p className="dash-subtitle">
-            重点盯 pH 与排放合规 · 设备联控 · {currentScenario.description}
+            重点盯 pH 与排放水质 · 设备状态只读监视 · {currentScenario.description}
           </p>
         </div>
         <div className={`dash-live-badge ${demoMode ? 'live' : ''}`}>
@@ -124,6 +104,8 @@ export const DataDashboard: React.FC = () => {
           <span className="dash-live-scenario">{currentScenario.shortName}</span>
         </div>
       </header>
+
+      <TelemetryQualityStrip />
 
       {/* ① pH 主视觉区 — 工艺核心 */}
       <section className="dash-ph-hero" aria-label="pH 关键监控">
@@ -166,14 +148,13 @@ export const DataDashboard: React.FC = () => {
         <section className="dash-panel dash-col dash-col-control">
           <header className="dash-panel-head">
             <Power size={16} />
-            <h2>设备集控</h2>
+            <h2>设备状态</h2>
           </header>
           <div className="dash-control-tabs" role="tablist" aria-label="设备分组">
             {([
               ['lift', '提升泵组'],
               ['process', '工艺泵组'],
               ['sludge', '污泥泵组'],
-              ['pureWater', '纯水泵组'],
               ['agitator', '搅拌设备'],
             ] as const).map(([id, label]) => (
               <button
@@ -190,28 +171,21 @@ export const DataDashboard: React.FC = () => {
           </div>
           <div className="dash-panel-body dash-control-list" role="tabpanel">
             {controlTab !== 'agitator' && activePumps.map((pump) => (
-              <ControlRow
+              <StatusRow
                 key={pump.id}
                 label={pump.name}
-                checked={pump.runStatus === 'running'}
-                onChange={controlTab === 'pureWater' ? () => {} : () => toggleEquipmentRunStatus(pump.id)}
-                readOnly={controlTab === 'pureWater'}
+                running={pump.runStatus === 'running'}
               />
             ))}
             {controlTab === 'agitator' && agitators.map((tank) => (
-              <ControlRow
+              <StatusRow
                 key={tank.id}
                 label={getAgitatorName(tank.name)}
-                checked={!!tank.agitatorRunning}
-                onChange={() => toggleAgitator(tank.id)}
+                running={!!tank.agitatorRunning}
               />
             ))}
           </div>
-          <p className="dash-control-hint">
-            {controlTab === 'pureWater'
-              ? '纯水房为独立系统 · 当前纯监视,手动控制预留'
-              : '操作即时同步至 3D 现场视图'}
-          </p>
+          <p className="dash-control-hint">只读监视 · 未开放设备控制</p>
         </section>
       </div>
 
@@ -242,9 +216,20 @@ export const DataDashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* ④ 趋势：pH 在前，流量在后 */}
+      {/* ④ 趋势：无历史服务时显示"历史趋势未接入"；演示曲线醒目标注（SPEC 9.3）。 */}
       <section className="dash-panel dash-trends">
-        <TrendChartHub historyPoints={historyPoints} />
+        {demoMode ? (
+          <>
+            <TrendChartHub historyPoints={historyPoints} />
+            <div className="dash-trend-demo-note">演示曲线，不代表现场</div>
+          </>
+        ) : (
+          <div className="dash-trend-unavailable">
+            <Activity size={16} />
+            <span>历史趋势未接入</span>
+            <em>需接入历史数据服务后启用</em>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -361,110 +346,75 @@ const PhTile = ({ label, value }: { label: string; value: number }) => {
   );
 };
 
-const TankLevelRow = ({ tank, displayName }: { tank: TankData; displayName: string }) => {
-  const percent = Math.min(100, Math.max(0, tank.levelPercent));
-  let status = 'normal';
-  if (tank.alarmState === 'critical') status = 'critical';
-  else if (tank.alarmState === 'warning') status = 'warning';
-  
-  // Normalized limits as percentages of tank height for visual tick markers
-  const lowLimitPct = (tank.low / (tank.highHigh * 1.05)) * 100;
-  const highLimitPct = (tank.high / (tank.highHigh * 1.05)) * 100;
-
-  return (
-    <div className="dash-level-row">
-      <div className="dash-level-top">
-        <span className="dash-level-name">{displayName}</span>
-        <span className={`digit-font dash-level-val ${status}`}>
-          {tank.levelValue.toFixed(2)} m · {percent.toFixed(0)}%
-        </span>
-      </div>
-      <div className="dash-level-track">
-        <div className={`dash-level-fill ${status}`} style={{ width: `${percent}%` }}>
-          <div className="dash-level-fill-glow" />
-        </div>
-        {/* Safety limit markers */}
-        {lowLimitPct > 0 && <div className="dash-level-marker low" style={{ left: `${lowLimitPct}%` }} title="低液位限值" />}
-        {highLimitPct > 0 && <div className="dash-level-marker high" style={{ left: `${highLimitPct}%` }} title="高液位限值" />}
-      </div>
-    </div>
-  );
-};
-
-const ControlRow = ({ label, checked, onChange, readOnly = false }: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-  /** 纯监视行:状态可见,开关禁用(控制预留)。 */
-  readOnly?: boolean;
-}) => (
-  <label
-    className={`dash-control-row ${checked ? 'is-active' : ''} ${readOnly ? 'is-readonly' : ''}`}
-    title={readOnly ? '纯监视 · 控制预留' : undefined}
-  >
-    <span className="dash-control-label" title={label}>{label}</span>
-    <span className="scada-switch">
-      <input type="checkbox" checked={checked} onChange={onChange} disabled={readOnly} />
-      <span className="scada-switch-slider" />
-    </span>
-  </label>
-);
-
 const OutfallPanel: React.FC = () => {
-  const { equipments, currentScenarioId, demoTick } = useScadaStore();
+  // SPEC-PLAN 9.3：排放 COD/氨氮/总磷/pH 无真实 Tag 时显示 -- / 未接入，
+  // 不生成排放合规结论；演示模式保留合成值但必须醒目标注"演示数据，不代表现场"。
+  const { equipments, currentScenarioId, demoTick, demoMode } = useScadaStore();
   const outfallTank = equipments['tk-outfall'] as TankData | undefined;
-  const ph = outfallTank?.pH ?? 7.0;
-  const isCompliant = ph >= 6.0 && ph <= 9.0;
-  let cod = 22.4, nh3 = 1.15, tp = 0.12;
-  if (currentScenarioId === 'ph-abnormal') { cod = 84.5; nh3 = 9.24; tp = 0.88; }
-  else if (currentScenarioId === 'high-level') { cod = 32.1; nh3 = 1.62; tp = 0.18; }
-  else if (currentScenarioId === 'maintenance') { cod = 12.0; nh3 = 0.45; tp = 0.05; }
-  else {
-    const wave = Math.sin(demoTick / 5);
-    cod += wave * 1.5; nh3 += wave * 0.08; tp += wave * 0.015;
+  const isDemo = demoMode;
+
+  let cod: number | null = null, nh3: number | null = null, tp: number | null = null;
+  if (isDemo) {
+    cod = 22.4; nh3 = 1.15; tp = 0.12;
+    if (currentScenarioId === 'ph-abnormal') { cod = 84.5; nh3 = 9.24; tp = 0.88; }
+    else if (currentScenarioId === 'high-level') { cod = 32.1; nh3 = 1.62; tp = 0.18; }
+    else if (currentScenarioId === 'maintenance') { cod = 12.0; nh3 = 0.45; tp = 0.05; }
+    else {
+      const wave = Math.sin(demoTick / 5);
+      cod += wave * 1.5; nh3 += wave * 0.08; tp += wave * 0.015;
+    }
   }
+
+  const showValue = (value: number | null, digits: number) =>
+    value === null ? <span className="dash-outfall-missing">-- 未接入</span>
+      : <strong className="digit-font">{value.toFixed(digits)}</strong>;
+
   return (
-    <div className={`dash-outfall dash-outfall-hero ${isCompliant ? 'ok' : 'bad'}`}>
+    <div className={`dash-outfall dash-outfall-hero ${isDemo ? 'ok' : 'unknown'}`}>
       <div className="dash-outfall-head">
         <span className="dash-outfall-title">
-          <span className={`dash-outfall-lamp ${isCompliant ? 'ok' : 'bad'}`} aria-hidden="true" />
+          <span className={`dash-outfall-lamp ${isDemo ? 'ok' : 'unknown'}`} aria-hidden="true" />
           排放口水质 · 合规总览
         </span>
-        <span className={`dash-outfall-badge ${isCompliant ? 'ok' : 'bad'}`}>
-          {isCompliant ? '达标' : '超标'}
-        </span>
+        {isDemo
+          ? <span className="dash-outfall-badge demo">DEMO</span>
+          : <span className="dash-outfall-badge unknown">无法判定</span>}
       </div>
+
+      {isDemo && <div className="dash-outfall-demo-note">演示数据，不代表现场</div>}
 
       <div className="dash-outfall-main">
         <div className="dash-outfall-ph">
           <span className="dash-outfall-ph-label">排放 pH</span>
           <div className="dash-outfall-ph-row">
-            <span className="digit-font dash-outfall-ph-val">{ph.toFixed(2)}</span>
-            <span className="dash-outfall-ph-unit">pH</span>
+            {isDemo && outfallTank?.pH !== undefined
+              ? <span className="digit-font dash-outfall-ph-val">{outfallTank.pH.toFixed(2)}</span>
+              : <span className="dash-outfall-ph-val dash-outfall-missing">--</span>}
+            {isDemo && <span className="dash-outfall-ph-unit">pH</span>}
           </div>
-          <span className="dash-outfall-ph-limit">标准 6.0 – 9.0</span>
+          <span className="dash-outfall-ph-limit">{isDemo ? '标准 6.0 – 9.0（演示限值）' : '排放 pH 未接入'}</span>
         </div>
 
         <div className="dash-outfall-grid">
           <div className="dash-outfall-item">
             <span className="dash-outfall-item-label">COD</span>
             <div className="dash-outfall-item-val-wrap">
-              <strong className="digit-font">{cod.toFixed(1)}</strong>
-              <span className="dash-outfall-item-unit">mg/L</span>
+              {showValue(cod, 1)}
+              {cod !== null && <span className="dash-outfall-item-unit">mg/L</span>}
             </div>
           </div>
           <div className="dash-outfall-item">
             <span className="dash-outfall-item-label">氨氮</span>
             <div className="dash-outfall-item-val-wrap">
-              <strong className="digit-font">{nh3.toFixed(2)}</strong>
-              <span className="dash-outfall-item-unit">mg/L</span>
+              {showValue(nh3, 2)}
+              {nh3 !== null && <span className="dash-outfall-item-unit">mg/L</span>}
             </div>
           </div>
           <div className="dash-outfall-item">
             <span className="dash-outfall-item-label">总磷</span>
             <div className="dash-outfall-item-val-wrap">
-              <strong className="digit-font">{tp.toFixed(3)}</strong>
-              <span className="dash-outfall-item-unit">mg/L</span>
+              {showValue(tp, 3)}
+              {tp !== null && <span className="dash-outfall-item-unit">mg/L</span>}
             </div>
           </div>
         </div>

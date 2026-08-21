@@ -10,12 +10,15 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+**/bin/
+**/obj/
 *.local
 *.local.md
 *.local.txt
+**/appsettings.local.json
 
-# 构建产物
-release
+# 构建产物（仅根目录的发布输出；scripts/release/ 脚本必须入库）
+/release
 *.exe
 
 # 工具缓存与临时输出
@@ -38,6 +41,17 @@ tmp-*.png
 # 本地 MCP 环境配置（不入库）
 mcps/
 
+# 现场凭据与本地记录（SPEC-PLAN 11：凭据不入 git）
+docs/integration/本地凭据.local.md
+
+# Agent 会话产物（不入库）
+.zcode/
+
+# 发布暂存与发布包（SPEC-PLAN 18/20：staging 不入库）
+/releases/
+release-staging/
+WastewaterScada-*/
+
 # 一次性验证脚本（不入库）
 scripts/tmp-cdp-shot.mjs
 
@@ -51,3 +65,4 @@ scripts/tmp-cdp-shot.mjs
 *.njsproj
 *.sln
 *.sw?
+scripts/performance/results/

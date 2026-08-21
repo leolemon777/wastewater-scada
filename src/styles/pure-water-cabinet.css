@@ -1,0 +1,1304 @@
+/**
+ * Pure-water cabinet theme — a simulated electrical-control-cabinet skin for
+ * the PureWaterDashboard. Scoped entirely under `.pw-cabinet` so it never
+ * touches the wastewater dashboard or the global theme.
+ *
+ * Palette comes from the pure-water pipe colours (pipeRouting.ts):
+ *   shell steel-grey  #6E7B8A   (cabinet body / brushed stainless)
+ *   permeate cyan     #3EDAD4   (primary LED data colour — flow / power)
+ *   antiscalant amber #F09818   (dosing-pump running lamp)
+ *   caustic red       #E03838   (NaOH dosing-pump running lamp)
+ * Lamp off/running/fault reuse the global --status-* tokens so they stay in
+ * sync with the 3D PumpIndicator3D.
+ *
+ * The "hardware" feel comes from layering:
+ *   - multi-stop linear-gradient for brushed-steel sheen
+ *   - inset highlights (top bright, bottom dark) for beveled metal edges
+ *   - recessed screen wells (dark inset shadow)
+ *   - radial-gradient screws in the four corners
+ *   - LED glow via text-shadow + a breathing lamp animation
+ */
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Scoped tokens — only live inside the pure-water cabinet.
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet {
+  /* shell */
+  --pw-shell: #6e7b8a;
+  --pw-shell-light: #828f9e;
+  --pw-shell-dark: #4d5764;
+  --pw-shell-darker: #383f49;
+  /* recessed screen well */
+  --pw-well: #20262e;
+  --pw-well-dark: #161a20;
+  /* LED data colours */
+  --pw-led-permeate: #3edad4;
+  --pw-led-permeate-glow: rgba(62, 218, 212, 0.55);
+  --pw-led-power: #67e8f9;
+  --pw-led-power-glow: rgba(103, 232, 249, 0.5);
+  --pw-led-amber: #f09818;
+  --pw-led-amber-glow: rgba(240, 152, 24, 0.55);
+  --pw-led-caustic: #e03838;
+  --pw-led-caustic-glow: rgba(224, 56, 56, 0.55);
+  /* metal fittings */
+  --pw-screw: #2d333b;
+  --pw-screw-light: #5a6470;
+  --pw-nameplate: #b8a86a;
+  --pw-nameplate-ink: #2a2410;
+  /* cabinet backdrop — darker + cooler than the wastewater shell */
+  --pw-backdrop: #2a313a;
+  --pw-backdrop-deep: #1e242c;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Root — turn the whole dashboard into a dark cabinet bay.
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet.dash {
+  background:
+    radial-gradient(circle at 50% -10%, #363f4a 0%, transparent 55%),
+    linear-gradient(180deg, var(--pw-backdrop) 0%, var(--pw-backdrop-deep) 100%);
+  border-radius: 14px;
+  border: 1px solid var(--pw-shell-dark);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Header stays readable but adopts the cabinet tone. */
+.pw-cabinet .pw-header.dash-header {
+  border-bottom: 1px solid var(--pw-shell-dark);
+}
+.pw-cabinet .dash-mission-tag {
+  color: var(--pw-led-permeate);
+  text-shadow: 0 0 8px var(--pw-led-permeate-glow);
+}
+.scada-overlay-root .pw-cabinet .dash-title { color: #e6edf3; }
+.pw-cabinet .dash-subtitle { color: #8b97a3; }
+
+.pw-cabinet .pw-alarm-overview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid rgba(62, 218, 212, 0.28);
+  border-radius: 8px;
+  background: #202932;
+  color: #b9c7ce;
+}
+
+.pw-cabinet .pw-alarm-overview-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.pw-cabinet .pw-alarm-overview-title strong { color: #dce6eb; font-size: 12px; }
+.pw-cabinet .pw-alarm-overview-title span {
+  min-width: 26px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(62, 218, 212, 0.12);
+  color: var(--pw-led-permeate);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+.pw-cabinet .pw-alarm-overview-detail {
+  min-width: 0;
+  overflow: hidden;
+  color: #93a3ac;
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-alarm-overview.is-active {
+  border-color: rgba(239, 68, 68, 0.55);
+  background: #38232a;
+}
+.pw-cabinet .pw-alarm-overview.is-active .pw-alarm-overview-title,
+.pw-cabinet .pw-alarm-overview.is-active .pw-alarm-overview-title strong,
+.pw-cabinet .pw-alarm-overview.is-active .pw-alarm-overview-detail { color: #ffb2b2; }
+.pw-cabinet .pw-alarm-overview.is-active .pw-alarm-overview-title span {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ff9b9b;
+}
+.pw-cabinet .pw-alarm-overview.is-unknown {
+  border-color: rgba(240, 152, 24, 0.42);
+  background: #332d25;
+}
+.pw-cabinet .pw-alarm-overview.is-unknown .pw-alarm-overview-title,
+.pw-cabinet .pw-alarm-overview.is-unknown .pw-alarm-overview-title strong,
+.pw-cabinet .pw-alarm-overview.is-unknown .pw-alarm-overview-detail { color: #e7bd70; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Cabinet module — the brushed-stainless panel shell with a nameplate,
+   beveled metal edges, four corner screws, and a bottom vent strip.
+   Used by the displays row, the level module, and the control module.
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet .pw-module {
+  position: relative;
+  background: linear-gradient(180deg, var(--pw-shell-light) 0%, var(--pw-shell) 45%, var(--pw-shell-dark) 100%);
+  border: 1px solid var(--pw-shell-darker);
+  border-radius: 10px;
+  box-shadow:
+    /* outer drop */ 0 10px 22px rgba(0, 0, 0, 0.4),
+    /* top inner highlight (beveled edge catches light) */ inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    /* bottom inner shadow */ inset 0 -2px 4px rgba(0, 0, 0, 0.45),
+    /* side inner shadow */ inset 2px 0 3px rgba(0, 0, 0, 0.18), inset -2px 0 3px rgba(0, 0, 0, 0.18);
+}
+
+/* Brushed-steel sheen — faint vertical streaking overlaid on the gradient. */
+.pw-cabinet .pw-module::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0) 1px,
+    rgba(0, 0, 0, 0.02) 2px,
+    rgba(0, 0, 0, 0) 3px
+  );
+  pointer-events: none;
+}
+
+/* Four corner screws — cross-recess heads rendered with radial-gradient. */
+.pw-cabinet .pw-module::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    /* TL */ radial-gradient(circle at 0 0, var(--pw-screw) 0 3px, transparent 3.2px) 0 0 / 12px 12px no-repeat,
+    /* TR */ radial-gradient(circle at 100% 0, var(--pw-screw) 0 3px, transparent 3.2px) 100% 0 / 12px 12px no-repeat,
+    /* BL */ radial-gradient(circle at 0 100%, var(--pw-screw) 0 3px, transparent 3.2px) 0 100% / 12px 12px no-repeat,
+    /* BR */ radial-gradient(circle at 100% 100%, var(--pw-screw) 0 3px, transparent 3.2px) 100% 100% / 12px 12px no-repeat;
+  opacity: 0.65;
+}
+
+/* ── Nameplate — engraved brass-style label on top of the displays module. ── */
+.pw-cabinet .pw-nameplate {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 12px 0;
+  padding: 5px 14px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #d4c483 0%, var(--pw-nameplate) 50%, #9c8d52 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 1px 3px rgba(0, 0, 0, 0.4);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+.pw-nameplate-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--pw-nameplate-ink);
+}
+.pw-nameplate-sub {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(42, 36, 16, 0.72);
+}
+.pw-nameplate-model {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: rgba(42, 36, 16, 0.55);
+}
+
+/* ── Module head (level/control panels reuse .dash-panel-head). ── */
+.pw-cabinet .pw-module-head.dash-panel-head {
+  position: relative;
+  z-index: 1;
+  border-bottom: 1px solid var(--pw-shell-darker);
+  background: linear-gradient(180deg, var(--pw-shell-light), var(--pw-shell-dark));
+  color: #e6edf3;
+}
+.pw-cabinet .pw-module-head h2 { color: #e6edf3; }
+.pw-cabinet .pw-head-meta {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #c4cdd6;
+  opacity: 0.7;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   LED display — the recessed screen well with a glowing readout.
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet .pw-displays { padding: 0 12px 12px; }
+.pw-cabinet .pw-display-row {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.pw-cabinet .pw-led-display { position: relative; }
+/* Bezel — the raised metal ring around the screen. */
+.pw-cabinet .pw-led-bezel {
+  padding: 4px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #404a55, #2a323b);
+  box-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+/* Screen well — the dark recessed surface the digits sit on. */
+.pw-cabinet .pw-led-screen {
+  position: relative;
+  border-radius: 5px;
+  padding: 12px 16px 14px;
+  min-height: 78px;
+  background: radial-gradient(ellipse at 50% 0%, #2a323c 0%, var(--pw-well-dark) 80%);
+  box-shadow:
+    inset 0 3px 10px rgba(0, 0, 0, 0.85),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  /* faint scanline texture to read as a real LCD */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0px, rgba(255, 255, 255, 0) 1px, rgba(0, 0, 0, 0.04) 2px, rgba(0, 0, 0, 0) 3px),
+    radial-gradient(ellipse at 50% 0%, #2a323c 0%, var(--pw-well-dark) 80%);
+}
+
+.pw-led-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #7d8893;
+  text-transform: uppercase;
+}
+.pw-led-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+}
+.pw-led-value {
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.pw-led-unit {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7682;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+.pw-led-raw-invalid {
+  margin-top: 5px;
+  color: #f0a33a;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+}
+
+/* Tone-specific LED glow — the permeate cyan and a cooler power cyan. */
+.pw-led-permeate .pw-led-value {
+  color: var(--pw-led-permeate);
+  text-shadow: 0 0 6px var(--pw-led-permeate), 0 0 14px var(--pw-led-permeate-glow);
+}
+.pw-led-permeate .pw-led-screen {
+  box-shadow:
+    inset 0 3px 10px rgba(0, 0, 0, 0.85),
+    inset 0 0 40px rgba(62, 218, 212, 0.08);
+}
+.pw-led-power .pw-led-value {
+  color: var(--pw-led-power);
+  text-shadow: 0 0 6px var(--pw-led-power), 0 0 14px var(--pw-led-power-glow);
+}
+.pw-led-power .pw-led-screen {
+  box-shadow:
+    inset 0 3px 10px rgba(0, 0, 0, 0.85),
+    inset 0 0 40px rgba(103, 232, 249, 0.07);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Body layout — level + control modules side by side.
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet .pw-body.dash-body {
+  position: relative;
+  z-index: 1;
+  gap: 12px;
+}
+.pw-cabinet .pw-module-head { border-radius: 9px 9px 0 0; }
+/* The panel body inside a cabinet module sits on the darker inner well. */
+.pw-cabinet .pw-module .dash-panel-body {
+  position: relative;
+  z-index: 1;
+  border-radius: 0 0 9px 9px;
+}
+
+/* ── Level list — keep the shared TankLevelRow, just retune the background. ── */
+.pw-cabinet .pw-level-list {
+  background: var(--pw-well);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.pw-cabinet .pw-level-list .dash-level-name { color: #c4cdd6; }
+.pw-cabinet .pw-level-list .dash-level-val { color: #e6edf3; }
+.pw-cabinet .pw-level-list .dash-level-val.critical { color: #ff6b6b; }
+.pw-cabinet .pw-level-list .dash-level-val.warning { color: var(--pw-led-amber); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Terminal strip — the control row list, like a row of cabinet channels.
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet .pw-terminal-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: min(420px, 52vh);
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--pw-well);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.pw-cabinet .pw-group-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #6b7682;
+  padding: 8px 6px 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 4px;
+}
+.pw-cabinet .pw-group-label:first-child { margin-top: 0; }
+
+/* A single channel row: lamp · id tag · label · switch. */
+.pw-cabinet .pw-channel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2c333d, #242a32);
+  border: 1px solid #1a1f26;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pw-cabinet .pw-channel:hover {
+  background: linear-gradient(180deg, #323a45, #28303a);
+}
+.pw-cabinet .pw-channel.is-on {
+  border-color: rgba(62, 218, 212, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 14px rgba(62, 218, 212, 0.05),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.pw-cabinet .pw-channel.is-readonly { cursor: not-allowed; opacity: 0.85; }
+.pw-cabinet .pw-channel.is-readonly:hover { background: linear-gradient(180deg, #2c333d, #242a32); }
+
+/* The status lamp — a metal-bezel indicator that lights up when running. */
+.pw-cabinet .pw-lamp {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #5a6470 0%, #2d333b 70%);
+  box-shadow:
+    inset 0 0 3px rgba(0, 0, 0, 0.8),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+  position: relative;
+}
+.pw-cabinet .pw-lamp::after {
+  /* glass highlight on the dome */
+  content: "";
+  position: absolute;
+  top: 2px; left: 3px;
+  width: 5px; height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+.pw-cabinet .pw-lamp-running {
+  background: radial-gradient(circle at 35% 30%, #6ee7b7 0%, var(--status-ok, #22c55e) 60%);
+  box-shadow:
+    0 0 8px var(--status-ok, #22c55e),
+    0 0 14px rgba(34, 197, 94, 0.45),
+    inset 0 0 3px rgba(0, 0, 0, 0.3),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+}
+.pw-cabinet .pw-lamp-amber {
+  background: radial-gradient(circle at 35% 30%, #fbbf24 0%, var(--pw-led-amber) 60%);
+  box-shadow:
+    0 0 8px var(--pw-led-amber),
+    0 0 14px var(--pw-led-amber-glow),
+    inset 0 0 3px rgba(0, 0, 0, 0.3),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+}
+.pw-cabinet .pw-lamp-caustic {
+  background: radial-gradient(circle at 35% 30%, #f87171 0%, var(--pw-led-caustic) 60%);
+  box-shadow:
+    0 0 8px var(--pw-led-caustic),
+    0 0 14px var(--pw-led-caustic-glow),
+    inset 0 0 3px rgba(0, 0, 0, 0.3),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+}
+.pw-cabinet .pw-lamp-off {
+  background: radial-gradient(circle at 35% 30%, #4b5563 0%, #2d333b 70%);
+  box-shadow:
+    inset 0 0 4px rgba(0, 0, 0, 0.8),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+}
+
+/* Channel id tag — mono, dim, like a terminal-block label. */
+.pw-cabinet .pw-channel-id {
+  flex: none;
+  min-width: 92px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #6b7682;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-channel-label {
+  flex: 1;
+  font-size: 13px;
+  color: #d6dde4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* Control hint. */
+.pw-cabinet .pw-control-hint.dash-control-hint {
+  color: #8b97a3;
+  border-top: 1px solid var(--pw-shell-dark);
+  background: linear-gradient(180deg, var(--pw-shell-dark), var(--pw-shell-darker));
+  border-radius: 0 0 9px 9px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Process strip — the bottom flow-nameplate.
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet .pw-process-strip {
+  position: relative;
+  z-index: 1;
+  padding: 12px 16px;
+}
+.pw-cabinet .pw-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c4cdd6;
+}
+.pw-cabinet .pw-section-label em {
+  color: #8b97a3;
+  font-style: normal;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+}
+
+/* ── Live badge tone tune — keep it visible on the dark shell. ── */
+.pw-cabinet .dash-live-badge {
+  border: 1px solid var(--pw-shell-dark);
+  background: linear-gradient(180deg, #2c333d, #242a32);
+  color: #c4cdd6;
+}
+.pw-cabinet .dash-live-badge.live { color: var(--pw-led-permeate); }
+.pw-cabinet .dash-live-badge.stale { color: #f3c969; }
+
+/* ── Scrollbar in the terminal strip — thin, dark. ── */
+.pw-cabinet .pw-terminal-strip::-webkit-scrollbar { width: 6px; }
+.pw-cabinet .pw-terminal-strip::-webkit-scrollbar-track { background: var(--pw-well-dark); }
+.pw-cabinet .pw-terminal-strip::-webkit-scrollbar-thumb {
+  background: var(--pw-shell-dark);
+  border-radius: 3px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Mitsubishi PLC read-only monitor additions
+   ────────────────────────────────────────────────────────────────────────── */
+.pw-cabinet .pw-led-value.is-unknown {
+  color: #67727d;
+  text-shadow: none;
+}
+
+.pw-cabinet .pw-plc-level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 286px;
+  padding: 14px;
+  background: var(--pw-well);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.pw-cabinet .pw-plc-level {
+  padding: 12px;
+  border: 1px solid #171c22;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #2c333d, #242a32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.pw-cabinet .pw-plc-level.is-unknown { opacity: 0.68; }
+.pw-cabinet .pw-plc-level-head {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  color: #c4cdd6;
+}
+.pw-cabinet .pw-plc-address {
+  color: var(--pw-led-permeate);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.pw-cabinet .pw-plc-level-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.pw-cabinet .pw-plc-level-head strong {
+  color: #e6edf3;
+  font-size: 17px;
+}
+.pw-cabinet .pw-plc-level-track {
+  height: 12px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid #10151a;
+  border-radius: 999px;
+  background: #14191f;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.75);
+}
+.pw-cabinet .pw-plc-level-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #159e9a, var(--pw-led-permeate));
+  box-shadow: 0 0 10px var(--pw-led-permeate-glow);
+  transition: width 0.45s ease;
+}
+.pw-cabinet .pw-discrete-level {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  padding: 3px 0 0;
+}
+.pw-cabinet .pw-discrete-level .pw-group-label,
+.pw-cabinet .pw-discrete-level p {
+  grid-column: 1 / -1;
+}
+.pw-cabinet .pw-discrete-level p {
+  margin: 2px 2px 0;
+  color: #7d8893;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.pw-cabinet .pw-signal-pill {
+  display: grid;
+  grid-template-columns: 14px 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #181d23;
+  border-radius: 6px;
+  background: #242a32;
+  color: #bdc7d1;
+  font-size: 11px;
+}
+.pw-cabinet .pw-signal-pill strong { color: #66717d; }
+.pw-cabinet .pw-signal-pill.is-on {
+  border-color: rgba(62, 218, 212, 0.32);
+  background: rgba(62, 218, 212, 0.08);
+}
+.pw-cabinet .pw-signal-pill.is-on strong { color: var(--pw-led-permeate); }
+.pw-cabinet .pw-signal-pill.is-on .pw-lamp,
+.pw-cabinet .pw-point-row.is-on:not(.tone-alarm) .pw-lamp {
+  background: radial-gradient(circle at 35% 30%, #8af2ed 0%, var(--pw-led-permeate) 60%);
+  box-shadow:
+    0 0 7px var(--pw-led-permeate),
+    inset 0 0 3px rgba(0, 0, 0, 0.25),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+}
+.pw-cabinet .pw-signal-pill.is-unknown,
+.pw-cabinet .pw-point-row.is-unknown { opacity: 0.58; }
+
+.pw-cabinet .pw-point-row {
+  display: grid;
+  grid-template-columns: 14px 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid #1a1f26;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2c333d, #242a32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+.pw-cabinet .pw-point-row.is-on:not(.tone-alarm) {
+  border-color: rgba(62, 218, 212, 0.27);
+  background: linear-gradient(180deg, rgba(43, 74, 77, 0.9), rgba(34, 56, 60, 0.9));
+}
+.pw-cabinet .pw-point-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #cbd4dc;
+  font-size: 12px;
+}
+.pw-cabinet .pw-point-row strong {
+  color: #6f7a85;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.pw-cabinet .pw-point-row.is-on:not(.tone-alarm) strong { color: var(--pw-led-permeate); }
+.pw-cabinet .pw-point-row.tone-alarm:not(.is-on):not(.is-unknown) .pw-lamp {
+  background: radial-gradient(circle at 35% 30%, #6ee7b7 0%, #239e68 65%);
+  box-shadow:
+    0 0 5px rgba(35, 158, 104, 0.6),
+    inset 0 0 3px rgba(0, 0, 0, 0.25),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+}
+.pw-cabinet .pw-point-row.tone-alarm:not(.is-on):not(.is-unknown) strong { color: #6ee7b7; }
+.pw-cabinet .pw-point-row.tone-alarm.is-on {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: linear-gradient(180deg, rgba(97, 38, 42, 0.88), rgba(65, 29, 33, 0.9));
+}
+.pw-cabinet .pw-point-row.tone-alarm.is-on .pw-lamp {
+  background: radial-gradient(circle at 35% 30%, #ff9b9b 0%, #ef4444 62%);
+  box-shadow:
+    0 0 8px rgba(239, 68, 68, 0.85),
+    inset 0 0 3px rgba(0, 0, 0, 0.25),
+    0 0 0 2px #1a1f26,
+    0 0 0 3px #3a424c;
+}
+.pw-cabinet .pw-point-row.tone-alarm.is-on strong { color: #ff9b9b; }
+
+.pw-cabinet .pw-plc-monitor {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 14px;
+  padding: 12px;
+}
+.pw-cabinet .pw-plc-monitor-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding: 2px 4px;
+}
+.pw-cabinet .pw-plc-monitor-head > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #edf4f8;
+  font-size: 13px;
+  font-weight: 700;
+}
+.pw-cabinet .pw-plc-monitor-head > div svg { color: var(--pw-led-permeate); }
+.pw-cabinet .pw-plc-monitor-head p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #7d8893;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+}
+.pw-cabinet .pw-connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5b6570;
+  box-shadow: 0 0 0 2px rgba(91, 101, 112, 0.2);
+}
+.pw-cabinet .pw-connection-dot.is-online {
+  background: var(--pw-led-permeate);
+  box-shadow: 0 0 7px var(--pw-led-permeate-glow);
+}
+.pw-cabinet .pw-connection-dot.is-stale {
+  background: #f3c969;
+  box-shadow: 0 0 7px rgba(243, 201, 105, 0.55);
+}
+.pw-cabinet .pw-point-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.pw-cabinet .pw-point-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #242b33;
+  border-radius: 8px;
+  background: var(--pw-well-dark);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+.pw-cabinet .pw-point-group > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 7px;
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, #303843, #252c34);
+}
+.pw-cabinet .pw-point-group > header span {
+  color: #dce4ea;
+  font-size: 12px;
+  font-weight: 700;
+}
+.pw-cabinet .pw-point-group > header em {
+  color: #74808c;
+  font-size: 10px;
+  font-style: normal;
+}
+.pw-cabinet .pw-point-group > header strong {
+  color: var(--pw-led-permeate);
+  font-size: 11px;
+}
+.pw-cabinet .pw-point-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 294px;
+  overflow-y: auto;
+  padding: 8px;
+}
+.pw-cabinet .pw-point-list::-webkit-scrollbar { width: 6px; }
+.pw-cabinet .pw-point-list::-webkit-scrollbar-track { background: var(--pw-well-dark); }
+.pw-cabinet .pw-point-list::-webkit-scrollbar-thumb { background: var(--pw-shell-dark); border-radius: 3px; }
+.pw-cabinet .pw-plc-offline-note {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 9px 10px;
+  border: 1px solid rgba(240, 152, 24, 0.35);
+  border-radius: 6px;
+  background: rgba(240, 152, 24, 0.08);
+  color: #e7bd70;
+  font-size: 11px;
+}
+.pw-cabinet .pw-plc-offline-note.is-stale {
+  border-color: rgba(243, 201, 105, 0.42);
+  background: rgba(243, 201, 105, 0.09);
+  color: #f3d78f;
+}
+
+.pw-cabinet .dash-live-badge.demo { color: #7ce4df; }
+.pw-cabinet .dash-live-badge.offline { color: #e7bd70; }
+
+/* ── Operator-first page navigation ───────────────────────────────────── */
+.pw-cabinet .pw-dashboard-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 5px;
+  border: 1px solid #414b56;
+  border-radius: 9px;
+  background: #252d36;
+}
+.pw-cabinet .pw-dashboard-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #9aa7b1;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+.pw-cabinet .pw-dashboard-tabs button:hover {
+  border-color: #53616d;
+  color: #dbe6eb;
+}
+.pw-cabinet .pw-dashboard-tabs button.active {
+  border-color: rgba(62, 218, 212, 0.42);
+  background: rgba(62, 218, 212, 0.11);
+  color: var(--pw-led-permeate);
+  box-shadow: inset 0 0 0 1px rgba(62, 218, 212, 0.08);
+}
+.pw-cabinet .pw-dashboard-tabs button:focus-visible {
+  outline: 2px solid var(--pw-led-permeate);
+  outline-offset: 2px;
+}
+.pw-cabinet .pw-dashboard-tabs > span {
+  margin-left: auto;
+  padding-right: 8px;
+  color: #71808b;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.pw-cabinet .pw-overview-page,
+.pw-cabinet .pw-diagnostics-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pw-cabinet .pw-operator-section-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(18, 24, 30, 0.32);
+}
+.pw-cabinet .pw-operator-section-head > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--pw-led-permeate);
+}
+.pw-cabinet .pw-operator-section-head h2 {
+  margin: 0;
+  color: #e3eaee;
+  font-size: 13px;
+  font-weight: 800;
+}
+.pw-cabinet .pw-operator-section-head p {
+  margin: 0;
+  color: #aab5bd;
+  font-size: 10px;
+  text-align: right;
+}
+
+/* ── Process chain ────────────────────────────────────────────────────── */
+.pw-cabinet .pw-process-overview,
+.pw-cabinet .pw-operator-panel,
+.pw-cabinet .pw-connection-diagnostics,
+.pw-cabinet .pw-word-monitor {
+  padding: 14px;
+}
+.pw-cabinet .pw-process-chain {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 11px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+.pw-cabinet .pw-process-chain::-webkit-scrollbar { height: 5px; }
+.pw-cabinet .pw-process-chain::-webkit-scrollbar-thumb { border-radius: 4px; background: #48545f; }
+.pw-cabinet .pw-process-stage {
+  flex: 1 1 0;
+  min-width: 142px;
+  overflow: hidden;
+  border: 1px solid #313b45;
+  border-radius: 8px;
+  background: #202832;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+.pw-cabinet .pw-process-stage-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  padding: 9px;
+}
+.pw-cabinet .pw-stage-index {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid #495560;
+  border-radius: 6px;
+  color: #8d9ba5;
+  font-size: 10px;
+}
+.pw-cabinet .pw-process-stage-head h3 {
+  overflow: hidden;
+  margin: 0;
+  color: #dde6eb;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-process-stage-head p {
+  overflow: hidden;
+  margin: 2px 0 0;
+  color: #76848f;
+  font-size: 9px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-process-stage-head > strong {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.09);
+  color: #9aa7b1;
+  font-size: 9px;
+}
+.pw-cabinet .pw-process-stage-metrics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1px;
+  border-top: 1px solid #303943;
+  background: #303943;
+}
+.pw-cabinet .pw-process-stage-metrics > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  background: #1c232b;
+}
+.pw-cabinet .pw-process-stage-metrics span {
+  overflow: hidden;
+  color: #7f8d97;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-process-stage-metrics strong {
+  overflow: hidden;
+  color: #c8d3da;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-process-stage.is-running { border-color: rgba(62, 218, 212, 0.45); }
+.pw-cabinet .pw-process-stage.is-running .pw-stage-index,
+.pw-cabinet .pw-process-stage.is-running .pw-process-stage-head > strong {
+  border-color: rgba(62, 218, 212, 0.35);
+  background: rgba(62, 218, 212, 0.11);
+  color: var(--pw-led-permeate);
+}
+.pw-cabinet .pw-process-stage.is-alarm { border-color: rgba(239, 68, 68, 0.62); }
+.pw-cabinet .pw-process-stage.is-alarm .pw-stage-index,
+.pw-cabinet .pw-process-stage.is-alarm .pw-process-stage-head > strong {
+  border-color: rgba(239, 68, 68, 0.48);
+  background: rgba(239, 68, 68, 0.14);
+  color: #ff9b9b;
+}
+.pw-cabinet .pw-process-stage.is-unknown { border-color: rgba(240, 152, 24, 0.42); }
+.pw-cabinet .pw-process-stage.is-unknown .pw-process-stage-head > strong { color: #e7bd70; }
+.pw-cabinet .pw-process-arrow {
+  flex: 0 0 16px;
+  align-self: center;
+  color: #6f7d87;
+}
+
+/* ── Operator panels ──────────────────────────────────────────────────── */
+.pw-cabinet .pw-operator-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);
+  gap: 12px;
+  min-width: 0;
+}
+.pw-cabinet .pw-operator-grid-secondary {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.pw-cabinet .pw-level-overview-list {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 11px;
+}
+.pw-cabinet .pw-discrete-level-compact { margin: 0; }
+.pw-cabinet .pw-pump-pair-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 11px;
+}
+.pw-cabinet .pw-pump-pair {
+  overflow: hidden;
+  border: 1px solid #303943;
+  border-radius: 7px;
+  background: #1e252d;
+}
+.pw-cabinet .pw-pump-pair > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid #303943;
+}
+.pw-cabinet .pw-pump-pair > header strong { color: #d9e2e7; font-size: 11px; }
+.pw-cabinet .pw-pump-pair > header span { color: #6ee7b7; font-size: 9px; }
+.pw-cabinet .pw-pump-pair.is-fault { border-color: rgba(239, 68, 68, 0.56); }
+.pw-cabinet .pw-pump-pair.is-fault > header span { color: #ff9b9b; }
+.pw-cabinet .pw-pump-pair.is-unknown > header span { color: #e7bd70; }
+.pw-cabinet .pw-pump-lane {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.035);
+}
+.pw-cabinet .pw-pump-lane .pw-lamp,
+.pw-cabinet .pw-quick-signal .pw-lamp {
+  width: 8px;
+  height: 8px;
+  border: 1px solid #1b2229;
+  border-radius: 50%;
+  background: #59636c;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.65);
+}
+.pw-cabinet .pw-pump-lane strong { color: #b8c3ca; font-size: 10px; }
+.pw-cabinet .pw-pump-lane .pw-plc-address { color: #61717c; font-size: 9px; }
+.pw-cabinet .pw-pump-lane em { color: #87949d; font-size: 9px; font-style: normal; }
+.pw-cabinet .pw-pump-lane.is-running .pw-lamp,
+.pw-cabinet .pw-quick-signal.is-on .pw-lamp {
+  border-color: #2ac2a7;
+  background: #3edad4;
+  box-shadow: 0 0 8px var(--pw-led-permeate-glow);
+}
+.pw-cabinet .pw-pump-lane.is-running em,
+.pw-cabinet .pw-quick-signal.is-on em { color: var(--pw-led-permeate); }
+.pw-cabinet .pw-pump-lane.is-fault .pw-lamp {
+  border-color: #dc2626;
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.55);
+}
+.pw-cabinet .pw-pump-lane.is-fault em { color: #ff9b9b; }
+.pw-cabinet .pw-pump-lane.is-unknown { opacity: 0.72; }
+
+.pw-cabinet .pw-quick-signal-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 11px;
+}
+.pw-cabinet .pw-quick-signal {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #323c46;
+  border-radius: 7px;
+  background: #202832;
+}
+.pw-cabinet .pw-quick-signal > div { display: flex; flex-direction: column; min-width: 0; }
+.pw-cabinet .pw-quick-signal strong {
+  overflow: hidden;
+  color: #c8d2d8;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-quick-signal small { color: #62727e; font-size: 8px; }
+.pw-cabinet .pw-quick-signal em { color: #86949d; font-size: 9px; font-style: normal; }
+.pw-cabinet .pw-quick-signal.is-unknown { opacity: 0.65; }
+
+.pw-cabinet .pw-mode-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 11px;
+}
+.pw-cabinet .pw-mode-card {
+  overflow: hidden;
+  border: 1px solid #323c46;
+  border-radius: 7px;
+  background: #202832;
+}
+.pw-cabinet .pw-mode-card > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 6px;
+  padding: 8px 9px;
+  border-bottom: 1px solid #303943;
+}
+.pw-cabinet .pw-mode-card > header strong { color: #d6e0e5; font-size: 10px; }
+.pw-cabinet .pw-mode-card > header span { color: #60717d; font-size: 8px; }
+.pw-cabinet .pw-mode-card > header em {
+  grid-column: 1 / -1;
+  color: var(--pw-led-permeate);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+.pw-cabinet .pw-mode-card > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 6px;
+  padding: 7px 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+.pw-cabinet .pw-mode-card > div span { color: #84929c; font-size: 9px; }
+.pw-cabinet .pw-mode-card > div strong { color: #c7d2d8; font-size: 9px; }
+.pw-cabinet .pw-mode-card > div small { grid-column: 1 / -1; color: #566671; font-size: 8px; }
+
+/* ── Diagnostics and parameters ───────────────────────────────────────── */
+.pw-cabinet .pw-diagnostics-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.5fr);
+  gap: 12px;
+  min-width: 0;
+}
+.pw-cabinet .pw-diagnostics-top .pw-displays { margin: 0; }
+.pw-cabinet .pw-connection-diagnostics dl {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 11px 0 0;
+  border: 1px solid #303943;
+  border-radius: 7px;
+  background: #303943;
+}
+.pw-cabinet .pw-connection-diagnostics dl > div {
+  min-width: 0;
+  padding: 7px 9px;
+  background: #202832;
+}
+.pw-cabinet .pw-connection-diagnostics dt { color: #75848f; font-size: 9px; }
+.pw-cabinet .pw-connection-diagnostics dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  color: #d5dfe4;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-word-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr 1fr;
+  gap: 9px;
+  min-width: 0;
+  margin-top: 11px;
+}
+.pw-cabinet .pw-word-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #303943;
+  border-radius: 7px;
+  background: #1d242c;
+}
+.pw-cabinet .pw-word-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  border-bottom: 1px solid #303943;
+}
+.pw-cabinet .pw-word-group > header > div { display: flex; flex-direction: column; min-width: 0; }
+.pw-cabinet .pw-word-group > header strong { color: #d8e1e6; font-size: 10px; }
+.pw-cabinet .pw-word-group > header span { color: #6f7e89; font-size: 8px; }
+.pw-cabinet .pw-word-group > header em { color: var(--pw-led-permeate); font-size: 9px; font-style: normal; }
+.pw-cabinet .pw-word-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 255px;
+  overflow-y: auto;
+}
+.pw-cabinet .pw-word-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto 25px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.035);
+}
+.pw-cabinet .pw-word-row > span:nth-child(2) {
+  overflow: hidden;
+  color: #9ba8b1;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-cabinet .pw-word-row .pw-plc-address { color: #68d7d1; font-size: 9px; }
+.pw-cabinet .pw-word-row strong { color: #dce8eb; font-size: 10px; }
+.pw-cabinet .pw-word-row em { color: #75838d; font-size: 8px; font-style: normal; }
+.pw-cabinet .pw-word-row.is-unknown { opacity: 0.55; }
+.pw-cabinet .pw-point-grid-diagnostics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+@media (max-width: 1100px) {
+  .pw-cabinet .pw-operator-grid,
+  .pw-cabinet .pw-operator-grid-secondary,
+  .pw-cabinet .pw-diagnostics-top { grid-template-columns: 1fr; }
+  .pw-cabinet .pw-process-stage { min-width: 155px; }
+  .pw-cabinet .pw-word-grid { grid-template-columns: 1fr; }
+  .pw-cabinet .pw-word-list { max-height: 210px; }
+}
+
+@media (max-width: 1180px) {
+  .pw-cabinet .pw-point-grid { grid-template-columns: 1fr; }
+  .pw-cabinet .pw-point-list { max-height: 220px; }
+  .pw-cabinet .pw-plc-monitor-head { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 720px) {
+  .pw-cabinet .pw-dashboard-tabs { align-items: stretch; flex-direction: column; }
+  .pw-cabinet .pw-dashboard-tabs > span { margin: 2px 0 0; padding: 0 8px 4px; text-align: center; }
+  .pw-cabinet .pw-operator-section-head { align-items: flex-start; flex-direction: column; }
+  .pw-cabinet .pw-operator-section-head p { text-align: left; }
+  .pw-cabinet .pw-pump-pair-grid,
+  .pw-cabinet .pw-quick-signal-grid,
+  .pw-cabinet .pw-mode-grid,
+  .pw-cabinet .pw-connection-diagnostics dl { grid-template-columns: 1fr; }
+  .pw-cabinet .pw-alarm-overview { grid-template-columns: 1fr; gap: 4px; }
+  .pw-cabinet .pw-alarm-overview-detail { white-space: normal; }
+  .pw-cabinet .pw-display-row { grid-template-columns: 1fr; }
+  .pw-cabinet .pw-discrete-level { grid-template-columns: 1fr; }
+  .pw-cabinet .pw-plc-monitor-head p { align-items: flex-start; flex-wrap: wrap; }
+}

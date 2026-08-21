@@ -1,4 +1,5 @@
 import React, { useRef, useMemo, useState } from 'react';
+import { sharedCanvasTexture } from '../shared/sharedCanvasTexture';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Html, useCursor } from '@react-three/drei';
@@ -148,7 +149,8 @@ export const ScrewPress3D: React.FC<ScrewPressProps> = ({ id, position, active }
   const spiralRef = useRef<THREE.Mesh>(null);
 
   // Spiral helical shaft texture
-  const spiralTexture = useMemo(() => {
+  // WP6.5：螺旋轴纹理双螺旋机共享
+  const spiralTexture = useMemo(() => sharedCanvasTexture('screw.spiral', () => {
     const canvas = document.createElement('canvas');
     canvas.width = 128; canvas.height = 128;
     const ctx = canvas.getContext('2d');
@@ -166,7 +168,7 @@ export const ScrewPress3D: React.FC<ScrewPressProps> = ({ id, position, active }
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
     return tex;
-  }, []);
+  }), []);
 
   useFrame((_, delta) => {
     if (!active) {

@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
 import { useCursor } from '@react-three/drei';
 import { PumpIndicator3D } from '../shared/IndustrialParts';
 import { useScadaStore, type PumpData } from '../../../store/useScadaStore';
@@ -25,45 +24,32 @@ const HEAD_DARK = '#3E4752';
  */
 export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, rotation = [0, 0, 0], scale = 0.65 }) => {
   const pumpData = useScadaStore((state) => state.equipments[id] as PumpData);
+  // WP6.7：工控机运行模式禁用装饰微震，电机总成并入静态 bake。
+  const performanceMode = useScadaStore((state) => state.performanceMode);
+  const pureWaterConnectionState = useScadaStore((state) => state.pureWaterPlcConnection.state);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const [hovered, setHovered] = React.useState(false);
   // 对标 Pump3D:电机外壳静止(只微震),只有顶部风扇/转子旋转。
+  // SPEC-PLAN WP1：runStatus 由 PLC Y 指令驱动（逻辑输出），不驱动风扇/微震动画；
+  // refs 仅保留造型锚点，物理运行未验证时组件静止。
   const motorShakeRef = useRef<THREE.Group>(null);
   const fanRef = useRef<THREE.Group>(null);
 
   useCursor(hovered, 'pointer', 'auto');
 
-  useFrame(({ clock }, delta: number) => {
-    const running = pumpData?.runStatus === 'running';
-    // 立式泵风扇轴竖直,绕 Y 旋转(区别于卧式 Pump3D 绕 Z)。
-    if (fanRef.current && running) {
-      fanRef.current.rotation.y += delta * 18;
-    }
-    // 运行时电机外壳亚毫米级微震(机座/泵筒体/联轴器不在此组,接口不撕开)。
-    const shake = motorShakeRef.current;
-    if (shake) {
-      if (running) {
-        const t = clock.elapsedTime;
-        shake.position.x = Math.sin(t * 47) * 0.004;
-        shake.position.z = Math.sin(t * 41 + 0.7) * 0.004;
-        shake.position.y = Math.sin(t * 53) * 0.003;
-      } else {
-        shake.position.set(0, 0, 0);
-      }
-    }
-  });
+  const telemetryIsCurrent = pureWaterConnectionState === 'live' || pureWaterConnectionState === 'demo';
 
   if (!pumpData) return null;
 
   const bodyColor = isSelected ? '#E2E8F0' : STAINLESS;
   const accentColor = isSelected ? '#38BDF8' : HEAD_DARK;
-  const running = pumpData.runStatus === 'running';
+  // SPEC-PLAN WP1：Y 指令不得点亮"运行"灯；仅故障红与停止灰。
   const indicatorStatus: 'running' | 'stopped' | 'fault' =
-    pumpData.runStatus === 'fault' ? 'fault' : running ? 'running' : 'stopped';
+    pumpData.runStatus === 'fault' ? 'fault' : 'stopped';
 
   return (
-    <group position={position} rotation={rotation} userData={{ bakeExclude: true }}>
+    <group position={position} rotation={rotation} userData={{ bakeExclude: !performanceMode }}>
       <mesh
         visible={false}
         onClick={(e) => { e.stopPropagation(); setSelectedEquipment(id); }}
@@ -154,7 +140,7 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
           </mesh>
 
           {/* 立式电机 — 静止外壳 + 微震(机座/泵筒体/联轴器不在此组,接口保持刚性) */}
-          <group ref={motorShakeRef} position={[0, 0, 0]} userData={{ bakeExclude: true }}>
+          <group ref={motorShakeRef} position={[0, 0, 0]} userData={{ bakeExclude: !performanceMode }}>
             <mesh castShadow receiveShadow position={[0, 2.35, 0]}>
               <cylinderGeometry args={[0.32, 0.32, 0.85, 36]} />
               <meshStandardMaterial color={accentColor} roughness={0.4} metalness={0.4} />
@@ -223,7 +209,7 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
             </mesh>
           </group>
 
-          <PumpIndicator3D position={[-0.4, 1.5, 0.2]} status={indicatorStatus} />
+          {telemetryIsCurrent && <PumpIndicator3D position={[-0.4, 1.5, 0.2]} status={indicatorStatus} />}
 
           <mesh position={[0, 1.0, 0.355]}>
             <boxGeometry args={[0.42, 0.14, 0.006]} />

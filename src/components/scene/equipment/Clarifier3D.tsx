@@ -21,6 +21,8 @@ export const Clarifier3D: React.FC<ClarifierProps> = ({ id, position, size = [8,
   
   const tankData = useScadaStore((state) => state.equipments[id] as TankData);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
+  // WP6.7：齿轮箱/半桥静态，PERF 模式并入静态 bake；HQ 保持原排除（源码视觉不变）。
+  const performanceMode = useScadaStore((state) => state.performanceMode);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const [hovered, setHovered] = React.useState(false);
   const scraperRef = useRef<THREE.Group>(null);
@@ -222,8 +224,8 @@ export const Clarifier3D: React.FC<ClarifierProps> = ({ id, position, size = [8,
           <meshStandardMaterial color="#C5CED6" roughness={0.46} metalness={0.58} />
         </mesh>
 
-        {/* Center-drive scraper gearbox assembly (static). */}
-        <group position={[0, 0.08, 0]} userData={{ bakeExclude: true }}>
+        {/* Center-drive scraper gearbox assembly (static). WP6.7：PERF 并入 bake，HQ 保持排除。 */}
+        <group position={[0, 0.08, 0]} userData={{ bakeExclude: !performanceMode }}>
           <mesh position={[0, 0.035, 0]} castShadow receiveShadow>
             <boxGeometry args={[1.26, 0.08, 1.0]} />
             <meshStandardMaterial color="#EAF0F5" roughness={0.32} metalness={0.7} />
@@ -304,7 +306,7 @@ export const Clarifier3D: React.FC<ClarifierProps> = ({ id, position, size = [8,
       {/* Fixed half-bridge catwalk + handrails. The bridge is a maintenance
           walkway to the center drive and must NOT rotate — only the underwater
           scraper arm in the next group rotates with the drive. */}
-      <group position={[0, h/2, 0]} userData={{ bakeExclude: true }}>
+      <group position={[0, h/2, 0]} userData={{ bakeExclude: !performanceMode }}>
         <mesh position={[0, 0.025, 0]} castShadow receiveShadow>
           <boxGeometry args={[w, 0.055, 1.08]} />
           <meshStandardMaterial color="#D7E0E8" roughness={0.38} metalness={0.72} />

@@ -1,4 +1,5 @@
 import React, { useRef, useMemo } from 'react';
+import { sharedCanvasTexture } from '../shared/sharedCanvasTexture';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
@@ -33,7 +34,7 @@ export const DistributionCabinet3D: React.FC<DistributionCabinet3DProps> = ({
   });
 
   // Canvas texture: Warning Triangle Sign (Lightning Bolt)
-  const warningTexture = useMemo(() => {
+  const warningTexture = useMemo(() => sharedCanvasTexture('cab.warning', () => {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
@@ -68,10 +69,10 @@ export const DistributionCabinet3D: React.FC<DistributionCabinet3DProps> = ({
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
-  }, []);
+  }), []);
 
   // Canvas texture: "DANGER HIGH VOLTAGE" Warning Sign
-  const dangerPlateTexture = useMemo(() => {
+  const dangerPlateTexture = useMemo(() => sharedCanvasTexture('cab.danger', () => {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 64;
@@ -98,10 +99,10 @@ export const DistributionCabinet3D: React.FC<DistributionCabinet3DProps> = ({
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
-  }, []);
+  }), []);
 
   // Canvas texture: Cabinet Nameplate
-  const nameplateTexture = useMemo(() => {
+  const nameplateTexture = useMemo(() => sharedCanvasTexture(`cab.nameplate.${cabinetName}`, () => {
     const canvas = document.createElement('canvas');
     canvas.width = 192;
     canvas.height = 48;
@@ -124,7 +125,7 @@ export const DistributionCabinet3D: React.FC<DistributionCabinet3DProps> = ({
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
-  }, [cabinetName]);
+  }), [cabinetName]);
 
   // Industrial Colors — RAL 7035 light grey powder-coat (true cabinet grey,
   // not white) over a dark plinth. Matte paint: low metalness so the enclosure

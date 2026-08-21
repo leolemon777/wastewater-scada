@@ -3,7 +3,6 @@ import { Canvas } from '@react-three/fiber';
 import { Preload, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { EffectComposer } from '@react-three/postprocessing';
 // Lazy-load the heavy 3D scene so the three/drei vendor bundles split off from
 // the initial UI shell and only load when the canvas mounts.
 const SCADAScene = lazy(() =>
@@ -11,6 +10,7 @@ const SCADAScene = lazy(() =>
 );
 import { OrbitControlsFixed } from '../components/canvas/OrbitControlsFixed';
 import { OverlayUI } from '../components/ui/Overlay';
+import { createScadaRealtimeClient } from '../services/scadaRealtimeClient';
 import { useScadaStore } from '../store/useScadaStore';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -51,12 +51,12 @@ declare global {
   }
 }
 
-// Keep the 3D scene sharp. Do not lower DPR for performance; optimize UI
-// compositing and interaction instead so text, pipes and equipment edges stay crisp.
+// SPEC-PLAN 16.2/16.3：工控机运行模式（performanceMode）DPR 1-1.25 并关闭
+// 阴影与环境效果；普通开发/展示模式保持高保真（DPR<=2、percentage 阴影）。
 function getCanvasDpr(performanceMode: boolean): number {
   if (typeof window === 'undefined') return 1;
   const deviceDpr = window.devicePixelRatio || 1;
-  if (performanceMode) return Math.min(deviceDpr, 1.5);
+  if (performanceMode) return Math.min(deviceDpr, 1.25);
   return Math.min(Math.max(deviceDpr, 2), 2);
 }
 
@@ -97,10 +97,23 @@ function App() {
   const canvasShellRef = useRef<HTMLDivElement>(null!);
   const currentView = useScadaStore((state) => state.currentView);
   const demoMode = useScadaStore((state) => state.demoMode);
+  const pureWaterDemoMode = useScadaStore((state) => state.pureWaterDemoMode);
   const applyDemoTick = useScadaStore((state) => state.applyDemoTick);
+  const refreshPureWaterPlcConnection = useScadaStore((state) => state.refreshPureWaterPlcConnection);
   const [sceneReady, setSceneReady] = useState(false);
   const performanceMode = useScadaStore((state) => state.performanceMode);
   const canvasDpr = getCanvasDpr(performanceMode);
+
+  // SPEC-PLAN WP6.1：Dashboard 视图 / 浏览器后台时暂停 Canvas 渲染（停帧）。
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  );
+  useEffect(() => {
+    const onChange = () => setPageVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  const frameLoopActive = currentView === '3d' && pageVisible;
 
   useEffect(() => {
     if (!shouldUseLowLatencyUi()) return;
@@ -110,6 +123,25 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const client = createScadaRealtimeClient({
+      onPureWaterTelemetry: (telemetry) => {
+        useScadaStore.getState().ingestPureWaterPlcTelemetry(telemetry);
+      },
+      onM100Telemetry: ({ sourceId, telemetry, sourceEpoch, eventSeq }) => {
+        useScadaStore.getState().ingestM100Telemetry(sourceId, telemetry, { sourceEpoch, eventSeq });
+      },
+      onHubConnectionChange: (connected) => {
+        useScadaStore.getState().ingestHubConnection(connected);
+      },
+      onHeartbeat: ({ receivedAt }) => {
+        useScadaStore.getState().ingestHubHeartbeat(receivedAt);
+      },
+    });
+    client.start();
+    return () => client.stop();
+  }, []);
+
   // Never block overlay UI indefinitely if WebGL init stalls (perf mode / GPU issues).
   useEffect(() => {
     const fallback = window.setTimeout(() => setSceneReady(true), 12000);
@@ -117,11 +149,30 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!demoMode) return;
+    if (!demoMode && !pureWaterDemoMode) return;
     applyDemoTick();
     const timer = window.setInterval(applyDemoTick, 3000);
     return () => window.clearInterval(timer);
-  }, [applyDemoTick, demoMode]);
+  }, [applyDemoTick, demoMode, pureWaterDemoMode]);
+
+  // Independent PLC watchdog: link state can become stale even when no new
+  // frame arrives, so freshness must advance on wall-clock time rather than on
+  // telemetry callbacks alone.
+  useEffect(() => {
+    refreshPureWaterPlcConnection();
+    const timer = window.setInterval(refreshPureWaterPlcConnection, 1000);
+    return () => window.clearInterval(timer);
+  }, [refreshPureWaterPlcConnection]);
+
+  // M100 gateway watchdog (same wall-clock freshness rule as the PLC link).
+  useEffect(() => {
+    const refreshM100Connections = useScadaStore.getState().refreshM100Connections;
+    refreshM100Connections();
+    const timer = window.setInterval(() => {
+      useScadaStore.getState().refreshM100Connections();
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const updateDensity = () => {
@@ -217,10 +268,11 @@ function App() {
         <ErrorBoundary fallbackTitle="3D 场景渲染异常">
           <Canvas
             eventSource={canvasShellRef}
-            shadows={"percentage"}
+            shadows={performanceMode ? false : 'percentage'}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}
             dpr={canvasDpr}
-            frameloop="always"
+            // WP6.1：非 3D 视图或后台时完全停帧（SPEC 16.3：后台 10s frame 增量 <=1）。
+            frameloop={frameLoopActive ? 'always' : 'never'}
             camera={{ position: [22, 18, 38], fov: 38 }}
             gl={{
               antialias: true,
@@ -228,17 +280,21 @@ function App() {
               toneMapping: THREE.ACESFilmicToneMapping,
               toneMappingExposure: 0.95,
             }}
-            onCreated={({ gl }) => {
+            onCreated={({ gl, camera, scene }) => {
               gl.outputColorSpace = THREE.SRGBColorSpace;
               const maxAniso = gl.capabilities.getMaxAnisotropy();
               THREE.Texture.DEFAULT_ANISOTROPY = Math.min(8, maxAniso);
-              // Expose the renderer for perf diagnostics (draw-call counting).
-              if (typeof window !== 'undefined') (window as unknown as { __scadaGl?: THREE.WebGLRenderer }).__scadaGl = gl;
+              // Expose the renderer/camera for perf diagnostics (read-only stats,
+              // SPEC-PLAN 16: scripts/performance/measure-scene-performance.mjs).
+              if (typeof window !== 'undefined') {
+                (window as unknown as { __scadaGl?: THREE.WebGLRenderer }).__scadaGl = gl;
+                (window as unknown as { __scadaCamera?: THREE.Camera }).__scadaCamera = camera;
+                (window as unknown as { __scadaScene?: THREE.Scene }).__scadaScene = scene;
+              }
               // First frame is about to render — let the loader fade out.
               requestAnimationFrame(() => setSceneReady(true));
             }}
           >
-            <EffectComposer multisampling={4}><></></EffectComposer>
             {/* Lazy SCADAScene: while the dynamic import resolves, render nothing
                 inside the canvas (the outer-DOM <SceneLoader> at top covers the
                 loading screen). A DOM fallback here would crash R3F ("Div is not
@@ -247,7 +303,12 @@ function App() {
               <SCADAScene />
             </Suspense>
             <OrbitControlsFixed
-              ref={orbitControlsRef}
+              ref={(controls) => {
+                orbitControlsRef.current = controls;
+                if (typeof window !== 'undefined') {
+                  (window as unknown as { __scadaControls?: OrbitControlsImpl | null }).__scadaControls = controls;
+                }
+              }}
               target={[-6, 1, 0]}
               enableRotate={true}
               maxPolarAngle={Math.PI / 2.2}

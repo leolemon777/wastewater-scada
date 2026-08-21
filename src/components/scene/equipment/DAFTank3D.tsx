@@ -1,5 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import * as THREE from 'three';
+import { sharedCanvasTexture } from '../shared/sharedCanvasTexture';
 import { useFrame } from '@react-three/fiber';
 import { useCursor, Html, Instances, Instance } from '@react-three/drei';
 import { FloatingPoolLabel3D } from '../shared/FloatingPoolLabel3D';
@@ -376,7 +377,9 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
         uColor: { value: new THREE.Color('#3E736E') },
         uEmissive: { value: new THREE.Color('#234542') },
         uOpacity: { value: 0.6 },
-        uWaveIntensity: { value: tankData.aerationRunning ? 1.3 : 0.2 },
+        // SPEC-PLAN WP1: DO 逻辑输出不得驱动物理波纹动画；
+        // 无独立运行反馈时固定"未验证"低扰动外观。
+        uWaveIntensity: { value: 0.2 },
         // Light/view uniforms: seeded from the shared WaterShader defaults and
         // refreshed each frame in useFrame (see updateWaterLighting).
         uLightDir: { value: (WaterShader.uniforms.uLightDir.value as THREE.Vector3).clone() },
@@ -385,9 +388,10 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
       vertexShader: WaterShader.vertexShader,
       fragmentShader: WaterShader.fragmentShader,
     };
-  }, [tankData.aerationRunning]);
+  }, []);
 
-  const bubbleTexture = useMemo(() => {
+  // WP6.5：气泡纹理共享
+  const bubbleTexture = useMemo(() => sharedCanvasTexture('daf.bubbles', () => {
     const canvas = document.createElement('canvas');
     canvas.width = 256; canvas.height = 256;
     const ctx = canvas.getContext('2d');
@@ -408,13 +412,10 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
     tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(2, 2);
     return tex;
-  }, []);
+  }), []);
 
-  useFrame((state, delta) => {
-    const map = bubbleMatRef.current?.map;
-    if (map && tankData.aerationRunning) {
-      map.offset.y -= delta * 0.2;
-    }
+  useFrame((state) => {
+    // SPEC-PLAN WP1: 气泡滚动属于物理运行表现，DO 指令不驱动（未验证状态静止）。
     if (waterMaterialRef.current) {
       waterMaterialRef.current.uniforms.uTime.value = state.clock.getElapsedTime();
       // Drive the water specular/fresnel from the real sun direction and camera.
@@ -467,7 +468,7 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
       {/* Aeration Bubbles Layer */}
       <mesh position={[0, -height/4, 0]}>
         <boxGeometry args={[width - 0.65, height/2, depth - 0.65]} />
-        <meshStandardMaterial ref={bubbleMatRef} map={bubbleTexture} transparent opacity={tankData.aerationRunning ? 0.48 : 0.12} depthWrite={false} />
+        <meshStandardMaterial ref={bubbleMatRef} map={bubbleTexture} transparent opacity={0.12} depthWrite={false} />
       </mesh>
 
       {/* Dynamic Water Surface with Ripple Shader */}
@@ -486,18 +487,19 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
         <boxGeometry args={[width - 0.65, 0.2, depth - 0.65]} />
       </mesh>
 
+      {/* SPEC-PLAN WP1: 刮沫/排渣动画属于物理运行表现，DO 指令不驱动（未验证 -> 静止）。 */}
       <SurfaceSkimmerAssembly
         width={width}
         height={height}
         depth={depth}
-        active={Boolean(tankData.scraperRunning)}
+        active={false}
       />
 
       <ScumDischargeAssembly
         width={width}
         height={height}
         depth={depth}
-        active={Boolean(tankData.scraperRunning)}
+        active={false}
       />
 
       {/* --- INSTANCED SAFETY RAILS --- */}
@@ -542,33 +544,28 @@ export const DAFTank3D: React.FC<DAFTankProps> = ({ id, position, size = [8, 4, 
           <div className="daf-control-panel-3d">
             <div className="daf-control-row-3d">
                <span className="daf-control-label-3d">实时 pH</span>
-               <span className="digit-font daf-control-value-3d">{tankData.pH?.toFixed(2) || '7.20'}</span>
+               <span className="digit-font daf-control-value-3d">{tankData.pH?.toFixed(2) ?? '--'}</span>
             </div>
             <div className="daf-control-divider-3d" />
             <div className="daf-control-row-3d">
-              <span className="daf-control-label-3d">曝气系统</span>
-              <button 
-                onClick={(e) => { e.stopPropagation(); useScadaStore.getState().toggleAeration(id); }}
-                style={{
-                  background: tankData.aerationRunning ? '#10b981' : '#475569'
-                }}
-                className="daf-control-button-3d"
+              <span className="daf-control-label-3d">曝气指令 DO1</span>
+              <span
+                className="daf-control-status-3d"
+                style={{ background: tankData.aerationRunning ? '#0e7490' : '#475569' }}
               >
-                {tankData.aerationRunning ? '运行中' : '已停止'}
-              </button>
+                {tankData.aerationRunning ? '逻辑输出 ON' : '逻辑输出 OFF'}
+              </span>
             </div>
             <div className="daf-control-row-3d">
-              <span className="daf-control-label-3d">刮沫系统</span>
-              <button 
-                onClick={(e) => { e.stopPropagation(); useScadaStore.getState().toggleScraper(id); }}
-                style={{
-                  background: tankData.scraperRunning ? '#10b981' : '#475569'
-                }}
-                className="daf-control-button-3d"
+              <span className="daf-control-label-3d">刮沫指令 DO2</span>
+              <span
+                className="daf-control-status-3d"
+                style={{ background: tankData.scraperRunning ? '#0e7490' : '#475569' }}
               >
-                {tankData.scraperRunning ? '运行中' : '已停止'}
-              </button>
+                {tankData.scraperRunning ? '逻辑输出 ON' : '逻辑输出 OFF'}
+              </span>
             </div>
+            <div className="daf-control-note-3d">物理运行未验证</div>
           </div>
         </Html>
       )}

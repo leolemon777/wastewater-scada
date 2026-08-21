@@ -2,8 +2,8 @@
  * 纯水(二级 RO)工艺段 — 室外三组团布置,与污水系统完全独立(pw-*)。
  *
  * 三个紧凑组团,首尾相接、水流短捷(见 pureWaterLayout.ts):
- *   预处理排(北):原水箱 → 原水泵 → 保安① → 碳柱 → 一级进水阀 → 保安②
- *   一级 RO 撬:R01泵 + 一级膜(共用底座)→ R01水箱
+ *   预处理排(北):原水箱 → 原水泵A/B → 保安① → 碳柱 → 一级进水阀 → 保安②
+ *   一级 RO 撬:R01泵A/B + 一级膜(共用底座)→ R01水箱
  *   二级 RO 撬 + 供水:R02泵A/B → 二级膜 → R02水箱 → 供水泵A/B → 用水点
  *
  * 区域护栏围住整个纯水工段(东边留通道口对厂区);供水出口高位管加门型
@@ -12,6 +12,7 @@
  */
 import React from 'react';
 import { Pipe3D } from '../piping/Pipe3D';
+import { PipeAnimationContext } from '../piping/PipeAnimationContext';
 import { PipeOpenFlange3D } from '../piping/PipeOpenFlange3D';
 import { PipeWallPort3D } from '../piping/PipeWallPort3D';
 import { ConvergingHeader3D } from '../piping/ConvergingHeader3D';
@@ -32,14 +33,17 @@ import { ChemicalMeteringPump3D } from '../equipment/ChemicalMeteringPump3D';
 import { CartridgeFilter3D } from '../equipment/CartridgeFilter3D';
 import { CarbonColumn3D } from '../equipment/CarbonColumn3D';
 import { RoMembraneRack3D } from '../equipment/RoMembraneRack3D';
+import { DistributionCabinet3D } from '../equipment/DistributionCabinet3D';
 import { Platform3D } from '../site/Platform3D';
 import { SkidFrame3D } from '../shared/SkidFrame3D';
+import { useScadaStore } from '../../../store/useScadaStore';
 import {
   PW_TANKS,
   PW_PUMPS,
   PW_UNITS,
   PW_VALVES,
   PW_DOSE_PUMPS,
+  PW_CABINETS,
   PW_STAGE1_Z,
   PW_STAGE2_Z,
   PW_RAW_ENTRY_X,
@@ -54,6 +58,7 @@ import {
   PW_PERMEATE_HIGH_Y,
   PW_SUCTION_HEADER_Y,
   PW_DISCHARGE_HEADER_Y,
+  PW_STAGE1_DISCHARGE_Y,
   PW_HEADER_END_CLEARANCE,
 } from './pureWaterLayout';
 import {
@@ -261,14 +266,18 @@ const PureWaterBuilding3D: React.FC = () => {
 
 export const PureWaterSection: React.FC = () => {
   const SC = PW_PUMP_SCALE;
+  const pureWaterConnectionState = useScadaStore((state) => state.pureWaterPlcConnection.state);
+  const telemetryIsCurrent = pureWaterConnectionState === 'live' || pureWaterConnectionState === 'demo';
 
   // ── 泵法兰面（pumpPorts 几何派生，scale 0.65） ──
-  const rawSuction = getSuctionFacePoint(PW_PUMPS.raw.position, PW_PUMPS.raw.rotationY, SC);
-  const rawDischarge = getDischargeFacePoint(PW_PUMPS.raw.position, PW_PUMPS.raw.rotationY, SC);
-  const ro1Suction = getSuctionFacePoint(PW_PUMPS.ro1.position, PW_PUMPS.ro1.rotationY, SC);
-  const ro1Discharge = getDischargeFacePoint(PW_PUMPS.ro1.position, PW_PUMPS.ro1.rotationY, SC);
+  const rawPair = [PW_PUMPS.rawA, PW_PUMPS.rawB];
+  const ro1Pair = [PW_PUMPS.ro1A, PW_PUMPS.ro1B];
   const ro2Pair = [PW_PUMPS.ro2A, PW_PUMPS.ro2B];
   const supplyPair = [PW_PUMPS.supplyA, PW_PUMPS.supplyB];
+  const rawSuctions = rawPair.map((p) => getSuctionFacePoint(p.position, p.rotationY, SC));
+  const rawDischarges = rawPair.map((p) => getDischargeFacePoint(p.position, p.rotationY, SC));
+  const ro1Suctions = ro1Pair.map((p) => getSuctionFacePoint(p.position, p.rotationY, SC));
+  const ro1Discharges = ro1Pair.map((p) => getDischargeFacePoint(p.position, p.rotationY, SC));
   const ro2Suctions = ro2Pair.map((p) => getSuctionFacePoint(p.position, p.rotationY, SC));
   const ro2Discharges = ro2Pair.map((p) => getDischargeFacePoint(p.position, p.rotationY, SC));
   const supplySuctions = supplyPair.map((p) => getSuctionFacePoint(p.position, p.rotationY, SC));
@@ -312,7 +321,7 @@ export const PureWaterSection: React.FC = () => {
   // 排放汇管 z 必须等于排出面 z，保证 riser 纯竖直。
   const ro2DischargeHeaderZ = ro2Discharges[0][2];
 
-  const dualHeader = (faces: Point[], y: number) => {
+  const dualHeaderAlongX = (faces: Point[], y: number) => {
     const xs = faces.map((f) => f[0]);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
@@ -322,28 +331,47 @@ export const PureWaterSection: React.FC = () => {
       end: [maxX + PW_HEADER_END_CLEARANCE, y, faces[0][2]] as Point,
     };
   };
+  const dualHeaderAlongZ = (faces: Point[], y: number, x = faces[0][0]) => {
+    const zs = faces.map((f) => f[2]);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
+    return {
+      start: [x, y, minZ - PW_HEADER_END_CLEARANCE] as Point,
+      takeoff: [x, y, (minZ + maxZ) / 2] as Point,
+      end: [x, y, maxZ + PW_HEADER_END_CLEARANCE] as Point,
+    };
+  };
+  // 原水与 RO1 泵沿 Z 方向并联；吸入汇管位于泵口东侧，确保管路轴向进泵。
+  const rawSuctionHeader = dualHeaderAlongZ(rawSuctions, PW_SUCTION_HEADER_Y, rawSuctions[0][0] + 0.7);
+  const rawDischargeHeader = dualHeaderAlongZ(rawDischarges, PW_STAGE1_DISCHARGE_Y);
+  const ro1SuctionHeader = dualHeaderAlongZ(ro1Suctions, PW_SUCTION_HEADER_Y, ro1Suctions[0][0] + 0.7);
+  const ro1DischargeHeader = dualHeaderAlongZ(ro1Discharges, PW_STAGE1_DISCHARGE_Y);
   const ro2SuctionHeader = {
     start: [PW_PUMPS.ro2A.position[0] - 0.6 - PW_HEADER_END_CLEARANCE, PW_SUCTION_HEADER_Y, ro2SuctionHeaderZ] as Point,
     takeoff: [PW_PUMPS.ro2A.position[0] - 0.6, PW_SUCTION_HEADER_Y, ro2SuctionHeaderZ] as Point,
     end: [PW_PUMPS.ro2B.position[0] + 0.6, PW_SUCTION_HEADER_Y, ro2SuctionHeaderZ] as Point,
   };
-  const ro2DischargeHeader = dualHeader(ro2Discharges, PW_DISCHARGE_HEADER_Y);
+  const ro2DischargeHeader = dualHeaderAlongX(ro2Discharges, PW_DISCHARGE_HEADER_Y);
   const supplySuctionHeader = {
     start: [PW_PUMPS.supplyA.position[0] - 0.6 - PW_HEADER_END_CLEARANCE, PW_SUCTION_HEADER_Y, ro2SuctionHeaderZ] as Point,
     takeoff: [PW_PUMPS.supplyA.position[0] - 0.6, PW_SUCTION_HEADER_Y, ro2SuctionHeaderZ] as Point,
     end: [PW_PUMPS.supplyB.position[0] + 0.6, PW_SUCTION_HEADER_Y, ro2SuctionHeaderZ] as Point,
   };
-  const supplyDischargeHeader = dualHeader(supplyDischarges, PW_DISCHARGE_HEADER_Y);
+  const supplyDischargeHeader = dualHeaderAlongX(supplyDischarges, PW_DISCHARGE_HEADER_Y);
 
-  const ro1FlushTee: Point = [vF1.position[0], PW_DISCHARGE_HEADER_Y, S1];
+  // 一级冲洗 tee 必须落在 R01 双泵排放主管上(PW_STAGE1_DISCHARGE_Y=1.35),
+  // 不能复用双泵汇管标高 PW_DISCHARGE_HEADER_Y=1.5,否则 tee 悬空、junctionTrim 修剪点错位。
+  const ro1FlushTee: Point = [vF1.position[0], PW_STAGE1_DISCHARGE_Y, S1];
   const ro1FlushDrain: Point = [vF1.position[0], 0.15, vF1.position[2] - vHalf(vF1.scale)];
   const ro2FlushTee: Point = [vF2.position[0], PW_DISCHARGE_HEADER_Y, ro2DischargeHeaderZ];
   const ro2FlushDrain: Point = [vF2.position[0], 0.15, vF2.position[2] - vHalf(vF2.scale)];
 
   // ── 撬装底座尺寸（按撬组设备包围盒派生） ──
-  // 单台立式泵撬：导轨 1.6×1.2；双泵撬：两台并贴，导轨加长。
-  const singlePumpSkid: [number, number] = [1.6, 1.2];
-  const dualPumpSkid = (a: Point, b: Point): [number, number] => [Math.abs(a[0] - b[0]) + 1.6, 1.2];
+  // 双泵撬可沿 X 或 Z 并贴，尺寸按两台泵的实际包围范围派生。
+  const pumpPairSkid = (a: Point, b: Point): [number, number] => [
+    Math.abs(a[0] - b[0]) + 1.6,
+    Math.abs(a[2] - b[2]) + 1.6,
+  ];
 
   // ── 短别名（桥接旧管路坐标，全部指向 helper 派生值，消除硬编码） ──
   const [rawTx, , rawTz] = PW_TANKS.raw.position;
@@ -353,6 +381,7 @@ export const PureWaterSection: React.FC = () => {
   const [naTx, , naTz] = PW_TANKS.naoh.position;
 
   return (
+    <PipeAnimationContext.Provider value={telemetryIsCurrent}>
     <group>
       {/* 整区铺面(Platform3D,和主流程/收集池一致的 coping 边缘,矮铺面垫出"地砖铺起"感;设备仍坐地面,不抬管路) */}
       <Platform3D
@@ -362,21 +391,21 @@ export const PureWaterSection: React.FC = () => {
         surfaceColor="#C9CFD4"
       />
       {/* 每撬独立 pad + 金属型钢撬座（替代原两条通长地砖） */}
-      {/* 原水撬（原水箱+原水泵+进水阀） */}
-      <EquipmentPad3D center={[(PW_TANKS.raw.position[0] + PW_PUMPS.raw.position[0]) / 2, 0.02, S1]} size={[Math.abs(PW_TANKS.raw.position[0] - PW_PUMPS.raw.position[0]) + 3.2, 0.05, 4.0]} />
-      <SkidFrame3D center={[PW_PUMPS.raw.position[0], 0, S1]} size={singlePumpSkid} />
+      {/* 原水撬（原水箱+原水泵A/B+进水阀） */}
+      <EquipmentPad3D center={[(PW_TANKS.raw.position[0] + PW_PUMPS.rawA.position[0]) / 2, 0.02, S1]} size={[Math.abs(PW_TANKS.raw.position[0] - PW_PUMPS.rawA.position[0]) + 3.2, 0.05, 4.6]} />
+      <SkidFrame3D center={[PW_PUMPS.rawA.position[0], 0, S1]} size={pumpPairSkid(PW_PUMPS.rawA.position, PW_PUMPS.rawB.position)} />
       <SkidFrame3D center={[PW_TANKS.raw.position[0], 0, S1]} size={[3.2, 3.2]} railColor="#9AA4AD" />
       {/* 预处理撬（保安①+碳柱+一级进水阀+保安②） */}
       <EquipmentPad3D center={[(PW_UNITS.cart1.position[0] + PW_UNITS.cart2.position[0]) / 2, 0.02, S1]} size={[Math.abs(PW_UNITS.cart1.position[0] - PW_UNITS.cart2.position[0]) + 1.6, 0.05, 2.6]} />
-      {/* 一级 RO 撬（R01泵 + 一级膜组，共用底座） */}
-      <EquipmentPad3D center={[(PW_PUMPS.ro1.position[0] + PW_UNITS.ro1.position[0]) / 2, 0.02, S1]} size={[Math.abs(PW_PUMPS.ro1.position[0] - PW_UNITS.ro1.position[0]) + 2.4, 0.05, 2.8]} />
-      <SkidFrame3D center={[PW_PUMPS.ro1.position[0], 0, S1]} size={singlePumpSkid} />
+      {/* 一级 RO 撬（R01泵A/B + 一级膜组，共用底座） */}
+      <EquipmentPad3D center={[(PW_PUMPS.ro1A.position[0] + PW_UNITS.ro1.position[0]) / 2, 0.02, S1]} size={[Math.abs(PW_PUMPS.ro1A.position[0] - PW_UNITS.ro1.position[0]) + 2.4, 0.05, 4.6]} />
+      <SkidFrame3D center={[PW_PUMPS.ro1A.position[0], 0, S1]} size={pumpPairSkid(PW_PUMPS.ro1A.position, PW_PUMPS.ro1B.position)} />
       {/* R01水箱撬 */}
       <EquipmentPad3D center={[PW_TANKS.ro1.position[0], 0.02, S1]} size={[3.2, 0.05, 3.2]} />
       <SkidFrame3D center={[PW_TANKS.ro1.position[0], 0, S1]} size={[3.2, 3.2]} railColor="#9AA4AD" />
       {/* R02 双泵撬（并贴在同一型钢底座） */}
       <EquipmentPad3D center={[(PW_PUMPS.ro2A.position[0] + PW_PUMPS.ro2B.position[0]) / 2, 0.02, S2]} size={[Math.abs(PW_PUMPS.ro2A.position[0] - PW_PUMPS.ro2B.position[0]) + 1.8, 0.05, 2.6]} />
-      <SkidFrame3D center={[(PW_PUMPS.ro2A.position[0] + PW_PUMPS.ro2B.position[0]) / 2, 0, S2]} size={dualPumpSkid(PW_PUMPS.ro2A.position, PW_PUMPS.ro2B.position)} />
+      <SkidFrame3D center={[(PW_PUMPS.ro2A.position[0] + PW_PUMPS.ro2B.position[0]) / 2, 0, S2]} size={pumpPairSkid(PW_PUMPS.ro2A.position, PW_PUMPS.ro2B.position)} />
       {/* 二级膜撬 */}
       <EquipmentPad3D center={[PW_UNITS.ro2.position[0], 0.02, S2]} size={[3.4, 0.05, 2.0]} />
       {/* R02水箱撬 */}
@@ -384,13 +413,17 @@ export const PureWaterSection: React.FC = () => {
       <SkidFrame3D center={[PW_TANKS.ro2.position[0], 0, S2]} size={[3.2, 3.2]} railColor="#9AA4AD" />
       {/* 供水双泵撬 */}
       <EquipmentPad3D center={[(PW_PUMPS.supplyA.position[0] + PW_PUMPS.supplyB.position[0]) / 2, 0.02, S2]} size={[Math.abs(PW_PUMPS.supplyA.position[0] - PW_PUMPS.supplyB.position[0]) + 1.8, 0.05, 2.6]} />
-      <SkidFrame3D center={[(PW_PUMPS.supplyA.position[0] + PW_PUMPS.supplyB.position[0]) / 2, 0, S2]} size={dualPumpSkid(PW_PUMPS.supplyA.position, PW_PUMPS.supplyB.position)} />
+      <SkidFrame3D center={[(PW_PUMPS.supplyA.position[0] + PW_PUMPS.supplyB.position[0]) / 2, 0, S2]} size={pumpPairSkid(PW_PUMPS.supplyA.position, PW_PUMPS.supplyB.position)} />
       {/* 加药撬（阻垢剂桶+计量泵 / NaOH桶+计量泵） */}
       <EquipmentPad3D center={[(PW_TANKS.antiscalant.position[0] + PW_DOSE_PUMPS.antiscalant.position[0]) / 2, 0.02, (PW_TANKS.antiscalant.position[2] + PW_DOSE_PUMPS.antiscalant.position[2]) / 2]} size={[1.6, 0.05, Math.abs(PW_TANKS.antiscalant.position[2] - PW_DOSE_PUMPS.antiscalant.position[2]) + 0.6]} />
       <EquipmentPad3D center={[(PW_TANKS.naoh.position[0] + PW_DOSE_PUMPS.naoh.position[0]) / 2, 0.02, (PW_TANKS.naoh.position[2] + PW_DOSE_PUMPS.naoh.position[2]) / 2]} size={[1.6, 0.05, Math.abs(PW_TANKS.naoh.position[2] - PW_DOSE_PUMPS.naoh.position[2]) + 0.6]} />
       <PerimeterGuard3D />
       {/* 纯水厂房(墙+中柱+屋顶,遮蔽露天设备) */}
       <PureWaterBuilding3D />
+
+      {/* 配电/控制柜(落地,贴西墙内侧,柜门朝东) */}
+      <DistributionCabinet3D position={PW_CABINETS.ro1.position} rotation={[0, PW_CABINETS.ro1.rotationY, 0]} cabinetName={PW_CABINETS.ro1.name} />
+      <DistributionCabinet3D position={PW_CABINETS.ro2.position} rotation={[0, PW_CABINETS.ro2.rotationY, 0]} cabinetName={PW_CABINETS.ro2.name} />
 
       {/* ── 设备 ── */}
       <ChemicalTank3D id={PW_TANKS.raw.id} position={PW_TANKS.raw.position} size={PW_TANKS.raw.size} color={PW_TANKS.raw.color} hideAgitator />
@@ -463,22 +496,49 @@ export const PureWaterSection: React.FC = () => {
         startConnection="equipment" endConnection="equipment"
       />
 
-      {/* 原水箱 → 原水泵吸入(箱口先升到吸入口标高,再沿吸入轴水平进法兰面) */}
+      {/* 原水箱 → 原水泵 A/B 吸入汇管 */}
       <PipeOpenFlange3D position={[rawTx - 1.0, 0.46, rawTz]} axis="-x" radius={PW_BRANCH_R} color={FEED} />
       <Pipe3D
-        points={[[rawTx - 1.04, 0.46, rawTz], [rawTx - 1.04, rawSuction[1], rawTz], rawSuction]}
+        points={[[rawTx - 1.04, 0.46, rawTz], rawSuctionHeader.takeoff]}
         radius={PW_BRANCH_R} color={FEED} flowType="water" animated={true}
-        startConnection="equipment" endConnection="equipment"
-        endOverlap={PUMP_FACE_SEAT}
+        startConnection="equipment" endConnection="junction" endJunctionRole="continuous"
       />
+      <ConvergingHeader3D
+        start={rawSuctionHeader.start} takeoff={rawSuctionHeader.takeoff} end={rawSuctionHeader.end}
+        radius={PW_HEADER_R} color={FEED} flowType="water"
+      />
+      {rawSuctions.map((face, i) => (
+        <Pipe3D
+          key={`raw-suction-${i}`}
+          points={[[rawSuctionHeader.takeoff[0], PW_SUCTION_HEADER_Y, face[2]], [rawSuctionHeader.takeoff[0], face[1], face[2]], face]}
+          radius={PW_BRANCH_R} color={FEED} flowType="water" animated={true}
+          startConnection="junction" endConnection="equipment"
+          junctionTrim="start" junctionMateRadius={PW_HEADER_R}
+          endOverlap={PUMP_FACE_SEAT}
+        />
+      ))}
 
-      {/* 原水泵出口 → 保安①进口 */}
+      {/* 原水泵 A/B 排放汇管 → 保安①进口 */}
+      {rawDischarges.map((face, i) => (
+        <Pipe3D
+          key={`raw-discharge-${i}`}
+          points={[face, [face[0], PW_STAGE1_DISCHARGE_Y, face[2]]]}
+          radius={PW_BRANCH_R} color={FEED} flowType="water" animated={true}
+          startConnection="equipment" endConnection="junction"
+          junctionTrim="end" junctionMateRadius={PW_HEADER_R}
+          startOverlap={PUMP_FACE_SEAT}
+        />
+      ))}
+      <ConvergingHeader3D
+        start={rawDischargeHeader.start} takeoff={rawDischargeHeader.takeoff} end={rawDischargeHeader.end}
+        radius={PW_HEADER_R} color={FEED} flowType="water"
+      />
       <PipeOpenFlange3D position={cart1In} axis="+x" radius={PW_MAIN_R} color={FEED} />
       <Pipe3D
-        points={[rawDischarge, [rawDischarge[0], 1.35, S1], cart1In]}
+        points={[rawDischargeHeader.takeoff, cart1In]}
         radius={PW_MAIN_R} color={FEED} flowType="water" animated={true}
-        startConnection="equipment" endConnection="equipment"
-        startOverlap={PUMP_FACE_SEAT}
+        startConnection="junction" endConnection="equipment"
+        junctionTrim="start" junctionMateRadius={PW_HEADER_R}
       />
 
       {/* 保安① → 碳柱进口 */}
@@ -511,22 +571,49 @@ export const PureWaterSection: React.FC = () => {
         startConnection="equipment" endConnection="equipment"
       />
 
-      {/* 保安② → R01泵吸入(阻垢剂在此注入;先降到吸入口标高,再沿吸入轴水平进法兰面) */}
+      {/* 保安② → R01 泵 A/B 吸入汇管(阻垢剂在此注入) */}
       <PipeOpenFlange3D position={cart2Out} axis="-x" radius={PW_MAIN_R} color={FEED} />
       <Pipe3D
-        points={[cart2Out, [cart2Out[0] - 1.3, 0.79, S1], [cart2Out[0] - 1.3, ro1Suction[1], S1], ro1Suction]}
+        points={[cart2Out, [cart2Out[0] - 1.3, 0.79, S1], [cart2Out[0] - 1.3, PW_SUCTION_HEADER_Y, S1], ro1SuctionHeader.takeoff]}
         radius={PW_MAIN_R} color={FEED} flowType="water" animated={true}
-        startConnection="equipment" endConnection="equipment"
-        endOverlap={PUMP_FACE_SEAT}
+        startConnection="equipment" endConnection="junction" endJunctionRole="continuous"
       />
+      <ConvergingHeader3D
+        start={ro1SuctionHeader.start} takeoff={ro1SuctionHeader.takeoff} end={ro1SuctionHeader.end}
+        radius={PW_HEADER_R} color={FEED} flowType="water"
+      />
+      {ro1Suctions.map((face, i) => (
+        <Pipe3D
+          key={`ro1-suction-${i}`}
+          points={[[ro1SuctionHeader.takeoff[0], PW_SUCTION_HEADER_Y, face[2]], [ro1SuctionHeader.takeoff[0], face[1], face[2]], face]}
+          radius={PW_BRANCH_R} color={FEED} flowType="water" animated={true}
+          startConnection="junction" endConnection="equipment"
+          junctionTrim="start" junctionMateRadius={PW_HEADER_R}
+          endOverlap={PUMP_FACE_SEAT}
+        />
+      ))}
 
-      {/* R01泵出口 → 一级膜组进料端(东) */}
+      {/* R01 泵 A/B 排放汇管 → 一级膜组进料端(东) */}
+      {ro1Discharges.map((face, i) => (
+        <Pipe3D
+          key={`ro1-discharge-${i}`}
+          points={[face, [face[0], PW_STAGE1_DISCHARGE_Y, face[2]]]}
+          radius={PW_BRANCH_R} color={FEED} flowType="water" animated={true}
+          startConnection="equipment" endConnection="junction"
+          junctionTrim="end" junctionMateRadius={PW_HEADER_R}
+          startOverlap={PUMP_FACE_SEAT}
+        />
+      ))}
+      <ConvergingHeader3D
+        start={ro1DischargeHeader.start} takeoff={ro1DischargeHeader.takeoff} end={ro1DischargeHeader.end}
+        radius={PW_HEADER_R} color={FEED} flowType="water"
+      />
       <PipeOpenFlange3D position={ro1FeedPort} axis="+x" radius={PW_MAIN_R} color={FEED} />
       <Pipe3D
-        points={[ro1Discharge, [ro1Discharge[0], 1.35, S1], [ro1FeedPort[0] + 0.35, 1.35, S1], [ro1FeedPort[0] + 0.35, 1.31, S1], ro1FeedPort]}
+        points={[ro1DischargeHeader.takeoff, [ro1FeedPort[0] + 0.35, PW_STAGE1_DISCHARGE_Y, S1], [ro1FeedPort[0] + 0.35, 1.31, S1], ro1FeedPort]}
         radius={PW_MAIN_R} color={FEED} flowType="water" animated={true}
-        startConnection="equipment" endConnection="equipment"
-        startOverlap={PUMP_FACE_SEAT}
+        startConnection="junction" endConnection="equipment"
+        junctionTrim="start" junctionMateRadius={PW_HEADER_R}
       />
 
       {/* 一级冲洗:R01排放管 tee → 一级冲洗阀 → 地漏 */}
@@ -743,5 +830,6 @@ export const PureWaterSection: React.FC = () => {
         junctionTrim="end" junctionMateRadius={PW_HEADER_R}
       />
     </group>
+    </PipeAnimationContext.Provider>
   );
 };

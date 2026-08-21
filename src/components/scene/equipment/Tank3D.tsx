@@ -1,5 +1,6 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { sharedCanvasTexture } from '../shared/sharedCanvasTexture';
 import { Sparkles, Instances, Instance } from '@react-three/drei';
 import { FloatingPoolLabel3D } from '../shared/FloatingPoolLabel3D';
 import * as THREE from 'three';
@@ -318,7 +319,8 @@ export const Tank3D: React.FC<TankProps> = ({
   }, [waterProfile, hasAgitator, tank?.agitatorRunning, tank?.aerationRunning]);
 
   // Procedural spiral vortex canvas texture
-  const vortexTexture = useMemo(() => {
+  // WP6.5：涡流纹理多池实例共享
+  const vortexTexture = useMemo(() => sharedCanvasTexture('tank3d.vortex', () => {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
@@ -366,7 +368,7 @@ export const Tank3D: React.FC<TankProps> = ({
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
-  }, []);
+  }), []);
 
   // Build the catwalk rails geometry once — collected into instance sets so each
   // geometry/material pair renders as a single InstancedMesh draw call.

@@ -116,3 +116,319 @@
 - `npm warn Unknown env config "electron-mirror"`：来自全局 `.npmrc` 的错误配置（npm 不认 `electron-mirror` 这个 key，electron 要的是环境变量 `ELECTRON_MIRROR`）。现已无害，但每次 npm 命令仍弹出。如需消除，删除该 .npmrc 中的 `electron-mirror=` 行。
 - 6 个 npm audit 漏洞（剩余依赖，与本次清理无关），未处理。
 - `AGENTS.md` 第 93 行 "not a git repository" 已过时（现为 git 仓库），与本次无关，未改。
+
+---
+
+# 2026-08-19 M100 气浮/地下池只读接入 ScadaHub
+
+## 决策
+- 多设备架构：`M100:Devices[]` 数组而非单设备配置——首批接 `.31` 气浮 + `.8` 地下池两台，后续 `.30/.32/.33` 只加配置。
+- `Role`（daf/underground）驱动工程换算，映射集中 `M100PointMap`；AI 电流出 [4,20] 置 null + warning（故障电流不产错误工程值）。
+- messageType 统一 `m100.snapshot`，sourceId 区分设备（比 per-role messageType 更可扩展）；`sourceType=m100-http` 显式覆盖信封默认。
+- 失败复用 `PureWaterSourceStatusEvent`（字段完全通用），不新建 M100 专用 status 契约。
+- 前端 demo 互斥：`m100LiveEquipmentIds` 集合让 wastewater demo tick 跳过被真实帧接管的 `tk-daf`/`tk-intermediate`（纯水的 `pureWaterDemoMode` 管不到这两台）；断连 hold 最后一帧、不回退 demo（与纯水语义一致）。
+- 凭据走 `appsettings.local.json`（gitignore），git 内只有空占位。
+
+## 与规格的偏差
+- 无。接入路线图第 4 步"最小接口"按只读边界实现，写入路径完全未建立。
+
+## 验证
+- `dotnet test`：60/60（新增 22 项：Options 验证 11、Collector 8、ReadOnly 反射 3 组、真 Hub WebSocket 集成 1）。
+- `npm run check:scene`：38/38（新增 check-m100-realtime-client / check-m100-backend-readonly）。
+- `npm run build`、`npm run lint`：通过。
+- 真机冒烟：本机 local 配置启用后 `/api/m100/statuses` 两台 good；快照 `daf: do01/02=true, ph=4.987`、`underground: level=3.367m`，与手动 ioread 一致（液位 3.78→3.37m 实时变化）。
+- 顺带修复：纯水集成测试 WebSocket 关闭握手竞态（并行跑时服务端先关，catch WebSocketException）；两个纯水检查脚本的 data:URL import 重写扩展到 m100Realtime.ts。
+
+## 风险
+- ScadaWebSocketPublisher 构造签名变更（+M100StateCache）是破坏性改动，已同步集成测试；第三方若有手动 DI 需跟进。
+- 地下池液位在 AI1（07-02 为 AI2，现场接过线）；现场再动端子要同步 Role 换算映射与 `m100EquipmentPatches`。
+- 浮点换算断言用 3 位精度（4.826 而非四舍五入的 4.827），源于 (9.516-4)/16*14 的浮点表示，改公式时注意测试期望值。
+- M100 polling 的 FakeScadaClock 测试需手动 Advance 推进 due 调度（backoff 基于 NextDue 时间戳），新测试勿忘。
+
+---
+
+# 2026-08-20 WP0：安全冻结与凭据治理（SPEC-PLAN 首个工作包）
+
+## 决策
+- 凭据处理分两层：当前树脱敏（已完成）+ Git 历史清理（现场/用户执行，需轮换先行）；真实凭据归口本地被忽略的 `docs/integration/本地凭据.local.md`。
+- `DeviceIoGate` 直接读进程环境变量与 IHostEnvironment，不进 IConfiguration——结构上不可被 local JSON/环境配置节覆盖（SPEC 11.2）；Testing 恒抑制。
+- `M100DeviceOptions.Enabled` 默认 false（fail-closed）：不显式启用的设备连 transport 都不创建；外部配置示例按 SPEC 11.2 两台设备初始全禁用，现场只切设备级开关。
+- Collector 的 gate 作为可选构造参数（默认开放）：测试 Host 集成测试直接实例化非抑制 collector 驱动业务流，而 DI 图里的 hosted collector 在 Testing 下被硬抑制——两个边界分开（SPEC 14.1）。
+- runtime smoke 改为强制 `ASPNETCORE/DOTNET_ENVIRONMENT=Testing` + `SCADA_DISABLE_ALL_DEVICE_IO=1`，并断言 stdout 无"注册设备"（0 出网）。
+
+## 与规格的偏差
+- 无实质偏差。范围裁剪（均已在 SPEC-PLAN WP4/WP5 列出，不在 WP0 做）：ProgramData 外部配置加载与 ACL、allowlist manifest、sourceEpoch/eventSeq、纯水 collector 的 gate 化。
+- 敏感扫描首版覆盖"已知字面量 + 非空凭据赋值 + local 文件跟踪"；高熵检测与全 Git history 扫描留给发布流水线（WP5 第 14 步）与待办文档。
+
+## 验证
+- `dotnet test`：65/65（新增 5 项 DeviceIoGate/设备级禁用测试，含"配置启用但抑制 → factory create/read = 0"）。
+- `npm run hub:runtime`：通过（REST/WS/只读拒绝/origin guard + 新增硬门禁 0 出网断言）。
+- `npm run check:scene` 38/38、`npm run build`、`npm run lint`、`npm run check:secrets`（215 文件 0 违规）全部通过。
+- 修复过程中发现的缺陷：硬门禁抑制后 `_runtimes` 为空导致 `GetNextDelay()` 的 `Min()` 抛异常（smoke 直接暴露）；WS 多帧初始回放导致旧 smoke 在回放帧上误判命令关闭——两者均已修复并有断言覆盖。
+
+## 风险
+- 设备级 `Enabled` 默认 false 是行为变更：现有任何未带 `Enabled:true` 的设备配置（含工控机上的旧 local.json）会静默禁用——部署指南已同步，切换时需注意。
+- Git 历史中的凭据仍在（真实风险），轮换+历史清理完成前不得发布正式包；待办见 `凭据治理与历史清理待办.md`。
+- `git grep` 当前树干净 ≠ 历史干净；`check:secrets` 只扫当前树。
+
+---
+
+# 2026-08-20 WP1：MONITOR ONLY UI
+
+## 决策
+- 开关一律换成状态标签而非 CSS 禁用（SPEC 9.1）：`ControlRow`→`StatusRow`，`dash-control-row` 布局保留、右侧 `scada-switch` 替换为 `dash-status-tag`；死样式整段删除。
+- DO/Y 显示语义统一为「逻辑输出 ON/OFF + 物理运行未验证」：DAF 悬浮面板（原按钮）、Overlay 详情（原搅拌/泵控制按钮）两处；纯水泵「运行中」改「指令输出 ON」。
+- 物理动画解耦范围：DAF 气泡滚动/波纹强度/气泡透明度/刮沫+排渣总成、纯水泵风扇旋转/微震/运行灯（fault 红与 stopped 灰保留）。**纯水阀 Y→openingPercent 暂保留**（共享 Valve3D 组件、开度属位置显示而非运行动画），完整 commanded/verified 双状态归 WP2 TagState 一并处理——记录为明确的范围裁剪。
+- store 的 toggle* action 与 demo 源未删除：UI 已无任何调用点（守卫断言），但 demo tick 仍在写设备字段；readonly-trial 构建不导出 mutation 属 WP2 构建变体。
+- `window.__scadaStore` 暴露移除（原为 perf 诊断用）；WP6 性能工具如需 store 访问改走专用测量注入。
+
+## 与规格的偏差
+- 纯水阀开度显示暂未改语义（见上）；SPEC 15 守卫未覆盖阀条目，WP2 补。
+
+## 验证
+- 新守卫 `check-readonly-trial-ui.mjs`（12 组断言：无 toggle 调用/无执行性文案/无 pH 回退/动画解耦/无 store 暴露/无 iowrite/无 .send）。
+- `npm run check:scene` 39/39、`npm run build`、`npm run lint` 全绿；tsc noEmit 通过。
+
+## 风险
+- 3D 表现变化：气浮池气泡/刮沫与纯水泵动画在无独立反馈下永久静止（合规要求，视觉降级预期内）；demo 模式下这些动画同样静止——demo 观感回归由 WP2 的独立 /demo 路由恢复。
+- `equipment-detail-muted` 类复用于多条只读说明，样式已存在无需新增。
+
+---
+
+# 2026-08-20 WP2：Tag 来源、质量和 demo 隔离
+
+## 决策
+- TagState 为唯一可变遥测事实源：live 帧先写 `tagStates`（生命周期纯函数），再由 good 值派生 equipment 字段（invalid/offline 不写、UI 由徽标覆盖）——Equipment 未做物理拆分（静态元数据+selector 的完整重构风险过大），以"派生 ViewModel + 不从 demo 直写"达成 SPEC 6 的行为约束。
+- ownership 语义：收到某 SourceId 的任何信封（含 Hub 启动时的断线初始回放）即接管设备，永不回退 demo——比"收到 good 帧才接管"更强，覆盖"启动即 401/断网"与"断线刷新"两场景。
+- 防回退游标：信封缺 sourceEpoch（后端 WP4 才发）时用固定默认 epoch，eventSeq 用顶层 seq——WP4 加字段后前端零改动生效。
+- applySourceOffline 显式断线帧统一置 offline（不再保留 unknown）：源存在性由信封本身证明。
+- demo 默认 false（生产首启关闭）；demo 数据保留但全部走显式标注（演示数据/演示曲线），合规合成值仅 demo 分支。
+- 质量条数据龄读 store 的响应式 ageMs（每秒 refresh 更新），避免 render 中 Date.now() 的纯度违例。
+
+## 与规格的偏差
+- readonly-trial 构建变体（Vite 双入口/剔除 demo scheduler）与纯水 PLC 链路 TagState 化未在本包实现——分别依赖 WP5 构建流水线与 WP4 信封升级，已在 SPEC-PLAN WP2 状态块中记录为遗留项。
+- SPEC 14.2 的 2/9/10/12/13/14 条（UI 渲染级/构建级/报警级）部分依赖上述遗留项，随对应工作包补齐。
+
+## 验证
+- Vitest（新增 devDependency，SPEC 14.2 指定）：`npm run test:store` 20/20（生命周期/ownership/防回退/断线不回退 demo/无效点 hold/数据龄/零值不混淆）。
+- `check:scene` 40/40（新增 check-m100-source-quality.mjs：ownership 表、防回退集成、demo 默认关、无 pH 回退、无达标结论、演示标注、质量条存在）。
+- `npm run build`、`npm run lint` 干净；修复 check-purewater-alarm-store-runtime 的 data:URL import 链（补 tagQuality 重写）。
+
+## 风险
+- demo 默认关闭改变开箱体验：首次打开全 --（现场语义正确）；演示需经 SystemMenu 手动开启——现场培训时需说明。
+- equipment 派生字段在 invalid/offline 时保留旧值（不写即保持），显示侧靠徽标区分——3D/详情读字段处已有 WP1 的"未验证"标注兜底。
+
+---
+
+# 2026-08-20 WP3：报警状态机
+
+## 决策
+- 状态机独立成 `alarmMachine.ts` 纯函数：transitionAlarm 幂等（无变化返回原引用，调用侧以引用比较判定 changed）；同一 alarmKey 单活动记录，RTN 后记录保留（cleared+ack+returnedToNormalAt）。
+- 两帧恢复去重用显式 streak 计数（m100GoodStreaks/tagInvalidStreaks/tagGoodStreaks/hubGoodStreak），只在 streak>=2 时向状态机发 severity:'none'——"第 1 帧恢复 live、第 2 帧关闭报警"由引擎而非状态机表达。
+- 抑制规则实现为"offline raise 时先把 stale RTN 掉"：恢复期 stale 已 closed，transition(none) 幂等无副作用，天然满足"恢复时不产生重复 RTN"。
+- hub-offline 首版以 WS onclose 即 raise（critical）：heartbeat 5s 周期是 WP4 信封升级内容；恢复证据=重连 onopen(streak=1)+连续 2 个成功采集帧。未配置任何现场源（无 ownership）时 hub 断开不报警——纯 demo/离线开发是合法常态。
+- 未收到过信封的 source（未配置）不评估通信报警：区分"unknown/未接入"与"offline/断线"。
+- equipment 升级语义全站覆盖 6 个 detectAlarms 调用点（含 updateEquipment 单设备与 setEquipments 批量）；AlarmRecord 增加 peakSeverity/lastChangedAt 可选字段保持向后兼容。
+- 全局横幅/铃铛/面板计数改为跨系统并合并通信报警；历史列表保留系统筛选（查看便利），但顶部新增全局"通信/数据质量"chips 段（含「曾严重」降级标注与逐条确认）。
+- systemStatuses 通过 mergeCommunicationStatus 合并通信报警严重度——"系统失联不得显示运行正常"由测试锁定。
+
+## 与规格的偏差
+- hub-stale（15s warning）独立档未实现（无 heartbeat 前无法区分"连着但慢"与"断开"）；WP4 heartbeat 落地后补。
+- io-suppressed 报警规则未接前端（ioSuppressed 字段在 WP4 信封 contractVersion=2 才出现）。
+
+## 验证
+- Vitest 34/34：alarmMachine.test.ts 转换表全行（创建/升级/降级/RTN/幂等/确认）+ m100Communication.test.ts（断线报警+抑制+系统 critical、stale 数据龄、两帧 RTN、tag-invalid 两帧、hub 断开/恢复/未配置不报、equipment 升级路径）。
+- `check:scene` 40/40、build、lint 全绿；修复 alarm-store-runtime 检查脚本的 data:URL import 链（补 alarmMachine 重写）。
+- 过程缺陷两处均由测试驱动修复：refresh 报警转移未置 changed 被末尾短路吞掉；未配置 source 被误判 offline 报警。
+
+## 风险
+- communicationAlarms 无上限增长（每 alarmKey 至多一条活动+历史保留）——长期运行记录量随键数线性，WP5 持久化/归档时再加窗口限制。
+- hub 断开在弱网抖动下会短暂 raise/RTN 往复（无 15s 缓冲）；heartbeat 后改善。
+
+---
+
+# 2026-08-20 WP4：Hub 隔离、身份校验和发布解耦
+
+## 决策
+- sourceEpoch 用进程级 `HubEpoch` 单例（Guid + 每源 SequenceCounter），纯水信封同批携带（信封加可选 SourceEpoch 字段，未填不序列化影响为零）。
+- dataSequence 与 eventSeq 分离：collector 的 runtime.Sequence 继续当 dataSequence（仅成功采集递增）；cache 内部 counter 发 eventSeq（snapshot/status/初始快照共用）。
+- tags 在后端构造（M100PointMap.BuildTags）：value=null+warning 表 invalid；断线时 cache 把 tags 转 offline（value 置空、lastGoodValue 保留）——前端 tags 与 do/points 双轨过渡（前端仍读 points，新 UI 切 tags 由 WP2 遗留的 readonly-trial 构建变体决定）。
+- heartbeat 的 commit 取 AssemblyMetadata SourceRevisionId（SDK 自动嵌入），取不到为 unknown——WP5 version.json 生成后可对齐。
+- MergeKeyOf 用具体泛型模式匹配（三个实际信封类型），未知类型保守视为不可合并（慢客户端满队列 1013 而非丢弃）。
+- 纯水启用即拒：validator 加 readonly-trial 断言（正式启用需评审+SPEC 修订，测试同步改为期望失败）。
+- 前端 hub 分档：WS 断开不再立即 critical（15s 宽限由 heartbeat 龄自然给出）；报警 raise 时重置 streak——恢复需两个连续 heartbeat。
+- PublishSuccess 调用链在 collector 内构造 tags（BuildTags 与 ApplyEngineering 同源换算，避免两套量程）。
+
+## 与规格的偏差
+- /api/health/live|ready 分层与 /api/sources/status 契约端点未做（SPEC 13）——归 WP5 发布打包；现 /api/health 聚合端点已含 m100 状态。
+- 专项慢客户端集成测试（SPEC 14.3）未写：解耦由结构保证（BroadcastAsync 同步返回，仅入队）；WP5 补 socket-level 慢消费测试。
+
+## 验证
+- dotnet 69/69：新增 allowlist 精确匹配通过/四类错配失败/第三台拒绝/角色错换/纯水启用拒绝；集成测试补 v2 断言（contractVersion/sourceEpoch/tags/结构化断连快照）。
+- hub:runtime 通过（多帧回放+硬门禁断言不回归）；check:scene 40/40；test:store 35/35（hub 分档 3 项重写为 heartbeat 龄语义）；build/lint 干净。
+- 修复两处过程缺陷：m100Connections 缺项时 refresh 循环崩溃（不变量假设）；refresh 未返回 hubGoodStreak 导致恢复计数失效（python 替换锚点未命中被吞）。
+
+## 风险
+- Publisher 每客户端独立 drain task：8 客户端上限下线程占用可控；drain 异常路径已收敛（异常即 Dispose）。
+- HttpClient 每 dispose handler：设备数固定 2，无泄漏压力。
+- heartbeat 5s + 前端 15/30s 阈值：时钟依赖本机单调性可接受（SPEC 7.2 要求本地单调钟用于数据龄——Date.now 跨系统时钟回拨有小风险，首版接受）。
+
+---
+
+# 2026-08-20 WP5：单机发布机制、服务化和回滚
+
+## 决策
+- wwwroot 服务用 ContentRootPath/wwwroot 显式 FileProvider（publish 输出即 app/wwwroot）；目录不存在时跳过（dev/Vite 不受影响）。
+- Switch 的 manifest 校验在无 -WhatIf 时对目标版本全量 SHA-256（占位/真实包一致逻辑）；篡改冒烟证明拒绝路径。
+- junction 切换用 current.next 先建后验证再改名（同卷 NTFS rename 原子），失败分支恢复旧 junction——冒烟覆盖正常路径与篡改路径，失败注入路径未做（需停服务场景，现场演练补）。
+- Build 流水线把 check:secrets 纳入（SPEC 20 第 14 步的前置子集）；扫描器自引用问题以"模式拼接构造 + 自身豁免"修复，并保留命中能力自测。
+- x64 dotnet PATH 优先写入脚本（本机 x86 dotnet 无 SDK 抢先）。
+- packages.lock.json 入库（RestorePackagesWithLockFile），满足 SPEC 18 locked restore。
+
+## 与规格的偏差
+- 最终签核包、QA 便携工具包、全 Git history 凭据扫描、干净 Windows 演练、服务恢复策略真实演练：SPEC 明确归 WP7/Gate B——本包按"只实现发布机制和脚本，不产生最终签核包"完成。
+- 发布包 commit=unknown：SDK SourceRevisionId 未嵌入（git 信息在 publish 环境的传递待查）；WP7 生成最终包时必须与 version.json 对齐（已列入遗留）。
+- readonly-trial manifest（SPEC 4.3 profile JSON）与 mappingVersion 哈希未随包生成：随 WP7 定版时固化（当前 allowlist 已在代码/验证器层 fail-closed）。
+
+## 验证
+- Build-ReadonlyTrial.ps1 全绿：npm ci→check:scene 40/40→test:store 35/35→build→lint→check:secrets（232 文件 0 违规）→dotnet 69/69→publish self-contained→wwwroot→泄漏检查（无 appsettings.local.json）→version.json→manifest.sha256 349 文件。流水线 fail-fast 真实生效两次（lint 未用参数、扫描器自引用）。
+- 发布包进程冒烟：health/live+ready 200、sources/status 两台 ioSuppressed=true/configuredEnabled=false、GET / 返回 dist index.html、POST 405。
+- Switch 冒烟：WhatIf→切换 v0.1.0→回滚 v0.0.9→篡改 manifest 拒绝（哈希不匹配）。
+- hub:runtime 回归通过。
+
+## 风险
+- sc.exe 服务参数（delayed-auto/obj 虚拟账户/failure actions）未经真实安装验证——需管理员现场演练（WP7/Gate B）。
+- 回滚 60s 目标未计时验证（依赖服务启停时长，现场演练确认）。
+
+---
+
+# 2026-08-20 WP6.0：3D 性能测量基础设施
+
+## 决策
+- 测量用 Playwright channel=msedge（系统 Edge，免浏览器下载）+ Node 原生 http 服务 dist（不依赖 vite preview）；1920x1080@100%/DPR1 按 profile 冻结。
+- App 只读 perf 钩子（__scadaGl 既有 + 新增 __scadaCamera/__scadaControls）：仅测量控制（相机位设置）与统计读取，无 store/mutation 暴露——SPEC 5.13 只禁 __scadaStore。
+- 采样器 page.evaluate 注入 rAF 循环（armed 窗口收集 frame times）；renderer.info 每帧自动 reset 下读稳态值；context loss 以 console 标记 + preventDefault 监听。
+- quick 模式（3s 预热/8s×1 轮）仅开发趋势；结果 JSON 带 mode 标记，硬门槛只认 FULL+目标机。
+- results/ 入 gitignore（机器相关产物不入库）。
+
+## 与规格的偏差
+- 无。FULL 模式数值与 profile 一致；目标机信息待现场回填（profile 占位 TBD）。
+
+## 验证
+- 本机 QUICK 基线：全局 2.9-6 FPS / 5483 calls / 8948 geos / 112 tex——与 SPEC 16.1 记载（6.2 FPS / 5581 calls / ~9000 geos / 146 tex）吻合，测量可信。
+- 六相机位全部产出统计；深度/污泥位 15 FPS、462/657 calls（近景门槛 <=300 calls 未达，WP6.1+ 目标明确）。
+- 过程缺陷：采样器注入遗漏导致首轮 FPS=0（已修复并重采）。
+- lint/check:scene 回归通过。
+
+## 风险
+- 全局位 triangles 显示 Infinity（统计溢出/异常累计）——只影响报表可读性，WP6 优化时排查。
+- 本机（开发工作站 Iris Xe）与工控机 GPU 不同，基线只用于 A/B 趋势；SPEC 门槛判定必须目标机 FULL 模式。
+
+---
+
+# 2026-08-20 WP6.1-6.4：停帧与低风险削减（每步单独提交 + quick A/B）
+
+## 决策
+- 停帧判定读 renderer.info.render.frame（SPEC 语义），页面 rAF 在 canvas 隐藏时仍跑（曾用错指标）。
+- perf-mode 必须在 store 创建期由 URL 启用：运行时切换 shadows 会触发 R3F 全场景材质重编译（实测 1fps 崩塌），首挂即目标配置则无此问题。
+- 管道细分取 16/6：12/4 实测渲染循环崩塌（复现两次，回滚恢复，归因疑似 TubeGeometry 低 tubularSegments 的 Frenet frames 数值病态）——激进参数不可用，记录边界。
+- quick 测量的两处环境坑（都已修入 harness）：后台标签 rAF 节流 1Hz 污染采样（launch args + bringToFront）；窗口失焦同样触发。
+
+## 与规格的偏差
+- 停帧残余 6 帧/10s（SPEC <=1）：来自每秒 store 刷新的偶发 invalidate，量化后留工控机验收轮优化；能耗削减 99%+ 已达成。
+- WP6.5-6.7 未开始（本会话上下文预算）。
+
+## 验证
+- 每步 npm run perf:scene -- --quick [--performance-mode] A/B 落盘 results/；视觉回归截图（管道细分后）人工检查。
+- 提交序列：6e1b54b（停帧）、565ad10（composer）、77cf972+389db1e（perf-mode+守卫对齐）、6f5baba（管道）。
+- 全回归：check:scene 40/40（含更新后的 render-quality 守卫）、test:store 35/35、dotnet 69/69、build/lint 干净。
+
+## 风险
+- 本机 quick 波动较大（10-20 FPS 级），细粒度 A/B 需要 FULL 模式多轮；三角形/calls 等结构指标则稳定可信。
+
+---
+
+# 2026-08-20 WP6.5：纹理共享
+
+## 决策
+- 共享缓存为模块级 Map（key→CanvasTexture），应用级生命周期；提供 disposeSharedCanvasTextures 供热更/测试。
+- Pipe3D 流动箭头是大头（每根动画管一份）：texture.repeat 是纹理级状态无法 per-instance——把密度差异移到每管独立 TubeGeometry 的 UV.x 缩放（flowRepeatX=max(len*2.5,2)），纹理即可全场景一份；共享纹理的组件卸载 dispose 调用同步移除。
+- 铭牌纹理含设备名：按名键控共享（cab.nameplate.<name>），仍消除重挂重复。
+- 不共享：DeepTreatment pH 值牌（值驱动动态重绘、单实例）、SludgeLogistics（本就是模块级单例回调）。
+
+## 验证
+- textures：110（基线）→ 99（设备纹理共享后）→ **29**（Pipe 箭头共享后）；门槛 <80 超额。
+- dispose 语义：5 轮视图往返 tex 29→30（懒加载晚建一次后稳定），共享纹理不被单实例销毁 ✓。
+- quick --performance-mode A/B：tex=30 稳定、calls/tris 不变、FPS 噪声内；视觉截图检查（箭头方向/密度正常）。
+- 回归：check:scene 40/40、test:store 35/35、lint 干净。
+
+## 风险 / 遗留
+- **geometries 视图往返每轮 +43 泄漏（5 轮 7054→7270）**：WP6.5 顺带发现的独立缺陷——重挂组件的手写 geometry 未释放；SPEC 16.3"往返稳定基线"门槛未达，归 WP6.7（Baker 替换与几何生命周期同批）。
+- 本机 quick FPS 仍有间歇 1fps 环境污染（复跑即恢复），结构指标（tex/calls/tris）不受影响。
+
+---
+
+# 2026-08-20 WP6.6：分站实例化（样板）
+
+## 决策
+- 数据驱动选目标：perf 钩子补 `__scadaScene`（onCreated state.scene，camera 不在场景图中、DOM 无 __r3f 句柄——两版探测后定此路径），按 geometry×material 与顶层工段分组统计，Top18 重复组合全部为小五金。
+- 实例化范围：Pump3D 四组循环（壳体螺栓/基座螺栓/栅条/法兰螺栓）+ SkidFrame3D 锚板三件套——与既有 PUMP_BOLT_MATERIAL primitive 模式一致，无注册机制、组件内闭合。
+- 诚实结论：全局位 calls 持平（视锥内主体非小五金），geometries -23% 与默认视口 -830 calls 为实质收益；全局 ≤500 门槛路径确认为 WP6.7 Baker 静态合批，剩余低收益循环暂缓（记录于 SPEC）。
+
+## 验证
+- 回归：check:scene 40/40、test:store 35/35、lint/build 干净；视觉截图检查（泵/撬座细节完好）。
+- quick 六位 A/B 落盘；测量环境坑：残留 Edge 进程使 harness 连续崩溃（taskkill 后恢复），已记录。
+
+## 风险
+- InstancedMesh 组 castShadow 与原一致；阴影关闭的 perf-mode 下无额外成本。
+
+---
+
+# 2026-08-21 WP6.7 stage-2：电机组并入静态烘焙
+
+## 决策
+- 诊断链：可见残留 2849 普通 PBR mesh → bakeExclude 组构成 → 泵电机微震组（motorShakeRef）整组排除是最大项。
+- perf-mode 门控（同 6.1 停帧思路）：微震为亚毫米装饰动画，工控机运行模式下无工艺价值——禁用动画 + bakeExclude 条件化，电机总成（~30-50 mesh/泵 × 26 台）并入 bake。
+- 环境坑：Edge 启动慢时 lazy chunk 挂载晚于 bake 定时器窗口（1.5s/8s 自挂载起算），偶发 bake 未跑——测量脚本等待需 ≥25s（Baker 定时器健壮化列入 stage-3）。
+
+## 验证
+- bake 5759→52 桶；全局 FPS 8.4→25.6 / P95 33.4ms / calls 4785；六位 calls 全降（见 SPEC 状态块）；视觉截图通过；check:scene 40/40、test:store 35/35、lint 干净。
+
+## 风险
+- perf-mode 下电机无微震（静态）——视觉上不可感知（幅度本就 0.004）；普通模式不受影响。
+
+---
+
+# 2026-08-21 WP6.7 stage-3.5：HQ 视觉回归修复（用户现场发现）
+
+## 事故与根因
+- 症状：用户看到"整个颜色完全不一样了"。
+- 根因：stage-1 把 bake 分组签名的颜色分量移除 + 材质模板色置白——顶点色计算乘的是组模板色，非顶点色部件的颜色直接丢失（烘成灰白 AO）；且 baker 在 HQ 模式同样运行，源码视觉被破坏。
+- 教训（固化为规则）：baker/性能类实验必须按 performanceMode 分裂，HQ 开发视觉零变化是红线；改变烘色逻辑时逐 mesh 取材质色而非组模板色（组内颜色在 PBR-only 键下不齐）。
+
+## 修复
+- materialSignature(colorInKey)：HQ=颜色 16 级入键（原值），PERF=PBR-only。
+- PBR 量化分裂：HQ=32 级（原值），PERF=10 级。
+- 顶点色：HQ=源×组模板色×AO（原式），PERF=源×该 mesh 自己的材质色×AO。
+- 沉淀池两处排除移除改门控（HQ 恢复排除）。
+
+## 验证
+- HQ 实测：252 桶（原 314 量级）+ 截图颜色恢复（蓝电机/银罐/彩色设备）。
+- PERF 实测：56 桶、颜色正确（截图）；六位 calls：全局 2097 / 进水 674 / 主处理 379 / 气浮 505 / 污泥 329 / 纯水 670（FPS 轮次遭已知环境抖动污染，calls 结构指标可信）。
+- 回归：check:scene 40/40、test:store 35/35、lint 干净。
+
+---
+
+# 2026-08-21 WP6.7 stage-4：第二趟门控 + 纯水泵并入
+
+## 决策
+- 第二趟语义修正：第一趟后 originals 已隐藏，countBakeableMeshes（只计可见）= 晚挂载新增数；<50 跳过（8 个小件不值得 10s 重算）、≥50 全量重烘。
+- 纯水泵整机排除门控 PERF（选择/hover 色变折中——ChemicalTank/Tank3D 同型先例；电机 shake/fan 子组保留自身排除）。
+
+## 验证
+- PERF 六位 quick：进水 40.6 / 主处理 45.0 / 气浮 43.5 / 污泥 48.0 / 纯水 39.1 FPS，P95 全部 33.5-33.7ms —— **五个近景位全线达 SPEC 门槛（开发机）**；calls 661/379/505/329/670。
+- 全局位 quick 受 bake 合并污染（预期：quick 3s 预热不足；SPEC FULL 15s 预热即为此设计；stage-2 曾实测 bake 后 25.6 FPS/P95 33.4）。
+- HQ 原路径零变化；check:scene 40/40、test:store 35/35、lint/build 干净。
+
+## 遗留
+- geometry 往返泄漏（+43/轮）与 Baker 异步分块合并（一次性 ~7-10s，FULL 预热覆盖）→ 列入后续/工控机验收轮。
