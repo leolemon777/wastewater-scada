@@ -95,6 +95,8 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
 }) => {
   const [radius, height] = size;
   const tankData = useScadaStore((state) => state.equipments[id] as TankData);
+  // WP6.7：工控机模式并入静态 bake（桶身静态；涡流/搅拌轴动画在子组仍有自己的排除标记）。安全：选择高亮/hover 色变在此模式下不重绘桶身（PERF 折中）。
+  const performanceMode = useScadaStore((state) => state.performanceMode);
   const pureWaterConnectionState = useScadaStore((state) => state.pureWaterPlcConnection.state);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
@@ -187,7 +189,7 @@ export const ChemicalTank3D: React.FC<ChemicalTank3DProps> = ({
   const labelY = -height * 0.04;
 
   return (
-    <group position={position} userData={{ bakeExclude: true }}>
+    <group position={position} userData={{ bakeExclude: !performanceMode }}>
       <mesh
         visible={false}
         onClick={(e) => { e.stopPropagation(); setSelectedEquipment(id); }}
