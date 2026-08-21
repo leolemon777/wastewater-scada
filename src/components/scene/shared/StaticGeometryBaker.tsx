@@ -168,6 +168,12 @@ const bakedMarkers = new WeakSet<THREE.Object3D>();
 // otherwise each toggle leaks one MeshStandardMaterial per bucket.
 let bakedMaterials: THREE.Material[] = [];
 
+function countBakeableMeshes(scene: THREE.Scene): number {
+  const entries: { mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }[] = [];
+  collectStaticMeshes(scene, entries);
+  return entries.length;
+}
+
 function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.Group | null>, perfMode: boolean) {
   // Tear down any previous bake: remove the merged group, dispose its merged
   // geometries, AND dispose the shared materials minted last pass (fix for the
@@ -189,7 +195,7 @@ function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.
 
   const entries: { mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }[] = [];
   collectStaticMeshes(scene, entries);
-  if (entries.length === 0) return;
+  if (entries.length === 0) return 0;
   const groups = groupByMaterial(entries, !perfMode, perfMode);
 
   const bakedGroup = new THREE.Group();
@@ -337,6 +343,7 @@ function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.
     bakedGroupRef.current = bakedGroup;
   }
   console.log(`[baker] merged ${entries.length} static meshes into ${bakedGroup.children.length} draw calls`);
+  return entries.length;
 }
 
 export const StaticGeometryBaker: React.FC<{ rebuildKey?: string }> = ({ rebuildKey }) => {
@@ -351,8 +358,23 @@ export const StaticGeometryBaker: React.FC<{ rebuildKey?: string }> = ({ rebuild
     // second pass at ~4.5s catches geometry that mounted late (e.g. after
     // <Preload all> resolves in high-quality mode, or after the first demo tick
     // updates store-driven conditionals). Each pass fully tears down and re-bakes.
-    const t1 = window.setTimeout(() => doBake(scene, bakedGroupRef, performanceMode), BAKE_DELAY_MS);
-    const t2 = window.setTimeout(() => doBake(scene, bakedGroupRef, performanceMode), BAKE_SECOND_PASS_MS);
+    const t1 = window.setTimeout(() => {
+      doBake(scene, bakedGroupRef, performanceMode);
+    }, BAKE_DELAY_MS);
+    const t2 = window.setTimeout(() => {
+      // WP6.7-4a：第二趟只为捕获晚挂载几何 —— 无新增静态 mesh 时跳过
+      // 全量重算（第二趟 merge 是 ~10s 主线程阻塞的主要来源）。
+      // 第一趟后 originals 已隐藏（visible=false 不入 count），
+      // 可见静态 mesh 数即晚挂载新增数。
+      const newcomers = countBakeableMeshes(scene);
+      // 少量晚挂载（<50 mesh，多为标签/小件）不值得一次全量重算（~10s 主线程阻塞）。
+      if (newcomers < 50) {
+        console.log(`[baker] second pass skipped (${newcomers} late meshes below threshold)`);
+        return;
+      }
+      console.log(`[baker] second pass: ${newcomers} late meshes`);
+      doBake(scene, bakedGroupRef, performanceMode);
+    }, BAKE_SECOND_PASS_MS);
     return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
   }, [scene, rebuildKey, performanceMode]);
 

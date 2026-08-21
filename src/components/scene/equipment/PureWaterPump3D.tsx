@@ -49,7 +49,7 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
     pumpData.runStatus === 'fault' ? 'fault' : 'stopped';
 
   return (
-    <group position={position} rotation={rotation} userData={{ bakeExclude: true }}>
+    <group position={position} rotation={rotation} userData={{ bakeExclude: !performanceMode }}>
       <mesh
         visible={false}
         onClick={(e) => { e.stopPropagation(); setSelectedEquipment(id); }}
