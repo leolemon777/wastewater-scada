@@ -121,30 +121,22 @@ function collectStaticMeshes(
  * render passes stay separated. This collapses ~900 meshes into ~20–40 PBR
  * draw calls — comfortably under the ≤300 budget.
  */
-const COLOR_LEVELS = 16;   // per channel → 4096 colour buckets
-const PBR_LEVELS = 32;     // roughness/metalness quantisation
+const PBR_LEVELS = 10;     // WP6.7: PBR 粗化到 10 级（颜色在顶点色，组数由属性组合决定）
 
 function materialSignature(mat: THREE.Material): string | null {
   const m = mat as THREE.MeshStandardMaterial;
   if (!m || typeof m.color === 'undefined') return null;
-  // Colour: 16 levels per channel (coarse but fine enough that adjacent paint
-  // colours stay distinct).
-  const r = Math.round(m.color.r * (COLOR_LEVELS - 1));
-  const g = Math.round(m.color.g * (COLOR_LEVELS - 1));
-  const b = Math.round(m.color.b * (COLOR_LEVELS - 1));
-  // Roughness / metalness: quantised to ~32 levels so near-identical metals
-  // (#6F7476 r0.66 m0.34 vs #6E7477 r0.66 m0.35) share one bucket.
+  // WP6.7：颜色不再参与分组 —— 烘焙材质是 vertexColors，每个部件的真实颜色
+  // 已经乘进顶点色（见下方 colors 循环），材质模板色保持白色。因此只需按
+  // PBR 光学属性（roughness/metalness/透明/自发光/clearcoat）分桶，
+  // 组数从 ~314 降到 PBR 组合数（~20-40）。
   const rough = Math.round((m.roughness ?? 1) * (PBR_LEVELS - 1));
   const metal = Math.round((m.metalness ?? 0) * (PBR_LEVELS - 1));
   const transparent = (m.transparent && (m.opacity ?? 1) < 1) ? 1 : 0;
   const emissive = (m as THREE.MeshStandardMaterial).emissive;
   const hasEmissive = emissive && (emissive.r > 0 || emissive.g > 0 || emissive.b > 0);
-  // Clearcoat: a painted-enamel part (MeshPhysicalMaterial w/ clearcoat) must
-  // NOT merge into the same bucket as a matte painted part with identical base
-  // colour/rough/metal — the lacquer specular is a distinct visual surface.
-  // Bucket clearcoat to ~8 levels so painted-vs-lacquered stay separate.
   const clearcoat = Math.round(((m as THREE.MeshPhysicalMaterial).clearcoat ?? 0) * 7);
-  return `${r}_${g}_${b}|r${rough}|m${metal}|t${transparent}|e${hasEmissive ? 1 : 0}|cc${clearcoat}`;
+  return `r${rough}|m${metal}|t${transparent}|e${hasEmissive ? 1 : 0}|cc${clearcoat}`;
 }
 
 function groupByMaterial(
@@ -208,7 +200,8 @@ function doBake(scene: THREE.Scene, bakedGroupRef: React.MutableRefObject<THREE.
   const hiddenOriginals: THREE.Mesh[] = [];
   for (const [, { material, meshes }] of groups) {
     const src = material as THREE.MeshStandardMaterial;
-    const col = src.color ? src.color.clone() : new THREE.Color(0xcccccc);
+    // 顶点色承载真实颜色：材质模板色不再使用（保持白色），避免双重乘。
+    const col = new THREE.Color(1, 1, 1);
     const groupGeos: THREE.BufferGeometry[] = [];
     for (const m of meshes) {
       const g = m.geometry.clone();
