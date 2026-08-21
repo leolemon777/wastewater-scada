@@ -99,6 +99,8 @@ const PumpProcessFlanges: React.FC<{
 
 export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 0] }) => {
   const pumpData = useScadaStore((state) => state.equipments[id] as PumpData);
+  // WP6.7：工控机运行模式禁用亚毫米装饰微震，电机总成并入静态 bake。
+  const performanceMode = useScadaStore((state) => state.performanceMode);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
   const [hovered, setHovered] = React.useState(false);
@@ -117,7 +119,7 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
     // guard stay outside this group so the shake never shears their rigid
     // interfaces with the static skid and volute (check-pump-vibration-rigidity).
     const shake = motorShakeRef.current;
-    if (shake) {
+    if (shake && !performanceMode) {
       if (running) {
         const t = clock.elapsedTime;
         // High-frequency sub-millimetre hum (unscaled space; ×0.5 machine scale).
@@ -242,7 +244,7 @@ export const Pump3D: React.FC<Pump3DProps> = ({ id, position, rotation = [0, 0, 
             interfaces with the static skid/volute and must NOT ride this
             group, or the tremor would shear a visible gap every frame.
             bakeExclude keeps the live group out of the static bake. */}
-        <group ref={motorShakeRef} userData={{ bakeExclude: true }}>
+        <group ref={motorShakeRef} userData={{ bakeExclude: !performanceMode }}>
         {/* Motor Assembly */}
         <group position={[0, 0.88, 0.58]}>
           {/* Main Motor Cylinder — cast-iron TEFC frame, painted RAL 6001.

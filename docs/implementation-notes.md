@@ -381,3 +381,18 @@
 
 ## 风险
 - InstancedMesh 组 castShadow 与原一致；阴影关闭的 perf-mode 下无额外成本。
+
+---
+
+# 2026-08-21 WP6.7 stage-2：电机组并入静态烘焙
+
+## 决策
+- 诊断链：可见残留 2849 普通 PBR mesh → bakeExclude 组构成 → 泵电机微震组（motorShakeRef）整组排除是最大项。
+- perf-mode 门控（同 6.1 停帧思路）：微震为亚毫米装饰动画，工控机运行模式下无工艺价值——禁用动画 + bakeExclude 条件化，电机总成（~30-50 mesh/泵 × 26 台）并入 bake。
+- 环境坑：Edge 启动慢时 lazy chunk 挂载晚于 bake 定时器窗口（1.5s/8s 自挂载起算），偶发 bake 未跑——测量脚本等待需 ≥25s（Baker 定时器健壮化列入 stage-3）。
+
+## 验证
+- bake 5759→52 桶；全局 FPS 8.4→25.6 / P95 33.4ms / calls 4785；六位 calls 全降（见 SPEC 状态块）；视觉截图通过；check:scene 40/40、test:store 35/35、lint 干净。
+
+## 风险
+- perf-mode 下电机无微震（静态）——视觉上不可感知（幅度本就 0.004）；普通模式不受影响。

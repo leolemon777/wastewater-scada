@@ -24,6 +24,8 @@ const HEAD_DARK = '#3E4752';
  */
 export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, rotation = [0, 0, 0], scale = 0.65 }) => {
   const pumpData = useScadaStore((state) => state.equipments[id] as PumpData);
+  // WP6.7：工控机运行模式禁用装饰微震，电机总成并入静态 bake。
+  const performanceMode = useScadaStore((state) => state.performanceMode);
   const pureWaterConnectionState = useScadaStore((state) => state.pureWaterPlcConnection.state);
   const isSelected = useScadaStore((state) => state.selectedEquipmentId === id);
   const setSelectedEquipment = useScadaStore((state) => state.setSelectedEquipment);
@@ -138,7 +140,7 @@ export const PureWaterPump3D: React.FC<PureWaterPump3DProps> = ({ id, position, 
           </mesh>
 
           {/* 立式电机 — 静止外壳 + 微震(机座/泵筒体/联轴器不在此组,接口保持刚性) */}
-          <group ref={motorShakeRef} position={[0, 0, 0]} userData={{ bakeExclude: true }}>
+          <group ref={motorShakeRef} position={[0, 0, 0]} userData={{ bakeExclude: !performanceMode }}>
             <mesh castShadow receiveShadow position={[0, 2.35, 0]}>
               <cylinderGeometry args={[0.32, 0.32, 0.85, 36]} />
               <meshStandardMaterial color={accentColor} roughness={0.4} metalness={0.4} />
